@@ -612,15 +612,7 @@
   </div>
 </div>
 
-<!-- Libraries via CDN -->
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script>
-  if (window['pdfjsLib']) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-  }
-</script>
+<!-- Libraries will be lazy-loaded when needed -->
 
 <script type="module">
 import { createClient } from '@supabase/supabase-js';
@@ -703,6 +695,42 @@ async function dbDel(store, key){ return new Promise(async(res,rej)=>{ const s=a
  * =======================================================*/
 const $ = (s,r=document)=>r.querySelector(s);
 const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
+
+function throttle(func, limit) {
+  let inThrottle;
+  return function(...args) {
+    if (!inThrottle) {
+      func.apply(this, args);
+      inThrottle = true;
+      setTimeout(() => inThrottle = false, limit);
+    }
+  };
+}
+
+async function loadExternalScript(url) {
+  if (document.querySelector(`script[src="${url}"]`)) return;
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = url;
+    s.onload = res;
+    s.onerror = rej;
+    document.head.appendChild(s);
+  });
+}
+
+async function ensureEpubLibs() {
+  if (window.ePub) return;
+  await loadExternalScript("https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js");
+  await loadExternalScript("https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js");
+}
+
+async function ensurePdfLib() {
+  if (window.pdfjsLib) return;
+  await loadExternalScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js");
+  if (window.pdfjsLib && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+}
 
 function toast(msg, ms=1800){
   const el = $('#status'); el.textContent = msg; el.classList.add('show');
@@ -908,13 +936,22 @@ async function openBook(id){
   const notes = await dbGet('notes', id);
   $('#notebook').value = notes?.content || '';
 
-  if(b.type==='epub') await renderEpub(b.data.slice(0), saved);
-  else if(b.type==='pdf') await renderPdf(b.data.slice(0), saved);
-  else await renderTxt(b.data.slice(0), saved);
+  if(b.type==='epub') {
+    toast('Carregando motor EPUB...', 1500);
+    await ensureEpubLibs();
+    await renderEpub(b.data.slice(0), saved);
+  } else if(b.type==='pdf') {
+    toast('Carregando motor PDF...', 1500);
+    await ensurePdfLib();
+    await renderPdf(b.data.slice(0), saved);
+  } else {
+    await renderTxt(b.data.slice(0), saved);
+  }
   applySettings(state.settings);
 }
 function closeBook(){
   if(state.activeBook?.rendition){ try{ state.activeBook.rendition.destroy(); }catch(e){} }
+  $('#reader').onscroll = null; // Cleanup scroll listener
   state.activeBook = null;
   $('#landing').classList.remove('hidden');
   $('#reader').classList.add('hidden');
@@ -1029,11 +1066,11 @@ async function renderTxt(buf, saved){
   renderToc();
   const reader = $('#reader');
   reader.scrollTop = saved?.scrollTop || 0;
-  const onScroll = ()=>{
+  const onScroll = throttle(()=>{
     const p = reader.scrollTop / Math.max(1, (reader.scrollHeight - reader.clientHeight));
     updateProgress(p);
     saveProgress({ scrollTop: reader.scrollTop, percentage: p });
-  };
+  }, 500);
   reader.onscroll = onScroll;
   onScroll();
 }
