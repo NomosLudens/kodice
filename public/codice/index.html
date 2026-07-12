@@ -770,19 +770,33 @@ async function nav(direction){
  * =======================================================*/
 async function saveProgress(payload){
   const b = state.activeBook; if(!b) return;
-  const row = { book_id:b.id, title:b.title, updated_at:Date.now(), ...payload };
-  await dbPut('progress', row);
-  queueSync('progress', row);
+  const local = { book_id:b.id, title:b.title, updated_at:Date.now(), ...payload };
+  await dbPut('progress', local);
+  if(state.user){
+    queueSync('progress', {
+      user_id: state.user.id,
+      book_id: b.id,
+      title: b.title || null,
+      cfi: payload.cfi ?? null,
+      page: Number.isFinite(payload.page) ? payload.page : null,
+      scroll_top: Number.isFinite(payload.scrollTop) ? payload.scrollTop : null,
+      percentage: typeof payload.percentage === 'number' ? payload.percentage : null,
+    });
+  }
 }
 let notesTimer;
 function scheduleNotesSave(){
   clearTimeout(notesTimer);
   notesTimer = setTimeout(async()=>{
     const b = state.activeBook; if(!b) return;
-    const row = { book_id:b.id, content: $('#notebook').value, updated_at:Date.now() };
-    await dbPut('notes', row);
-    queueSync('notes', row);
-    toast('Anotações salvas');
+    const content = $('#notebook').value;
+    await dbPut('notes', { book_id:b.id, content, updated_at:Date.now() });
+    if(state.user){
+      queueSync('notes', { user_id: state.user.id, book_id: b.id, content });
+      toast('Anotações salvas na nuvem');
+    } else {
+      toast('Anotações salvas localmente');
+    }
   }, 500);
 }
 async function queueSync(kind, row){
@@ -791,12 +805,15 @@ async function queueSync(kind, row){
   flushQueue();
 }
 async function flushQueue(){
-  if(!supabase || !navigator.onLine) return;
+  if(!state.user || !navigator.onLine) return;
   const all = await dbAll('queue');
   for(const item of all){
     try{
       const table = item.kind === 'progress' ? 'codice_progress' : 'codice_notes';
-      await supabase.from(table).upsert(item.row, { onConflict:'book_id' });
+      // ensure current user_id (in case queued before sign-in of another account)
+      const row = { ...item.row, user_id: state.user.id };
+      const { error } = await supabase.from(table).upsert(row, { onConflict:'user_id,book_id' });
+      if(error) throw error;
       await dbDel('queue', item.id);
     }catch(e){ console.warn('sync fail', e); break; }
   }
@@ -804,9 +821,114 @@ async function flushQueue(){
 }
 function updateSyncBadge(){
   const dot = $('#sync-dot'); const lbl = $('#sync-label'); const st = $('#sync-status');
-  if(!supabase){ dot.className='sync-dot off'; lbl.textContent='Local'; st.textContent='Somente local'; return; }
-  if(navigator.onLine){ dot.className='sync-dot on'; lbl.textContent='Sincronizado'; st.textContent='Online'; }
-  else { dot.className='sync-dot off'; lbl.textContent='Offline'; st.textContent='Offline'; }
+  if(!state.user){
+    dot.className='sync-dot off'; lbl.textContent='Anônimo'; st.textContent='Somente local — entre para sincronizar';
+    return;
+  }
+  if(navigator.onLine){
+    dot.className='sync-dot on'; lbl.textContent = state.user.display_name || state.user.email;
+    st.textContent = 'Sincronizado como '+(state.user.display_name || state.user.email);
+  } else {
+    dot.className='sync-dot off'; lbl.textContent='Offline'; st.textContent='Offline — sincroniza ao reconectar';
+  }
+}
+
+/* =========================================================
+ * Auth
+ * =======================================================*/
+async function loadProfile(userId){
+  try{
+    const { data } = await supabase.from('profiles').select('display_name, avatar_url').eq('id', userId).maybeSingle();
+    return data || {};
+  }catch(e){ return {}; }
+}
+async function refreshUser(){
+  const { data:{ session } } = await supabase.auth.getSession();
+  if(!session?.user){ state.user = null; renderAccount(); updateSyncBadge(); return null; }
+  const profile = await loadProfile(session.user.id);
+  state.user = {
+    id: session.user.id,
+    email: session.user.email,
+    display_name: profile.display_name || session.user.email?.split('@')[0] || 'Leitor',
+  };
+  renderAccount(); updateSyncBadge();
+  return state.user;
+}
+async function pullRemoteData(){
+  if(!state.user) return;
+  try{
+    const [{ data: progress }, { data: notes }] = await Promise.all([
+      supabase.from('codice_progress').select('*').eq('user_id', state.user.id),
+      supabase.from('codice_notes').select('*').eq('user_id', state.user.id),
+    ]);
+    for(const p of (progress||[])){
+      const local = await dbGet('progress', p.book_id);
+      const remoteTs = new Date(p.updated_at).getTime();
+      if(!local || (local.updated_at||0) < remoteTs){
+        await dbPut('progress', {
+          book_id: p.book_id, title: p.title, cfi: p.cfi, page: p.page,
+          scrollTop: p.scroll_top, percentage: p.percentage, updated_at: remoteTs,
+        });
+      }
+    }
+    for(const n of (notes||[])){
+      const local = await dbGet('notes', n.book_id);
+      const remoteTs = new Date(n.updated_at).getTime();
+      if(!local || (local.updated_at||0) < remoteTs){
+        await dbPut('notes', { book_id:n.book_id, content:n.content||'', updated_at:remoteTs });
+      }
+    }
+    // If viewing a book with fresh notes, reload textarea
+    if(state.activeBook){
+      const n = await dbGet('notes', state.activeBook.id);
+      if(n && $('#notebook').value !== n.content) $('#notebook').value = n.content || '';
+    }
+  }catch(e){ console.warn('pull fail', e); }
+}
+async function signUp(email, password, displayName){
+  const { data, error } = await supabase.auth.signUp({
+    email, password,
+    options: {
+      emailRedirectTo: window.location.origin + '/codice/index.html',
+      data: { display_name: displayName || email.split('@')[0] },
+    }
+  });
+  if(error) throw error;
+  return data;
+}
+async function signIn(email, password){
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if(error) throw error;
+}
+async function signOut(){
+  await supabase.auth.signOut();
+  state.user = null;
+  renderAccount(); updateSyncBadge();
+  toast('Você saiu da conta');
+}
+function openAuth(){ $('#auth-overlay').classList.add('show'); }
+function closeAuth(){ $('#auth-overlay').classList.remove('show'); $('#auth-error').textContent=''; }
+function renderAccount(){
+  const box = $('#account-box'); if(!box) return;
+  if(state.user){
+    box.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:36px;height:36px;border-radius:50%;background:var(--elev);display:flex;align-items:center;justify-content:center;color:var(--orange);font-family:Georgia,serif;font-weight:700">
+          ${(state.user.display_name||'?').slice(0,1).toUpperCase()}
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(state.user.display_name)}</div>
+          <div style="font-size:12px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(state.user.email)}</div>
+        </div>
+        <button id="btn-signout" style="min-height:36px;padding:0 12px;border-radius:8px;background:var(--elev);border:1px solid var(--border);color:var(--text);font-size:12px">Sair</button>
+      </div>`;
+    $('#btn-signout').addEventListener('click', signOut);
+  } else {
+    box.innerHTML = `
+      <button id="btn-open-auth" style="width:100%;min-height:44px;border-radius:10px;background:var(--orange);color:#fff;font-weight:600">Entrar / Criar conta</button>
+      <div style="font-size:12px;color:var(--text-2);margin-top:8px;text-align:center">Entre para sincronizar progresso e anotações entre dispositivos.</div>`;
+    $('#btn-open-auth').addEventListener('click', openAuth);
+  }
 }
 
 /* =========================================================
