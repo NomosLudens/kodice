@@ -360,14 +360,71 @@
 </head>
 <body>
 <div id="app">
+  <aside id="sidebar" aria-label="Navegação">
+    <button class="toggle" id="btn-rail-toggle" aria-label="Expandir menu" title="Expandir">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+    </button>
+    <div class="brand">
+      <img src="./icon.png" alt="" />
+      <div class="brand-text">
+        <span class="n">CÓDICE</span>
+        <span class="s">Leitura local</span>
+      </div>
+    </div>
+    <div class="rail-progress" id="rail-progress" hidden><div></div></div>
+    <nav>
+      <div class="nav-group-label">Biblioteca</div>
+      <button class="nav-btn" data-nav="library" aria-label="Biblioteca">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h4v16H4zM10 4h4v16h-4zM16 6l4 1-3 15-4-1z"/></svg>
+        <span class="lbl">Biblioteca</span>
+      </button>
+      <button class="nav-btn" data-nav="add" aria-label="Adicionar livro">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        <span class="lbl">Adicionar livro</span>
+      </button>
+
+      <div class="nav-group-label">Leitura</div>
+      <button class="nav-btn" data-nav="prev" aria-label="Anterior" id="nav-prev" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        <span class="lbl">Anterior</span>
+        <span class="kbd">←</span>
+      </button>
+      <button class="nav-btn" data-nav="next" aria-label="Próximo" id="nav-next" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+        <span class="lbl">Próximo</span>
+        <span class="kbd">→</span>
+      </button>
+      <button class="nav-btn" data-nav="toc" aria-label="Sumário" id="nav-toc" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
+        <span class="lbl">Sumário</span>
+      </button>
+      <button class="nav-btn" data-nav="notebook" aria-label="Caderno" id="nav-notebook" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h13a2 2 0 0 1 2 2v14l-4-3-4 3-4-3-3 3V6a2 2 0 0 1 2-2z"/></svg>
+        <span class="lbl">Caderno</span>
+      </button>
+
+      <div class="nav-group-label">Sistema</div>
+      <button class="nav-btn" data-nav="settings" aria-label="Ajustes">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span class="lbl">Ajustes</span>
+      </button>
+    </nav>
+    <div class="foot" id="rail-foot">
+      <div class="avatar" id="rail-avatar">A</div>
+      <div class="meta">
+        <span class="n" id="rail-user">Anônimo</span>
+        <span class="s"><span class="sync-dot" id="rail-dot"></span><span id="rail-sync">Local</span></span>
+      </div>
+    </div>
+  </aside>
+  <div id="sidebar-scrim"></div>
   <header id="topbar">
     <button class="icon" id="btn-back" title="Voltar" aria-label="Voltar">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
     </button>
-    <div class="brand" id="brand">
-      <img src="./icon.png" alt="CÓDICE" />
-      <span class="brand-name">CÓDICE</span>
-    </div>
+    <button class="icon" id="btn-rail-mobile" title="Menu" aria-label="Menu" style="display:none">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+    </button>
     <div class="title-wrap hidden" id="title-wrap">
       <div class="title" id="book-title"></div>
       <div class="author" id="book-author"></div>
@@ -397,28 +454,6 @@
     </section>
   </main>
 
-  <nav id="bottombar">
-    <button data-nav="prev" aria-label="Anterior">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-      <span>Anterior</span>
-    </button>
-    <button data-nav="toc" aria-label="Sumário">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
-      <span>Sumário</span>
-    </button>
-    <button data-nav="next" aria-label="Próximo">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-      <span>Próximo</span>
-    </button>
-    <button data-nav="notebook" aria-label="Caderno">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h13a2 2 0 0 1 2 2v14l-4-3-4 3-4-3-3 3V6a2 2 0 0 1 2-2z"/></svg>
-      <span>Caderno</span>
-    </button>
-    <button data-nav="settings" aria-label="Ajustes">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-      <span>Ajustes</span>
-    </button>
-  </nav>
 </div>
 
 <div id="backdrop"></div>
