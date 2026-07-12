@@ -712,6 +712,7 @@ function applyTheme(t){
   $$('#theme-seg button').forEach(b=>b.classList.toggle('active', b.dataset.theme===t));
   document.querySelector('meta[name=theme-color]').setAttribute('content', t==='night' ? '#0B0C0F' : '#F5F0E7');
   persistSettings();
+  if(typeof updateRail==='function') updateRail();
 }
 function applySettings(s){
   state.settings = { ...state.settings, ...s };
