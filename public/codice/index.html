@@ -399,6 +399,18 @@
       <div class="setting-label"><b>Conta</b></div>
       <div id="account-box"></div>
     </div>
+    <div class="setting">
+      <div class="setting-label"><b>Backup</b><span id="backup-status" style="color:var(--text-2);font-size:12px"></span></div>
+      <div style="color:var(--text-2);font-size:13px;line-height:1.5;margin-bottom:10px">
+        Exporte biblioteca, progresso, anotações e ajustes em um arquivo JSON. Importe em qualquer dispositivo — funciona 100% offline.
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button id="btn-backup-export" class="primary" style="min-height:44px">Exportar backup (.json)</button>
+        <button id="btn-backup-export-md" style="min-height:44px;border-radius:10px;background:var(--elev);border:1px solid var(--border);color:var(--text)">Exportar só anotações (.md)</button>
+        <button id="btn-backup-import" style="min-height:44px;border-radius:10px;background:var(--elev);border:1px solid var(--border);color:var(--text)">Importar backup (.json)</button>
+        <input type="file" id="backup-file" accept="application/json,.json" style="display:none" />
+      </div>
+    </div>
   </div>
 </aside>
 
