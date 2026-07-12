@@ -1402,6 +1402,7 @@ function fmtRelTime(ts){
 }
 function renderSyncStatus(){
   const { pending, lastSync, lastError, syncing } = state.sync;
+  try { updateRail(); } catch {}
   let stateLabel, dotClass;
   if(!supabase){ stateLabel='Sincronização desativada'; dotClass='off'; }
   else if(!state.user){ stateLabel='Anônimo — somente local'; dotClass='off'; }
