@@ -734,6 +734,7 @@ function persistSettings(){
       queueSync('settings', {
         user_id: state.user.id,
         theme: row.theme, fs: row.fs, ls: row.ls, w: row.w, z: row.z,
+        updated_at: new Date(row.updated_at).toISOString(),
       });
     }
   }, 400);
@@ -1028,7 +1029,8 @@ async function nav(direction){
  * =======================================================*/
 async function saveProgress(payload){
   const b = state.activeBook; if(!b) return;
-  const local = { book_id:b.id, title:b.title, updated_at:Date.now(), ...payload };
+  const ts = Date.now();
+  const local = { book_id:b.id, title:b.title, ...payload, updated_at:ts };
   await dbPut('progress', local);
   if(state.user){
     queueSync('progress', {
@@ -1039,6 +1041,7 @@ async function saveProgress(payload){
       page: Number.isFinite(payload.page) ? payload.page : null,
       scroll_top: Number.isFinite(payload.scrollTop) ? payload.scrollTop : null,
       percentage: typeof payload.percentage === 'number' ? payload.percentage : null,
+      updated_at: new Date(ts).toISOString(),
     });
   }
 }
@@ -1048,9 +1051,10 @@ function scheduleNotesSave(){
   notesTimer = setTimeout(async()=>{
     const b = state.activeBook; if(!b) return;
     const content = $('#notebook').value;
-    await dbPut('notes', { book_id:b.id, content, updated_at:Date.now() });
+    const ts = Date.now();
+    await dbPut('notes', { book_id:b.id, content, updated_at:ts });
     if(state.user){
-      queueSync('notes', { user_id: state.user.id, book_id: b.id, content });
+      queueSync('notes', { user_id: state.user.id, book_id: b.id, content, updated_at:new Date(ts).toISOString() });
       toast('Anotações salvas na nuvem');
     } else {
       toast('Anotações salvas localmente');
@@ -1067,6 +1071,43 @@ async function refreshPending(){
   try{ const all = await dbAll('queue'); state.sync.pending = all.length; }catch(e){}
   renderSyncStatus();
 }
+async function mergeRemoteInto(kind, bookId){
+  try{
+    if(kind === 'progress'){
+      const { data } = await supabase.from('codice_progress').select('*')
+        .eq('user_id', state.user.id).eq('book_id', bookId).maybeSingle();
+      if(data){
+        await dbPut('progress', {
+          book_id: data.book_id, title: data.title,
+          cfi: data.cfi, page: data.page,
+          scrollTop: data.scroll_top, percentage: data.percentage,
+          updated_at: new Date(data.updated_at).getTime(),
+        });
+      }
+    } else if(kind === 'notes'){
+      const { data } = await supabase.from('codice_notes').select('*')
+        .eq('user_id', state.user.id).eq('book_id', bookId).maybeSingle();
+      if(data){
+        await dbPut('notes', { book_id:data.book_id, content:data.content||'', updated_at:new Date(data.updated_at).getTime() });
+        // Se o caderno do livro ativo está aberto, atualiza a textarea sem estourar o autosave.
+        if(state.activeBook?.id === data.book_id){
+          const ta = document.getElementById('notebook');
+          if(ta && ta.value !== data.content){ clearTimeout(notesTimer); ta.value = data.content||''; }
+        }
+      }
+    } else if(kind === 'settings'){
+      const { data } = await supabase.from('codice_settings').select('*')
+        .eq('user_id', state.user.id).maybeSingle();
+      if(data){
+        await dbPut('settings', {
+          id:'prefs', theme:data.theme,
+          fs:data.fs, ls:data.ls, w:data.w, z:data.z,
+          updated_at: new Date(data.updated_at).getTime(),
+        });
+      }
+    }
+  }catch(e){ console.warn('[Códice] mergeRemoteInto', kind, e); }
+}
 async function flushQueue(){
   if(state.sync.syncing) return;
   if(!supabase || !state.user || !navigator.onLine){ refreshPending(); return; }
@@ -1081,6 +1122,24 @@ async function flushQueue(){
       if(!table){ await dbDel('queue', item.id); continue; }
       const row = { ...item.row, user_id: state.user.id };
       const onConflict = item.kind === 'settings' ? 'user_id' : 'user_id,book_id';
+
+      // ---- LWW: comparar updated_at remoto x local antes de escrever ----
+      const localTs = row.updated_at ? new Date(row.updated_at).getTime() : Date.now();
+      let remoteQ = supabase.from(table).select('updated_at').eq('user_id', state.user.id);
+      if(item.kind !== 'settings') remoteQ = remoteQ.eq('book_id', row.book_id);
+      const { data: remoteRow, error: rErr } = await remoteQ.maybeSingle();
+      if(rErr) throw rErr;
+      const remoteTs = remoteRow?.updated_at ? new Date(remoteRow.updated_at).getTime() : 0;
+
+      if(remoteTs > localTs){
+        // Remoto é mais novo — descarta o push e puxa o remoto para o IDB.
+        await mergeRemoteInto(item.kind, row.book_id);
+        await dbDel('queue', item.id);
+        continue;
+      }
+
+      // Garante que o servidor grava o timestamp do cliente (para futuros LWW).
+      if(!row.updated_at) row.updated_at = new Date(localTs).toISOString();
       const { error } = await supabase.from(table).upsert(row, { onConflict });
       if(error) throw error;
       await dbDel('queue', item.id);
