@@ -1905,6 +1905,11 @@ function wire(){
   refreshPending();
   // Keep relative timestamps fresh
   setInterval(renderSyncStatus, 30000);
+  // Auto-backup: check on boot, on focus, and every 15 min
+  scheduleAutoBackupCheck(6000);
+  document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') scheduleAutoBackupCheck(3000); });
+  window.addEventListener('focus', ()=> scheduleAutoBackupCheck(3000));
+  setInterval(()=> runAutoBackup().catch(()=>{}), 15*60*1000);
   // If library has books, auto-open the last read
   const progressAll = await dbAll('progress');
   if(progressAll.length){
