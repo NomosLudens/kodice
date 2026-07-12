@@ -1389,7 +1389,6 @@ function fmtRelTime(ts){
   const d = Math.floor(h/24); return `há ${d}d`;
 }
 function renderSyncStatus(){
-  const box = document.getElementById('sync-status-box'); if(!box) return;
   const { pending, lastSync, lastError, syncing } = state.sync;
   let stateLabel, dotClass;
   if(!supabase){ stateLabel='Sincronização desativada'; dotClass='off'; }
@@ -1400,6 +1399,29 @@ function renderSyncStatus(){
   else if(pending>0){ stateLabel='Aguardando envio'; dotClass='off'; }
   else { stateLabel='Tudo sincronizado'; dotClass='on'; }
   const canRetry = !!supabase && !!state.user && navigator.onLine && !syncing;
+  // Compact pill (Ajustes → Sincronização)
+  const pill = document.getElementById('sync-pill');
+  const pillMeta = document.getElementById('sync-pill-meta');
+  const pillBtn = document.getElementById('btn-sync-now');
+  if(pill){
+    let shortLabel = 'Local';
+    if(!supabase) shortLabel='Desativado';
+    else if(!state.user) shortLabel='Local';
+    else if(!navigator.onLine) shortLabel='Offline';
+    else if(syncing) shortLabel='Sincronizando…';
+    else if(lastError) shortLabel='Erro';
+    else if(pending>0) shortLabel=`Pendente (${pending})`;
+    else shortLabel='Online';
+    pill.innerHTML = `<span class="sync-dot ${dotClass}"></span><span>${escapeHtml(shortLabel)}</span>`;
+    if(pillMeta) pillMeta.textContent = lastSync ? `último: ${fmtRelTime(lastSync)}` : '';
+    if(pillBtn){
+      pillBtn.disabled = !canRetry;
+      pillBtn.style.opacity = canRetry ? 1 : .5;
+      pillBtn.style.cursor = canRetry ? 'pointer' : 'not-allowed';
+      pillBtn.textContent = syncing ? 'Sincronizando…' : 'Sincronizar agora';
+    }
+  }
+  const box = document.getElementById('sync-status-box'); if(!box) return;
   box.innerHTML = `
     <div style="border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--elev)">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
