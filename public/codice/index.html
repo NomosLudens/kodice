@@ -1485,6 +1485,72 @@ async function exportBackup(){
   }
 }
 
+/* ------- Backup automático periódico ------- */
+const AUTO_BACKUP_INTERVALS = { off:0, daily:864e5, weekly:6048e5, monthly:2592e6 };
+function getAutoBackupFreq(){
+  const v = localStorage.getItem('codice.autobackup.freq');
+  return (v && v in AUTO_BACKUP_INTERVALS) ? v : 'weekly';
+}
+function autoBackupMeta(){
+  try{ return JSON.parse(localStorage.getItem('codice.autobackup.meta')||'{}'); }catch{ return {}; }
+}
+function saveAutoBackupMeta(m){ localStorage.setItem('codice.autobackup.meta', JSON.stringify(m||{})); }
+function fmtDateShort(ts){ try{ return new Date(ts).toLocaleString(); }catch{ return ''; } }
+function renderAutoBackupInfo(){
+  const el = document.getElementById('auto-backup-info'); if(!el) return;
+  const freq = getAutoBackupFreq();
+  const meta = autoBackupMeta();
+  if(freq === 'off'){ el.textContent = 'Desativado.'; return; }
+  const last = meta.lastAt ? `Último: ${fmtDateShort(meta.lastAt)}` : 'Nenhum backup ainda.';
+  const nextAt = (meta.lastAt||0) + AUTO_BACKUP_INTERVALS[freq];
+  const next = meta.lastAt ? ` · Próximo: ${fmtDateShort(nextAt)}` : '';
+  el.textContent = last + next;
+}
+async function computeBackupSignature(){
+  const [books, progress, notes, settings] = await Promise.all([
+    dbAll('books'), dbAll('progress'), dbAll('notes'), dbAll('settings'),
+  ]);
+  const sig = {
+    b: books.map(b=>b.id).sort().join('|'),
+    p: (progress||[]).reduce((a,r)=>a+(r.updated_at||0),0),
+    n: (notes||[]).reduce((a,r)=>a+(r.updated_at||0)+(r.content||'').length,0),
+    s: (settings||[]).reduce((a,r)=>a+(r.updated_at||0),0),
+    bc: books.length, pc:(progress||[]).length, nc:(notes||[]).length,
+  };
+  return JSON.stringify(sig);
+}
+async function runAutoBackup({ force=false } = {}){
+  const freq = getAutoBackupFreq();
+  if(freq === 'off') return false;
+  const meta = autoBackupMeta();
+  const now = Date.now();
+  const interval = AUTO_BACKUP_INTERVALS[freq];
+  const due = !meta.lastAt || (now - meta.lastAt) >= interval;
+  if(!due && !force) return false;
+  const sig = await computeBackupSignature();
+  // Não baixa se nada relevante mudou desde o último backup
+  if(!force && meta.lastSig && meta.lastSig === sig){
+    saveAutoBackupMeta({ ...meta, lastCheckedAt: now });
+    return false;
+  }
+  const hasContent = (await dbAll('books')).length || (await dbAll('notes')).length;
+  if(!hasContent) return false;
+  // Requer interação do usuário (foco na aba) para o download não ser bloqueado
+  if(document.visibilityState !== 'visible') return false;
+  try{
+    await exportBackup();
+    saveAutoBackupMeta({ lastAt: now, lastSig: sig, lastCheckedAt: now, freq });
+    toast('Backup automático baixado');
+    renderAutoBackupInfo();
+    return true;
+  }catch(e){ console.error('auto-backup failed', e); return false; }
+}
+let _autoBackupTimer;
+function scheduleAutoBackupCheck(delay=4000){
+  clearTimeout(_autoBackupTimer);
+  _autoBackupTimer = setTimeout(()=> runAutoBackup().catch(()=>{}), delay);
+}
+
 async function exportNotesMarkdown(){
   try{
     const [books, notes] = await Promise.all([dbAll('books'), dbAll('notes')]);
