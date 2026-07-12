@@ -35,25 +35,25 @@
   a{color:var(--orange);text-decoration:none}
 
   /* ---------- Layout ---------- */
+  :root{ --rail:68px; --rail-open:248px; }
   #app{
     display:grid; height:100dvh;
-    grid-template-columns:1fr;
-    grid-template-rows:auto 1fr auto;
-    padding-top:var(--safe-t); padding-left:var(--safe-l); padding-right:var(--safe-r);
+    grid-template-columns: var(--rail) 1fr;
+    grid-template-rows:auto 1fr;
+    grid-template-areas:
+      "side top"
+      "side main";
+    padding-top:var(--safe-t); padding-right:var(--safe-r);
+    transition:grid-template-columns .32s cubic-bezier(.2,.7,.2,1);
   }
+  #topbar{grid-area:top}
+  #main{grid-area:main;min-width:0}
+  #sidebar{grid-area:side}
   @media (min-width: 960px){
-    #app{
-      grid-template-columns: minmax(0,280px) 1fr minmax(0,340px);
-      grid-template-rows:auto 1fr;
-      grid-template-areas:
-        "top top top"
-        "left main right";
+    #app.rail-open{ grid-template-columns: var(--rail-open) 1fr; }
+    .side-panel, #library-panel{
+      /* on desktop keep panels as sheets from the left, over content */
     }
-    #topbar{grid-area:top}
-    #library-panel{grid-area:left;position:static !important;transform:none !important;border-right:1px solid var(--border);border-top:0}
-    #main{grid-area:main}
-    .side-panel{grid-area:right;position:static !important;transform:none !important;border-left:1px solid var(--border);border-top:0}
-    #bottombar{display:none}
   }
 
   /* ---------- Top bar ---------- */
@@ -153,18 +153,129 @@
   .sync-dot.on{background:#4ad07a}
   .sync-dot.off{background:#888}
 
-  /* ---------- Bottom bar (mobile) ---------- */
-  #bottombar{
-    display:grid;grid-template-columns:repeat(5,1fr);
-    background:var(--surface);border-top:1px solid var(--border);
-    padding-bottom:var(--safe-b);
+  /* ---------- Sidebar (premium rail) ---------- */
+  #sidebar{
+    position:relative;
+    width:var(--rail); overflow:hidden;
+    background:
+      radial-gradient(120% 60% at 0% 0%, color-mix(in oklab, var(--orange) 10%, transparent), transparent 60%),
+      linear-gradient(180deg, var(--surface), color-mix(in oklab, var(--surface) 90%, black));
+    border-right:1px solid var(--border);
+    padding: 10px 0 calc(10px + var(--safe-b));
+    padding-left:var(--safe-l);
+    display:flex; flex-direction:column;
+    transition:width .32s cubic-bezier(.2,.7,.2,1);
+    z-index:60;
   }
-  #bottombar button{
-    min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
-    font-size:11px;color:var(--text-2);
+  #sidebar::before{
+    content:"";position:absolute;inset:0 auto 0 0;width:1px;
+    background:linear-gradient(180deg,transparent, color-mix(in oklab, var(--orange) 40%, transparent), transparent);
+    opacity:.5;pointer-events:none;
   }
-  #bottombar button svg{width:22px;height:22px}
-  #bottombar button.active{color:var(--orange)}
+  #app.rail-open #sidebar{ width:var(--rail-open); }
+  @media (hover:hover) and (min-width:960px){
+    #sidebar:hover{ width:var(--rail-open); }
+    #sidebar:hover ~ #topbar, #sidebar:hover ~ #main{ /* nothing, main is grid managed */ }
+  }
+  #sidebar .brand{
+    display:flex;align-items:center;gap:12px;
+    padding:8px 14px 14px; min-height:56px;
+    border-bottom:1px solid var(--border);
+    margin:0 8px 10px;
+  }
+  #sidebar .brand img{width:34px;height:34px;flex-shrink:0;filter:drop-shadow(0 2px 10px rgba(255,76,31,.35))}
+  #sidebar .brand-text{
+    display:flex;flex-direction:column;min-width:0;
+    opacity:0;transform:translateX(-6px);transition:.28s;
+  }
+  #sidebar .brand-text .n{font-weight:700;letter-spacing:.24em;font-size:13px;white-space:nowrap}
+  #sidebar .brand-text .s{font-size:10px;letter-spacing:.2em;color:var(--amber);text-transform:uppercase;white-space:nowrap}
+  #sidebar nav{display:flex;flex-direction:column;gap:2px;padding:4px 8px;flex:1;overflow-y:auto;overflow-x:hidden}
+  #sidebar nav::-webkit-scrollbar{width:0}
+  #sidebar .nav-group-label{
+    font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--text-2);
+    padding:10px 14px 6px;opacity:0;transition:opacity .2s;white-space:nowrap;
+  }
+  #sidebar .nav-btn{
+    display:flex;align-items:center;gap:14px;
+    min-height:48px;padding:0 14px;border-radius:12px;
+    color:var(--text-2);position:relative;
+    transition:background .2s, color .2s;
+    white-space:nowrap;
+  }
+  #sidebar .nav-btn:hover{background:var(--elev);color:var(--text)}
+  #sidebar .nav-btn svg{width:22px;height:22px;flex-shrink:0}
+  #sidebar .nav-btn .lbl{
+    font-size:14px;font-weight:500;
+    opacity:0;transform:translateX(-4px);transition:.24s;
+    overflow:hidden;text-overflow:ellipsis;
+  }
+  #sidebar .nav-btn .kbd{
+    margin-left:auto;font-size:10px;color:var(--text-2);opacity:0;transition:.24s;
+    padding:2px 6px;border:1px solid var(--border);border-radius:6px;letter-spacing:.05em;
+  }
+  #sidebar .nav-btn.active{color:var(--orange);background:color-mix(in oklab, var(--orange) 10%, transparent)}
+  #sidebar .nav-btn.active::before{
+    content:"";position:absolute;left:-8px;top:10px;bottom:10px;width:3px;
+    background:var(--orange);border-radius:0 3px 3px 0;
+    box-shadow:0 0 12px color-mix(in oklab, var(--orange) 60%, transparent);
+  }
+  #sidebar .nav-btn[disabled]{opacity:.35;pointer-events:none}
+  /* Expand-only content */
+  #app.rail-open #sidebar .brand-text,
+  #app.rail-open #sidebar .nav-btn .lbl,
+  #app.rail-open #sidebar .nav-btn .kbd,
+  #app.rail-open #sidebar .nav-group-label,
+  #app.rail-open #sidebar .foot .meta,
+  @media (hover:hover) and (min-width:960px){
+    #sidebar:hover .brand-text,
+    #sidebar:hover .nav-btn .lbl,
+    #sidebar:hover .nav-btn .kbd,
+    #sidebar:hover .nav-group-label,
+    #sidebar:hover .foot .meta{ opacity:1;transform:none }
+  }
+  #app.rail-open #sidebar .brand-text,
+  #app.rail-open #sidebar .nav-btn .lbl,
+  #app.rail-open #sidebar .nav-btn .kbd,
+  #app.rail-open #sidebar .nav-group-label,
+  #app.rail-open #sidebar .foot .meta{ opacity:1;transform:none }
+
+  /* Sidebar footer: sync + user */
+  #sidebar .foot{
+    margin:8px; padding:10px 12px; border-top:1px solid var(--border);
+    display:flex;align-items:center;gap:10px;min-height:52px;
+  }
+  #sidebar .foot .avatar{
+    width:34px;height:34px;border-radius:10px;flex-shrink:0;
+    background:linear-gradient(135deg, var(--orange), var(--amber));
+    display:grid;place-items:center;color:#fff;font-weight:700;font-size:14px;
+    box-shadow:0 4px 14px color-mix(in oklab, var(--orange) 30%, transparent);
+  }
+  #sidebar .foot .meta{display:flex;flex-direction:column;min-width:0;opacity:0;transform:translateX(-4px);transition:.24s}
+  #sidebar .foot .meta .n{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
+  #sidebar .foot .meta .s{font-size:11px;color:var(--text-2);display:flex;align-items:center;gap:5px}
+  #sidebar .toggle{
+    position:absolute;top:14px;right:-12px;width:24px;height:24px;border-radius:50%;
+    background:var(--elev);border:1px solid var(--border);display:none;
+    align-items:center;justify-content:center;z-index:2;
+  }
+  @media (min-width:960px){ #sidebar .toggle{display:flex} }
+  #sidebar .toggle svg{width:14px;height:14px;transition:transform .3s}
+  #app.rail-open #sidebar .toggle svg{transform:rotate(180deg)}
+  /* Mobile scrim when expanded */
+  #sidebar-scrim{
+    position:fixed;inset:0;background:rgba(0,0,0,.4);opacity:0;pointer-events:none;
+    transition:opacity .28s;z-index:55;
+  }
+  @media (max-width:959px){
+    #app.rail-open #sidebar-scrim{opacity:1;pointer-events:auto}
+    #app.rail-open #sidebar{ position:fixed;top:0;bottom:0;left:0;height:100dvh;box-shadow:0 20px 60px rgba(0,0,0,.5) }
+  }
+  /* progress micro on rail */
+  #sidebar .rail-progress{
+    height:2px;margin:0 12px 6px;background:var(--elev);border-radius:2px;overflow:hidden;
+  }
+  #sidebar .rail-progress > div{height:100%;background:linear-gradient(90deg,var(--orange),var(--amber));width:0%;transition:width .3s}
 
   /* ---------- Panels ---------- */
   .side-panel, #library-panel{
