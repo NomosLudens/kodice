@@ -370,10 +370,45 @@
         Notas e progresso são salvos offline (IndexedDB) e enviados ao Supabase quando conectado.
       </div>
     </div>
+    <div class="setting">
+      <div class="setting-label"><b>Conta</b></div>
+      <div id="account-box"></div>
+    </div>
   </div>
 </aside>
 
 <div id="status"></div>
+
+<!-- Auth overlay -->
+<div id="auth-overlay" role="dialog" aria-modal="true" aria-label="Entrar no Códice">
+  <div class="auth-card">
+    <div class="auth-head">
+      <h3 id="auth-title">Entrar</h3>
+      <button class="panel-close" id="auth-close" aria-label="Fechar">✕</button>
+    </div>
+    <div class="auth-tabs">
+      <button data-tab="signin" class="active">Entrar</button>
+      <button data-tab="signup">Criar conta</button>
+    </div>
+    <form id="auth-form" autocomplete="on">
+      <label class="auth-field" id="field-name" style="display:none">
+        <span>Nome</span>
+        <input type="text" id="auth-name" autocomplete="name" placeholder="Como te chamamos" />
+      </label>
+      <label class="auth-field">
+        <span>E-mail</span>
+        <input type="email" id="auth-email" autocomplete="email" required placeholder="voce@exemplo.com" />
+      </label>
+      <label class="auth-field">
+        <span>Senha</span>
+        <input type="password" id="auth-password" autocomplete="current-password" required minlength="6" placeholder="Mínimo 6 caracteres" />
+      </label>
+      <div id="auth-error" role="alert"></div>
+      <button type="submit" id="auth-submit">Entrar</button>
+      <p class="auth-hint">Progresso e anotações ficam vinculados à sua conta e sincronizam entre dispositivos.</p>
+    </form>
+  </div>
+</div>
 
 <!-- Libraries via CDN -->
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
