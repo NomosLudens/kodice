@@ -531,7 +531,9 @@
         <button id="btn-backup-export" class="primary" style="min-height:44px">Exportar backup (.json)</button>
         <button id="btn-backup-export-md" style="min-height:44px;border-radius:10px;background:var(--elev);border:1px solid var(--border);color:var(--text)">Exportar só anotações (.md)</button>
         <button id="btn-backup-import" style="min-height:44px;border-radius:10px;background:var(--elev);border:1px solid var(--border);color:var(--text)">Importar backup (.json)</button>
+        <button id="btn-notes-import-md" style="min-height:44px;border-radius:10px;background:var(--elev);border:1px solid var(--border);color:var(--text)">Importar anotações (.md)</button>
         <input type="file" id="backup-file" accept="application/json,.json" style="display:none" />
+        <input type="file" id="notes-md-file" accept="text/markdown,.md,.markdown" style="display:none" />
       </div>
     </div>
   </div>
@@ -1558,10 +1560,85 @@ async function importBackup(file){
   }
 }
 
+/* Parse .md com anotações e mesclar com IndexedDB + fila Supabase */
+function slugifyId(s){
+  return 'md:' + (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,80);
+}
+function parseNotesMarkdown(text){
+  // Suporta blocos separados por "## Título" (com "_Autor_" opcional) até próximo "## " ou "---"
+  const lines = String(text||'').replace(/\r\n/g,'\n').split('\n');
+  const out = []; let cur = null;
+  const push = ()=>{ if(cur){ cur.content = cur.buf.join('\n').replace(/^\s+|\s+$/g,''); delete cur.buf; if(cur.title && cur.content) out.push(cur); cur = null; } };
+  for(let i=0;i<lines.length;i++){
+    const l = lines[i];
+    const m = /^##\s+(.+?)\s*$/.exec(l);
+    if(m){ push(); cur = { title:m[1].trim(), author:'', buf:[] };
+      const nxt = lines[i+1]||''; const am = /^_(.+)_\s*$/.exec(nxt.trim());
+      if(am){ cur.author = am[1].trim(); i++; }
+      continue;
+    }
+    if(!cur) continue;
+    if(/^-{3,}\s*$/.test(l)){ push(); continue; }
+    cur.buf.push(l);
+  }
+  push();
+  // Fallback: sem cabeçalhos "##" → uma única nota "avulsa"
+  if(!out.length){
+    const content = String(text||'').trim();
+    if(content) out.push({ title:'Anotações importadas', author:'', content });
+  }
+  return out;
+}
+async function importNotesMarkdown(file){
+  setBackupStatus('Lendo anotações...');
+  try{
+    const text = await file.text();
+    const blocks = parseNotesMarkdown(text);
+    if(!blocks.length){ setBackupStatus('Nada para importar'); toast('Nenhuma anotação encontrada'); return; }
+    const books = await dbAll('books');
+    const byTitle = new Map(books.map(b=>[String(b.title||'').trim().toLowerCase(), b]));
+    let merged=0, appended=0, created=0;
+    const ts = Date.now();
+    for(const blk of blocks){
+      const key = blk.title.trim().toLowerCase();
+      const book = byTitle.get(key);
+      const bookId = book ? book.id : slugifyId(blk.title);
+      const local = await dbGet('notes', bookId);
+      let content;
+      if(local && (local.content||'').trim().length){
+        // Mescla sem duplicar: se o conteúdo importado já estiver presente, ignora
+        if(local.content.includes(blk.content)) continue;
+        content = local.content.trim() + '\n\n---\n\n' + blk.content;
+        appended++;
+      } else {
+        content = blk.content;
+        if(book) merged++; else created++;
+      }
+      await dbPut('notes', { book_id: bookId, content, updated_at: ts });
+      if(supabase && state.user){
+        queueSync('notes', { book_id: bookId, content, updated_at: new Date(ts).toISOString() });
+      }
+      // Se for o livro aberto, atualiza o textarea
+      if(state.activeBook && state.activeBook.id === bookId){
+        const ta = $('#notebook'); if(ta) ta.value = content;
+      }
+    }
+    if(supabase && state.user) flushQueue();
+    const total = merged+appended+created;
+    setBackupStatus(`${total} anotação(ões): ${merged} novas, ${appended} mescladas, ${created} avulsas`);
+    toast(`${total} anotação(ões) importada(s)`);
+  }catch(e){
+    console.error(e); setBackupStatus('Falha ao importar anotações');
+    toast('Arquivo .md inválido');
+  }
+}
+
 /* =========================================================
  * Wire events
  * =======================================================*/
 function wire(){
+  // (importNotesMarkdown defined above)
   // Drop
   const dz = $('#dropzone');
   ;['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add('drag')}));
@@ -1632,6 +1709,11 @@ function wire(){
   $('#backup-file').addEventListener('change', async e=>{
     const f = e.target.files?.[0]; e.target.value = '';
     if(f) await importBackup(f);
+  });
+  $('#btn-notes-import-md').addEventListener('click', ()=> $('#notes-md-file').click());
+  $('#notes-md-file').addEventListener('change', async e=>{
+    const f = e.target.files?.[0]; e.target.value = '';
+    if(f) await importNotesMarkdown(f);
   });
 
   // Online status
