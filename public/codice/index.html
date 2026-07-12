@@ -848,8 +848,8 @@ async function openBook(id){
   // UI
   $('#landing').classList.add('hidden');
   $('#reader').classList.remove('hidden');
-  $('#brand').classList.add('hidden');
   $('#title-wrap').classList.remove('hidden');
+  updateRail();
   $('#book-title').textContent = b.title || 'Sem título';
   $('#book-author').textContent = b.author || '';
   $('#reader-content').classList.add('hidden');
@@ -871,16 +871,18 @@ function closeBook(){
   state.activeBook = null;
   $('#landing').classList.remove('hidden');
   $('#reader').classList.add('hidden');
-  $('#brand').classList.remove('hidden');
   $('#title-wrap').classList.add('hidden');
   $('#book-title').textContent = ''; $('#book-author').textContent = '';
   updateProgress(0);
   $('#toc-body').innerHTML = '<div class="empty">Abra um livro para ver o sumário.</div>';
+  updateRail();
 }
 
 function updateProgress(p){
   const clamped = Math.max(0,Math.min(1,p));
   $('#progress > div').style.width = (clamped*100).toFixed(1)+'%';
+  const rp = document.getElementById('rail-progress');
+  if(rp){ rp.hidden = !state.activeBook; rp.firstElementChild.style.width = (clamped*100).toFixed(1)+'%'; }
   if(state.activeBook){ state.activeBook.progress = clamped; }
 }
 
