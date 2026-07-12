@@ -959,9 +959,10 @@ async function refreshUser(){
 async function pullRemoteData(){
   if(!state.user) return;
   try{
-    const [{ data: progress }, { data: notes }] = await Promise.all([
+    const [{ data: progress }, { data: notes }, { data: settings }] = await Promise.all([
       supabase.from('codice_progress').select('*').eq('user_id', state.user.id),
       supabase.from('codice_notes').select('*').eq('user_id', state.user.id),
+      supabase.from('codice_settings').select('*').eq('user_id', state.user.id).maybeSingle().then(r=>({ data: r.data ? [r.data] : [] })),
     ]);
     for(const p of (progress||[])){
       const local = await dbGet('progress', p.book_id);
@@ -984,6 +985,34 @@ async function pullRemoteData(){
     if(state.activeBook){
       const n = await dbGet('notes', state.activeBook.id);
       if(n && $('#notebook').value !== n.content) $('#notebook').value = n.content || '';
+    }
+    // Merge remote settings if newer than local
+    const remote = (settings||[])[0];
+    if(remote){
+      const local = await dbGet('settings', 'prefs');
+      const remoteTs = new Date(remote.updated_at).getTime();
+      if(!local || (local.updated_at||0) < remoteTs){
+        _suppressPersist = true;
+        if(remote.theme) applyTheme(remote.theme);
+        const partial = {};
+        ['fs','ls','w','z'].forEach(k=>{ if(remote[k]!=null) partial[k]=Number(remote[k]); });
+        if(Object.keys(partial).length) applySettings(partial);
+        _suppressPersist = false;
+        await dbPut('settings', {
+          id:'prefs', theme: remote.theme,
+          fs: remote.fs!=null?Number(remote.fs):null,
+          ls: remote.ls!=null?Number(remote.ls):null,
+          w:  remote.w!=null?Number(remote.w):null,
+          z:  remote.z!=null?Number(remote.z):null,
+          updated_at: remoteTs,
+        });
+      } else {
+        // local newer — push it up
+        persistSettings();
+      }
+    } else {
+      // no remote yet — push current settings
+      persistSettings();
     }
   }catch(e){ console.warn('pull fail', e); }
 }
