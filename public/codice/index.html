@@ -404,6 +404,14 @@
       </button>
 
       <div class="nav-group-label">Sistema</div>
+      <button class="nav-btn" data-nav="theme" aria-label="Alternar tema" id="nav-theme" title="Alternar tema">
+        <svg id="nav-theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+        <span class="lbl" id="nav-theme-lbl">Tema: Noite</span>
+      </button>
+      <button class="nav-btn" data-nav="account" aria-label="Conta" id="nav-account">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span class="lbl" id="nav-account-lbl">Entrar</span>
+      </button>
       <button class="nav-btn" data-nav="settings" aria-label="Ajustes">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         <span class="lbl">Ajustes</span>
@@ -704,6 +712,7 @@ function applyTheme(t){
   $$('#theme-seg button').forEach(b=>b.classList.toggle('active', b.dataset.theme===t));
   document.querySelector('meta[name=theme-color]').setAttribute('content', t==='night' ? '#0B0C0F' : '#F5F0E7');
   persistSettings();
+  if(typeof updateRail==='function') updateRail();
 }
 function applySettings(s){
   state.settings = { ...state.settings, ...s };
@@ -1148,6 +1157,17 @@ function updateRail(){
   });
   const foot = document.getElementById('rail-foot');
   if(foot){ foot.style.cursor='pointer'; foot.onclick = ()=>openPanel('settings-panel'); }
+  // Theme & account button labels
+  const tLbl = document.getElementById('nav-theme-lbl');
+  const tIcon = document.getElementById('nav-theme-icon');
+  if(tLbl) tLbl.textContent = state.theme==='night' ? 'Tema: Noite' : 'Tema: Dia';
+  if(tIcon){
+    tIcon.innerHTML = state.theme==='night'
+      ? '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>'
+      : '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>';
+  }
+  const aLbl = document.getElementById('nav-account-lbl');
+  if(aLbl) aLbl.textContent = state.user ? 'Sair' : (supabase ? 'Entrar' : 'Conta indisponível');
 }
 
 /* =========================================================
@@ -1473,6 +1493,8 @@ function wire(){
       else if(k==='settings') openPanel('settings-panel');
       else if(k==='library') openPanel('library-panel');
       else if(k==='add') $('#file-input').click();
+      else if(k==='theme') applyTheme(state.theme==='night' ? 'day' : 'night');
+      else if(k==='account'){ if(state.user) signOut(); else openAuth(); }
       // Auto-collapse on mobile after tap
       if(window.matchMedia('(max-width:959px)').matches){
         document.getElementById('app').classList.remove('rail-open');
