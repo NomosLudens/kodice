@@ -1198,8 +1198,11 @@ function wire(){
  * =======================================================*/
 (async function boot(){
   wire();
+  _suppressPersist = true;
   applyTheme(state.theme);
   applySettings(Object.keys(state.settings).length ? state.settings : { fs:19, ls:1.7, w:64, z:1 });
+  _suppressPersist = false;
+  await loadLocalSettings();
   await loadLibrary();
   await refreshUser();
   if(state.user){ await pullRemoteData(); }
