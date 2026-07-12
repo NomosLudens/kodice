@@ -978,12 +978,14 @@ function updateSyncBadge(){
  * Auth
  * =======================================================*/
 async function loadProfile(userId){
+  if(!supabase) return {};
   try{
     const { data } = await supabase.from('profiles').select('display_name, avatar_url').eq('id', userId).maybeSingle();
     return data || {};
   }catch(e){ return {}; }
 }
 async function refreshUser(){
+  if(!supabase){ state.user = null; renderAccount(); updateSyncBadge(); return null; }
   const { data:{ session } } = await supabase.auth.getSession();
   if(!session?.user){ state.user = null; renderAccount(); updateSyncBadge(); return null; }
   const profile = await loadProfile(session.user.id);
@@ -996,7 +998,7 @@ async function refreshUser(){
   return state.user;
 }
 async function pullRemoteData(){
-  if(!state.user) return;
+  if(!supabase || !state.user) return;
   try{
     const [{ data: progress }, { data: notes }, { data: settings }] = await Promise.all([
       supabase.from('codice_progress').select('*').eq('user_id', state.user.id),
@@ -1053,9 +1055,13 @@ async function pullRemoteData(){
       // no remote yet — push current settings
       persistSettings();
     }
-  }catch(e){ console.warn('pull fail', e); }
+  }catch(e){
+    console.warn('[Códice] pull fail', e);
+    toast('Não foi possível baixar dados da nuvem');
+  }
 }
 async function signUp(email, password, displayName){
+  if(!supabase) throw new Error('Sincronização desativada — configure SUPABASE_URL/ANON_KEY.');
   const { data, error } = await supabase.auth.signUp({
     email, password,
     options: {
@@ -1067,16 +1073,20 @@ async function signUp(email, password, displayName){
   return data;
 }
 async function signIn(email, password){
+  if(!supabase) throw new Error('Sincronização desativada — configure SUPABASE_URL/ANON_KEY.');
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if(error) throw error;
 }
 async function signOut(){
-  await supabase.auth.signOut();
+  if(supabase) await supabase.auth.signOut();
   state.user = null;
   renderAccount(); updateSyncBadge();
   toast('Você saiu da conta');
 }
-function openAuth(){ $('#auth-overlay').classList.add('show'); }
+function openAuth(){
+  if(!supabase){ toast('Sincronização desativada — configure SUPABASE_URL/ANON_KEY.'); return; }
+  $('#auth-overlay').classList.add('show');
+}
 function closeAuth(){ $('#auth-overlay').classList.remove('show'); $('#auth-error').textContent=''; }
 function renderAccount(){
   const box = $('#account-box'); if(!box) return;
