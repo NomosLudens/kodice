@@ -1085,6 +1085,24 @@ async function flushQueue(){
       if(!table){ await dbDel('queue', item.id); continue; }
       const row = { ...item.row, user_id: state.user.id };
       const onConflict = item.kind === 'settings' ? 'user_id' : 'user_id,book_id';
+
+      // ---- LWW: comparar updated_at remoto x local antes de escrever ----
+      const localTs = row.updated_at ? new Date(row.updated_at).getTime() : Date.now();
+      let remoteQ = supabase.from(table).select('updated_at').eq('user_id', state.user.id);
+      if(item.kind !== 'settings') remoteQ = remoteQ.eq('book_id', row.book_id);
+      const { data: remoteRow, error: rErr } = await remoteQ.maybeSingle();
+      if(rErr) throw rErr;
+      const remoteTs = remoteRow?.updated_at ? new Date(remoteRow.updated_at).getTime() : 0;
+
+      if(remoteTs > localTs){
+        // Remoto é mais novo — descarta o push e puxa o remoto para o IDB.
+        await mergeRemoteInto(item.kind, row.book_id);
+        await dbDel('queue', item.id);
+        continue;
+      }
+
+      // Garante que o servidor grava o timestamp do cliente (para futuros LWW).
+      if(!row.updated_at) row.updated_at = new Date(localTs).toISOString();
       const { error } = await supabase.from(table).upsert(row, { onConflict });
       if(error) throw error;
       await dbDel('queue', item.id);
