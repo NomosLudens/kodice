@@ -1710,6 +1710,11 @@ function wire(){
     const f = e.target.files?.[0]; e.target.value = '';
     if(f) await importBackup(f);
   });
+  $('#btn-notes-import-md').addEventListener('click', ()=> $('#notes-md-file').click());
+  $('#notes-md-file').addEventListener('change', async e=>{
+    const f = e.target.files?.[0]; e.target.value = '';
+    if(f) await importNotesMarkdown(f);
+  });
 
   // Online status
   window.addEventListener('online', ()=>{ state.online=true; updateSyncBadge(); renderSyncStatus(); flushQueue(); toast('Online — sincronizando...'); });
