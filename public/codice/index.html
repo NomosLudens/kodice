@@ -35,26 +35,18 @@
   a{color:var(--orange);text-decoration:none}
 
   /* ---------- Layout ---------- */
-  :root{ --rail:68px; --rail-open:248px; }
+  :root{ --rail:0px; --rail-open:280px; }
   #app{
     display:grid; height:100dvh;
-    grid-template-columns: var(--rail) 1fr;
+    grid-template-columns: 1fr;
     grid-template-rows:auto 1fr;
     grid-template-areas:
-      "side top"
-      "side main";
+      "top"
+      "main";
     padding-top:var(--safe-t); padding-right:var(--safe-r);
-    transition:grid-template-columns .32s cubic-bezier(.2,.7,.2,1);
   }
   #topbar{grid-area:top}
   #main{grid-area:main;min-width:0}
-  #sidebar{grid-area:side}
-  @media (min-width: 960px){
-    #app.rail-open{ grid-template-columns: var(--rail-open) 1fr; }
-    .side-panel, #library-panel{
-      /* on desktop keep panels as sheets from the left, over content */
-    }
-  }
 
   /* ---------- Top bar ---------- */
   #topbar{
