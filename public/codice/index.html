@@ -1073,6 +1073,53 @@ function wire(){
 
   // Library button on mobile — long-press brand also opens
   $('#brand').addEventListener('click', ()=>openPanel('library-panel'));
+
+  // Auth overlay
+  $('#auth-close').addEventListener('click', closeAuth);
+  $('#auth-overlay').addEventListener('click', e=>{ if(e.target.id==='auth-overlay') closeAuth(); });
+  let authMode = 'signin';
+  $$('.auth-tabs button').forEach(b=>b.addEventListener('click',()=>{
+    authMode = b.dataset.tab;
+    $$('.auth-tabs button').forEach(x=>x.classList.toggle('active', x===b));
+    $('#auth-title').textContent = authMode==='signup' ? 'Criar conta' : 'Entrar';
+    $('#auth-submit').textContent = authMode==='signup' ? 'Criar conta' : 'Entrar';
+    $('#field-name').style.display = authMode==='signup' ? 'block' : 'none';
+    $('#auth-password').autocomplete = authMode==='signup' ? 'new-password' : 'current-password';
+    $('#auth-error').textContent = '';
+  }));
+  $('#auth-form').addEventListener('submit', async e=>{
+    e.preventDefault();
+    const btn = $('#auth-submit'); const err = $('#auth-error');
+    err.textContent = ''; btn.disabled = true;
+    const email = $('#auth-email').value.trim();
+    const password = $('#auth-password').value;
+    const name = $('#auth-name').value.trim();
+    try{
+      if(authMode==='signup'){
+        const { data } = await signUp(email, password, name);
+        if(!data.session){
+          err.textContent = 'Conta criada. Verifique seu e-mail para confirmar antes de entrar.';
+          btn.disabled = false; return;
+        }
+      } else {
+        await signIn(email, password);
+      }
+      closeAuth();
+      toast('Bem-vindo(a) ao Códice');
+    }catch(ex){
+      err.textContent = ex?.message || 'Não foi possível autenticar.';
+    } finally { btn.disabled = false; }
+  });
+
+  // React to auth state
+  supabase.auth.onAuthStateChange(async (event)=>{
+    if(event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION'){
+      await refreshUser();
+      if(state.user){ await pullRemoteData(); flushQueue(); }
+    } else if(event === 'SIGNED_OUT'){
+      state.user = null; renderAccount(); updateSyncBadge();
+    }
+  });
 }
 
 /* =========================================================
@@ -1083,8 +1130,10 @@ function wire(){
   applyTheme(state.theme);
   applySettings(Object.keys(state.settings).length ? state.settings : { fs:19, ls:1.7, w:64, z:1 });
   await loadLibrary();
+  await refreshUser();
+  if(state.user){ await pullRemoteData(); }
   updateSyncBadge();
-  if(supabase && navigator.onLine) flushQueue();
+  if(state.user && navigator.onLine) flushQueue();
   // If library has books, auto-open the last read
   const progressAll = await dbAll('progress');
   if(progressAll.length){
