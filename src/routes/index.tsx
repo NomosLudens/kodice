@@ -9,7 +9,7 @@ function Index() {
   // Render it in a full-viewport iframe so "/" opens the reader directly.
   return (
     <iframe
-      src="/codice/"
+      src="/codice/index.html"
       title="CÓDICE"
       style={{
         border: 0,
