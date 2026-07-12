@@ -35,26 +35,18 @@
   a{color:var(--orange);text-decoration:none}
 
   /* ---------- Layout ---------- */
-  :root{ --rail:68px; --rail-open:248px; }
+  :root{ --rail:0px; --rail-open:280px; }
   #app{
     display:grid; height:100dvh;
-    grid-template-columns: var(--rail) 1fr;
+    grid-template-columns: 1fr;
     grid-template-rows:auto 1fr;
     grid-template-areas:
-      "side top"
-      "side main";
+      "top"
+      "main";
     padding-top:var(--safe-t); padding-right:var(--safe-r);
-    transition:grid-template-columns .32s cubic-bezier(.2,.7,.2,1);
   }
   #topbar{grid-area:top}
   #main{grid-area:main;min-width:0}
-  #sidebar{grid-area:side}
-  @media (min-width: 960px){
-    #app.rail-open{ grid-template-columns: var(--rail-open) 1fr; }
-    .side-panel, #library-panel{
-      /* on desktop keep panels as sheets from the left, over content */
-    }
-  }
 
   /* ---------- Top bar ---------- */
   #topbar{
@@ -155,8 +147,10 @@
 
   /* ---------- Sidebar (premium rail) ---------- */
   #sidebar{
-    position:relative;
-    width:var(--rail); overflow:hidden;
+    position:fixed; top:0; bottom:0; left:0; height:100dvh;
+    width:var(--rail-open); max-width:86vw;
+    transform:translateX(-100%);
+    overflow:hidden;
     background:
       radial-gradient(120% 60% at 0% 0%, color-mix(in oklab, var(--orange) 10%, transparent), transparent 60%),
       linear-gradient(180deg, var(--surface), color-mix(in oklab, var(--surface) 90%, black));
@@ -164,19 +158,16 @@
     padding: 10px 0 calc(10px + var(--safe-b));
     padding-left:var(--safe-l);
     display:flex; flex-direction:column;
-    transition:width .32s cubic-bezier(.2,.7,.2,1);
+    transition:transform .32s cubic-bezier(.2,.7,.2,1);
     z-index:60;
+    box-shadow:0 20px 60px rgba(0,0,0,.5);
   }
   #sidebar::before{
     content:"";position:absolute;inset:0 auto 0 0;width:1px;
     background:linear-gradient(180deg,transparent, color-mix(in oklab, var(--orange) 40%, transparent), transparent);
     opacity:.5;pointer-events:none;
   }
-  #app.rail-open #sidebar{ width:var(--rail-open); }
-  @media (hover:hover) and (min-width:960px){
-    #sidebar:hover{ width:var(--rail-open); }
-    #sidebar:hover ~ #topbar, #sidebar:hover ~ #main{ /* nothing, main is grid managed */ }
-  }
+  #app.rail-open #sidebar{ transform:translateX(0); }
   #sidebar .brand{
     display:flex;align-items:center;gap:12px;
     padding:8px 14px 14px; min-height:56px;
@@ -221,19 +212,12 @@
     box-shadow:0 0 12px color-mix(in oklab, var(--orange) 60%, transparent);
   }
   #sidebar .nav-btn[disabled]{opacity:.35;pointer-events:none}
-  /* Expand-only content */
-  @media (hover:hover) and (min-width:960px){
-    #sidebar:hover .brand-text,
-    #sidebar:hover .nav-btn .lbl,
-    #sidebar:hover .nav-btn .kbd,
-    #sidebar:hover .nav-group-label,
-    #sidebar:hover .foot .meta{ opacity:1;transform:none }
-  }
-  #app.rail-open #sidebar .brand-text,
-  #app.rail-open #sidebar .nav-btn .lbl,
-  #app.rail-open #sidebar .nav-btn .kbd,
-  #app.rail-open #sidebar .nav-group-label,
-  #app.rail-open #sidebar .foot .meta{ opacity:1;transform:none }
+  /* Labels always visible when sidebar is open (it's an overlay) */
+  #sidebar .brand-text,
+  #sidebar .nav-btn .lbl,
+  #sidebar .nav-btn .kbd,
+  #sidebar .nav-group-label,
+  #sidebar .foot .meta{ opacity:1;transform:none }
 
   /* Sidebar footer: sync + user */
   #sidebar .foot{
@@ -250,22 +234,14 @@
   #sidebar .foot .meta .n{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
   #sidebar .foot .meta .s{font-size:11px;color:var(--text-2);display:flex;align-items:center;gap:5px}
   #sidebar .toggle{
-    position:absolute;top:14px;right:-12px;width:24px;height:24px;border-radius:50%;
-    background:var(--elev);border:1px solid var(--border);display:none;
-    align-items:center;justify-content:center;z-index:2;
+    display:none;
   }
-  @media (min-width:960px){ #sidebar .toggle{display:flex} }
-  #sidebar .toggle svg{width:14px;height:14px;transition:transform .3s}
-  #app.rail-open #sidebar .toggle svg{transform:rotate(180deg)}
-  /* Mobile scrim when expanded */
+  /* Scrim when sidebar is open */
   #sidebar-scrim{
     position:fixed;inset:0;background:rgba(0,0,0,.4);opacity:0;pointer-events:none;
     transition:opacity .28s;z-index:55;
   }
-  @media (max-width:959px){
-    #app.rail-open #sidebar-scrim{opacity:1;pointer-events:auto}
-    #app.rail-open #sidebar{ position:fixed;top:0;bottom:0;left:0;height:100dvh;box-shadow:0 20px 60px rgba(0,0,0,.5) }
-  }
+  #app.rail-open #sidebar-scrim{opacity:1;pointer-events:auto}
   /* progress micro on rail */
   #sidebar .rail-progress{
     height:2px;margin:0 12px 6px;background:var(--elev);border-radius:2px;overflow:hidden;
@@ -1556,20 +1532,17 @@ function wire(){
       else if(k==='add') $('#file-input').click();
       else if(k==='theme') applyTheme(state.theme==='night' ? 'day' : 'night');
       else if(k==='account'){ if(state.user) signOut(); else openAuth(); }
-      // Auto-collapse on mobile after tap
-      if(window.matchMedia('(max-width:959px)').matches){
-        document.getElementById('app').classList.remove('rail-open');
-      }
+      // Sidebar is an overlay — collapse after tap
+      document.getElementById('app').classList.remove('rail-open');
     });
   });
-  $('#btn-rail-toggle').addEventListener('click', ()=>{
-    document.getElementById('app').classList.toggle('rail-open');
-  });
+  const toggleRail = ()=>document.getElementById('app').classList.toggle('rail-open');
+  const railTopBtn = $('#btn-rail-toggle');
+  if(railTopBtn) railTopBtn.addEventListener('click', toggleRail);
   const railMobileBtn = $('#btn-rail-mobile');
   if(railMobileBtn){
-    const showMobile = ()=>{ railMobileBtn.style.display = window.matchMedia('(max-width:959px)').matches ? 'inline-flex' : 'none'; };
-    showMobile(); window.addEventListener('resize', showMobile);
-    railMobileBtn.addEventListener('click', ()=>document.getElementById('app').classList.toggle('rail-open'));
+    railMobileBtn.style.display = 'inline-flex';
+    railMobileBtn.addEventListener('click', toggleRail);
   }
   $('#sidebar-scrim').addEventListener('click', ()=>document.getElementById('app').classList.remove('rail-open'));
 
