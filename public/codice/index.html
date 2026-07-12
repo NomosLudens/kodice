@@ -1083,10 +1083,17 @@ function scheduleNotesSave(){
 async function queueSync(kind, row){
   const item = { kind, row, ts:Date.now() };
   const s = await idb('queue','readwrite'); s.add(item);
+  refreshPending();
   flushQueue();
 }
+async function refreshPending(){
+  try{ const all = await dbAll('queue'); state.sync.pending = all.length; }catch(e){}
+  renderSyncStatus();
+}
 async function flushQueue(){
-  if(!supabase || !state.user || !navigator.onLine) return;
+  if(state.sync.syncing) return;
+  if(!supabase || !state.user || !navigator.onLine){ refreshPending(); return; }
+  state.sync.syncing = true; renderSyncStatus();
   const all = await dbAll('queue');
   let failed = 0; let lastErr = null;
   for(const item of all){
@@ -1111,6 +1118,10 @@ async function flushQueue(){
       break;
     }
   }
+  state.sync.syncing = false;
+  state.sync.lastError = lastErr ? (lastErr.message || String(lastErr)) : null;
+  if(!failed) state.sync.lastSync = Date.now();
+  await refreshPending();
   if(failed && lastErr){
     const st = document.getElementById('sync-status');
     if(st) st.textContent = 'Erro ao sincronizar: '+(lastErr.message||'tente novamente');
