@@ -475,7 +475,7 @@ const state = {
 /* =========================================================
  * IndexedDB
  * =======================================================*/
-const DB_NAME = 'codice-db'; const DB_VER = 1;
+const DB_NAME = 'codice-db'; const DB_VER = 2;
 function openDB(){
   return new Promise((res,rej)=>{
     const r = indexedDB.open(DB_NAME, DB_VER);
@@ -485,6 +485,7 @@ function openDB(){
       if(!db.objectStoreNames.contains('notes')) db.createObjectStore('notes',{keyPath:'book_id'});
       if(!db.objectStoreNames.contains('progress')) db.createObjectStore('progress',{keyPath:'book_id'});
       if(!db.objectStoreNames.contains('queue')) db.createObjectStore('queue',{keyPath:'id',autoIncrement:true});
+      if(!db.objectStoreNames.contains('settings')) db.createObjectStore('settings',{keyPath:'id'});
     };
     r.onsuccess = () => res(r.result);
     r.onerror = () => rej(r.error);
