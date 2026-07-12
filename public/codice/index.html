@@ -1836,6 +1836,16 @@ function wire(){
     if(f) await importNotesMarkdown(f);
   });
 
+  // Sincronizar agora (Ajustes → Sincronização)
+  $('#btn-sync-now').addEventListener('click', async ()=>{
+    if(!supabase){ toast('Sincronização desativada'); return; }
+    if(!state.user){ toast('Faça login para sincronizar'); return; }
+    if(!navigator.onLine){ toast('Sem conexão'); return; }
+    state.sync.lastError = null; renderSyncStatus();
+    await flushQueue();
+    if(!state.sync.lastError && state.sync.pending===0) toast('Sincronizado');
+  });
+
   // Online status
   window.addEventListener('online', ()=>{ state.online=true; updateSyncBadge(); renderSyncStatus(); flushQueue(); toast('Online — sincronizando...'); });
   window.addEventListener('offline',()=>{ state.online=false; updateSyncBadge(); renderSyncStatus(); toast('Offline — salvando local'); });
