@@ -454,9 +454,29 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const SUPABASE_URL = "https://sfslfvaoopaagxmvjwjl.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNmc2xmdmFvb3BhYWd4bXZqd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM4NjU0NzQsImV4cCI6MjA5OTQ0MTQ3NH0.__39jsCWGcAmaQJr59jaLOq2tT7dpFbZOlAeRSN8Rpk";
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: { persistSession: true, autoRefreshToken: true, storageKey: 'codice.sb.auth' }
-});
+// Tabelas esperadas no backend (Supabase):
+//   public.codice_progress (user_id uuid, book_id text, cfi, page, scroll_top, percentage, title, updated_at)
+//   public.codice_notes    (user_id uuid, book_id text, content text, updated_at)
+//   public.codice_settings (user_id uuid, theme text, fs, ls, w, z numeric, updated_at)
+//   public.profiles        (id uuid pk, display_name, avatar_url, updated_at)
+// Todas com RLS habilitada e políticas por auth.uid() = user_id.
+
+const SYNC_ENABLED = !!(SUPABASE_URL && SUPABASE_ANON_KEY
+  && /^https?:\/\//.test(SUPABASE_URL) && SUPABASE_ANON_KEY.length > 20);
+
+let supabase = null;
+if(SYNC_ENABLED){
+  try{
+    supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true, storageKey: 'codice.sb.auth' }
+    });
+  }catch(e){
+    console.warn('[Códice] Falha ao inicializar Supabase — modo somente-local.', e);
+    supabase = null;
+  }
+} else {
+  console.info('[Códice] SUPABASE_URL/ANON_KEY ausentes — sincronização desativada, dados apenas locais.');
+}
 
 /* =========================================================
  * State
