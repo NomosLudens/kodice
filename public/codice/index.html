@@ -734,6 +734,7 @@ function persistSettings(){
       queueSync('settings', {
         user_id: state.user.id,
         theme: row.theme, fs: row.fs, ls: row.ls, w: row.w, z: row.z,
+        updated_at: new Date(row.updated_at).toISOString(),
       });
     }
   }, 400);
