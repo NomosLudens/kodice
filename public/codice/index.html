@@ -1532,10 +1532,8 @@ function wire(){
       else if(k==='add') $('#file-input').click();
       else if(k==='theme') applyTheme(state.theme==='night' ? 'day' : 'night');
       else if(k==='account'){ if(state.user) signOut(); else openAuth(); }
-      // Auto-collapse on mobile after tap
-      if(window.matchMedia('(max-width:959px)').matches){
-        document.getElementById('app').classList.remove('rail-open');
-      }
+      // Sidebar is an overlay — collapse after tap
+      document.getElementById('app').classList.remove('rail-open');
     });
   });
   const toggleRail = ()=>document.getElementById('app').classList.toggle('rail-open');
