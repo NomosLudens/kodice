@@ -513,8 +513,13 @@
     </div>
     <div class="setting">
       <div class="setting-label"><b>Sincronização</b><span id="sync-status">Local</span></div>
-      <div style="color:var(--text-2);font-size:13px;line-height:1.5">
+      <div style="color:var(--text-2);font-size:13px;line-height:1.5;margin-bottom:10px">
         Notas e progresso são salvos offline (IndexedDB) e enviados ao Supabase quando conectado.
+      </div>
+      <div id="sync-pill-box" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span id="sync-pill" style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid var(--border);background:var(--elev);font-size:12px;font-weight:600"><span class="sync-dot off"></span><span>Local</span></span>
+        <span id="sync-pill-meta" style="color:var(--text-2);font-size:12px"></span>
+        <button id="btn-sync-now" style="margin-left:auto;min-height:38px;padding:0 14px;border-radius:8px;background:var(--orange);color:#fff;font-weight:600;font-size:13px;border:0;cursor:pointer">Sincronizar agora</button>
       </div>
     </div>
     <div class="setting">
@@ -1384,7 +1389,6 @@ function fmtRelTime(ts){
   const d = Math.floor(h/24); return `há ${d}d`;
 }
 function renderSyncStatus(){
-  const box = document.getElementById('sync-status-box'); if(!box) return;
   const { pending, lastSync, lastError, syncing } = state.sync;
   let stateLabel, dotClass;
   if(!supabase){ stateLabel='Sincronização desativada'; dotClass='off'; }
@@ -1395,6 +1399,29 @@ function renderSyncStatus(){
   else if(pending>0){ stateLabel='Aguardando envio'; dotClass='off'; }
   else { stateLabel='Tudo sincronizado'; dotClass='on'; }
   const canRetry = !!supabase && !!state.user && navigator.onLine && !syncing;
+  // Compact pill (Ajustes → Sincronização)
+  const pill = document.getElementById('sync-pill');
+  const pillMeta = document.getElementById('sync-pill-meta');
+  const pillBtn = document.getElementById('btn-sync-now');
+  if(pill){
+    let shortLabel = 'Local';
+    if(!supabase) shortLabel='Desativado';
+    else if(!state.user) shortLabel='Local';
+    else if(!navigator.onLine) shortLabel='Offline';
+    else if(syncing) shortLabel='Sincronizando…';
+    else if(lastError) shortLabel='Erro';
+    else if(pending>0) shortLabel=`Pendente (${pending})`;
+    else shortLabel='Online';
+    pill.innerHTML = `<span class="sync-dot ${dotClass}"></span><span>${escapeHtml(shortLabel)}</span>`;
+    if(pillMeta) pillMeta.textContent = lastSync ? `último: ${fmtRelTime(lastSync)}` : '';
+    if(pillBtn){
+      pillBtn.disabled = !canRetry;
+      pillBtn.style.opacity = canRetry ? 1 : .5;
+      pillBtn.style.cursor = canRetry ? 'pointer' : 'not-allowed';
+      pillBtn.textContent = syncing ? 'Sincronizando…' : 'Sincronizar agora';
+    }
+  }
+  const box = document.getElementById('sync-status-box'); if(!box) return;
   box.innerHTML = `
     <div style="border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--elev)">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
@@ -1807,6 +1834,16 @@ function wire(){
   $('#notes-md-file').addEventListener('change', async e=>{
     const f = e.target.files?.[0]; e.target.value = '';
     if(f) await importNotesMarkdown(f);
+  });
+
+  // Sincronizar agora (Ajustes → Sincronização)
+  $('#btn-sync-now').addEventListener('click', async ()=>{
+    if(!supabase){ toast('Sincronização desativada'); return; }
+    if(!state.user){ toast('Faça login para sincronizar'); return; }
+    if(!navigator.onLine){ toast('Sem conexão'); return; }
+    state.sync.lastError = null; renderSyncStatus();
+    await flushQueue();
+    if(!state.sync.lastError && state.sync.pending===0) toast('Sincronizado');
   });
 
   // Online status
