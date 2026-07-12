@@ -1538,14 +1538,13 @@ function wire(){
       }
     });
   });
-  $('#btn-rail-toggle').addEventListener('click', ()=>{
-    document.getElementById('app').classList.toggle('rail-open');
-  });
+  const toggleRail = ()=>document.getElementById('app').classList.toggle('rail-open');
+  const railTopBtn = $('#btn-rail-toggle');
+  if(railTopBtn) railTopBtn.addEventListener('click', toggleRail);
   const railMobileBtn = $('#btn-rail-mobile');
   if(railMobileBtn){
-    const showMobile = ()=>{ railMobileBtn.style.display = window.matchMedia('(max-width:959px)').matches ? 'inline-flex' : 'none'; };
-    showMobile(); window.addEventListener('resize', showMobile);
-    railMobileBtn.addEventListener('click', ()=>document.getElementById('app').classList.toggle('rail-open'));
+    railMobileBtn.style.display = 'inline-flex';
+    railMobileBtn.addEventListener('click', toggleRail);
   }
   $('#sidebar-scrim').addEventListener('click', ()=>document.getElementById('app').classList.remove('rail-open'));
 
