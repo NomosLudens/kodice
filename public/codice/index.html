@@ -513,8 +513,13 @@
     </div>
     <div class="setting">
       <div class="setting-label"><b>Sincronização</b><span id="sync-status">Local</span></div>
-      <div style="color:var(--text-2);font-size:13px;line-height:1.5">
+      <div style="color:var(--text-2);font-size:13px;line-height:1.5;margin-bottom:10px">
         Notas e progresso são salvos offline (IndexedDB) e enviados ao Supabase quando conectado.
+      </div>
+      <div id="sync-pill-box" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span id="sync-pill" style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid var(--border);background:var(--elev);font-size:12px;font-weight:600"><span class="sync-dot off"></span><span>Local</span></span>
+        <span id="sync-pill-meta" style="color:var(--text-2);font-size:12px"></span>
+        <button id="btn-sync-now" style="margin-left:auto;min-height:38px;padding:0 14px;border-radius:8px;background:var(--orange);color:#fff;font-weight:600;font-size:13px;border:0;cursor:pointer">Sincronizar agora</button>
       </div>
     </div>
     <div class="setting">
