@@ -399,6 +399,18 @@
       <div class="setting-label"><b>Conta</b></div>
       <div id="account-box"></div>
     </div>
+    <div class="setting">
+      <div class="setting-label"><b>Backup</b><span id="backup-status" style="color:var(--text-2);font-size:12px"></span></div>
+      <div style="color:var(--text-2);font-size:13px;line-height:1.5;margin-bottom:10px">
+        Exporte biblioteca, progresso, anotações e ajustes em um arquivo JSON. Importe em qualquer dispositivo — funciona 100% offline.
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button id="btn-backup-export" class="primary" style="min-height:44px">Exportar backup (.json)</button>
+        <button id="btn-backup-export-md" style="min-height:44px;border-radius:10px;background:var(--elev);border:1px solid var(--border);color:var(--text)">Exportar só anotações (.md)</button>
+        <button id="btn-backup-import" style="min-height:44px;border-radius:10px;background:var(--elev);border:1px solid var(--border);color:var(--text)">Importar backup (.json)</button>
+        <input type="file" id="backup-file" accept="application/json,.json" style="display:none" />
+      </div>
+    </div>
   </div>
 </aside>
 
@@ -1128,6 +1140,145 @@ function exportMarkdown(){
 }
 
 /* =========================================================
+ * Backup — export/import (offline)
+ * =======================================================*/
+const BACKUP_VERSION = 1;
+function bufToB64(buf){
+  const bytes = new Uint8Array(buf); const chunk = 0x8000; let s = '';
+  for(let i=0;i<bytes.length;i+=chunk) s += String.fromCharCode.apply(null, bytes.subarray(i,i+chunk));
+  return btoa(s);
+}
+function b64ToBuf(b64){
+  const bin = atob(b64); const out = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) out[i] = bin.charCodeAt(i);
+  return out.buffer;
+}
+function setBackupStatus(msg){ const el = document.getElementById('backup-status'); if(el) el.textContent = msg || ''; }
+
+async function exportBackup(){
+  setBackupStatus('Preparando...');
+  try{
+    const [books, progress, notes, settings] = await Promise.all([
+      dbAll('books'), dbAll('progress'), dbAll('notes'), dbAll('settings'),
+    ]);
+    const payload = {
+      app: 'codice', version: BACKUP_VERSION, exportedAt: new Date().toISOString(),
+      user: state.user ? { id: state.user.id, email: state.user.email, display_name: state.user.display_name } : null,
+      books: books.map(b => ({
+        id: b.id, title: b.title, author: b.author, type: b.type, addedAt: b.addedAt,
+        data_b64: b.data ? bufToB64(b.data) : null,
+      })),
+      progress, notes, settings,
+    };
+    const json = JSON.stringify(payload);
+    const blob = new Blob([json], { type:'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+    a.href = url; a.download = `codice-backup-${stamp}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    const mb = (json.length/1048576).toFixed(2);
+    setBackupStatus(`${books.length} livro(s) · ${mb} MB`);
+    toast('Backup exportado');
+  }catch(e){
+    console.error(e); setBackupStatus('Falha ao exportar');
+    toast('Não foi possível exportar o backup');
+  }
+}
+
+async function exportNotesMarkdown(){
+  try{
+    const [books, notes] = await Promise.all([dbAll('books'), dbAll('notes')]);
+    const byId = new Map(books.map(b=>[b.id,b]));
+    const filled = notes.filter(n => (n.content||'').trim().length);
+    if(!filled.length){ toast('Nenhuma anotação para exportar'); return; }
+    const parts = ['# Anotações — Códice','', `_Exportado em ${new Date().toLocaleString()}_`,''];
+    for(const n of filled){
+      const b = byId.get(n.book_id) || {};
+      parts.push(`## ${b.title || n.book_id}`);
+      if(b.author) parts.push(`_${b.author}_`);
+      parts.push('', n.content.trim(), '', '---', '');
+    }
+    const blob = new Blob([parts.join('\n')], { type:'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `codice-anotacoes-${new Date().toISOString().slice(0,10)}.md`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    toast(`${filled.length} anotação(ões) exportada(s)`);
+  }catch(e){ console.error(e); toast('Falha ao exportar anotações'); }
+}
+
+async function importBackup(file){
+  setBackupStatus('Lendo arquivo...');
+  try{
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if(!data || data.app !== 'codice' || !Array.isArray(data.books)){
+      throw new Error('Arquivo de backup inválido');
+    }
+    let bAdded=0, pAdded=0, nAdded=0, sAdded=0;
+    // Books — restaurar se ainda não existirem (não sobrescrever binário existente)
+    for(const b of data.books){
+      if(!b?.id) continue;
+      const existing = await dbGet('books', b.id);
+      if(existing) continue;
+      const rec = {
+        id: b.id, title: b.title || 'Sem título', author: b.author || '',
+        type: b.type || 'epub', addedAt: b.addedAt || Date.now(),
+        data: b.data_b64 ? b64ToBuf(b.data_b64) : null,
+      };
+      if(!rec.data){ continue; }
+      await dbPut('books', rec); bAdded++;
+    }
+    // Progress — última escrita vence (por updated_at)
+    for(const p of (data.progress||[])){
+      if(!p?.book_id) continue;
+      const local = await dbGet('progress', p.book_id);
+      if(!local || (local.updated_at||0) < (p.updated_at||0)){
+        await dbPut('progress', p); pAdded++;
+      }
+    }
+    // Notes — última escrita vence
+    for(const n of (data.notes||[])){
+      if(!n?.book_id) continue;
+      const local = await dbGet('notes', n.book_id);
+      if(!local || (local.updated_at||0) < (n.updated_at||0)){
+        await dbPut('notes', n); nAdded++;
+      }
+    }
+    // Settings — última escrita vence
+    for(const s of (data.settings||[])){
+      if(!s?.id) continue;
+      const local = await dbGet('settings', s.id);
+      if(!local || (local.updated_at||0) < (s.updated_at||0)){
+        await dbPut('settings', s); sAdded++;
+      }
+    }
+    await loadLibrary();
+    // Reaplicar preferências se importadas
+    if(sAdded){ await loadLocalSettings(); }
+    // Se o livro aberto teve notas atualizadas, refletir
+    if(state.activeBook){
+      const n = await dbGet('notes', state.activeBook.id);
+      if(n && $('#notebook').value !== (n.content||'')) $('#notebook').value = n.content || '';
+    }
+    // Enfileirar dados importados para nuvem, se logado
+    if(supabase && state.user){
+      for(const p of (data.progress||[])) queueSync('progress', { book_id:p.book_id, title:p.title, cfi:p.cfi, page:p.page, scroll_top:p.scroll_top ?? p.scrollTop, percentage:p.percentage });
+      for(const n of (data.notes||[])) queueSync('notes', { book_id:n.book_id, content:n.content||'' });
+      flushQueue();
+    }
+    setBackupStatus(`${bAdded} livro(s), ${pAdded} progresso(s), ${nAdded} nota(s), ${sAdded} ajuste(s)`);
+    toast('Backup importado');
+  }catch(e){
+    console.error(e); setBackupStatus('Falha ao importar');
+    toast(e?.message || 'Arquivo inválido');
+  }
+}
+
+/* =========================================================
  * Wire events
  * =======================================================*/
 function wire(){
@@ -1179,6 +1330,15 @@ function wire(){
   // Notebook
   $('#notebook').addEventListener('input', scheduleNotesSave);
   $('#btn-export-md').addEventListener('click', exportMarkdown);
+
+  // Backup
+  $('#btn-backup-export').addEventListener('click', exportBackup);
+  $('#btn-backup-export-md').addEventListener('click', exportNotesMarkdown);
+  $('#btn-backup-import').addEventListener('click', ()=> $('#backup-file').click());
+  $('#backup-file').addEventListener('change', async e=>{
+    const f = e.target.files?.[0]; e.target.value = '';
+    if(f) await importBackup(f);
+  });
 
   // Online status
   window.addEventListener('online', ()=>{ state.online=true; updateSyncBadge(); flushQueue(); toast('Online — sincronizando...'); });
