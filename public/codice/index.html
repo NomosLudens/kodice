@@ -1331,6 +1331,15 @@ function wire(){
   $('#notebook').addEventListener('input', scheduleNotesSave);
   $('#btn-export-md').addEventListener('click', exportMarkdown);
 
+  // Backup
+  $('#btn-backup-export').addEventListener('click', exportBackup);
+  $('#btn-backup-export-md').addEventListener('click', exportNotesMarkdown);
+  $('#btn-backup-import').addEventListener('click', ()=> $('#backup-file').click());
+  $('#backup-file').addEventListener('change', async e=>{
+    const f = e.target.files?.[0]; e.target.value = '';
+    if(f) await importBackup(f);
+  });
+
   // Online status
   window.addEventListener('online', ()=>{ state.online=true; updateSyncBadge(); flushQueue(); toast('Online — sincronizando...'); });
   window.addEventListener('offline',()=>{ state.online=false; updateSyncBadge(); toast('Offline — salvando local'); });
