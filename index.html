@@ -623,13 +623,13 @@
 </script>
 
 <script type="module">
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from '@supabase/supabase-js';
 
 /* =========================================================
  * CONFIG — Supabase
  * =======================================================*/
-const SUPABASE_URL = "https://sfslfvaoopaagxmvjwjl.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNmc2xmdmFvb3BhYWd4bXZqd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM4NjU0NzQsImV4cCI6MjA5OTQ0MTQ3NH0.__39jsCWGcAmaQJr59jaLOq2tT7dpFbZOlAeRSN8Rpk";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL?.trim() || "";
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() || "";
 
 // Tabelas esperadas no backend (Supabase):
 //   public.codice_progress (user_id uuid, book_id text, cfi, page, scroll_top, percentage, title, updated_at)
@@ -638,13 +638,13 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 //   public.profiles        (id uuid pk, display_name, avatar_url, updated_at)
 // Todas com RLS habilitada e políticas por auth.uid() = user_id.
 
-const SYNC_ENABLED = !!(SUPABASE_URL && SUPABASE_ANON_KEY
-  && /^https?:\/\//.test(SUPABASE_URL) && SUPABASE_ANON_KEY.length > 20);
+const SYNC_ENABLED = !!(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY
+  && /^https?:\/\//.test(SUPABASE_URL) && SUPABASE_PUBLISHABLE_KEY.length > 20);
 
 let supabase = null;
 if(SYNC_ENABLED){
   try{
-    supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
       auth: { persistSession: true, autoRefreshToken: true, storageKey: 'codice.sb.auth' }
     });
   }catch(e){
@@ -652,7 +652,7 @@ if(SYNC_ENABLED){
     supabase = null;
   }
 } else {
-  console.info('[Códice] SUPABASE_URL/ANON_KEY ausentes — sincronização desativada, dados apenas locais.');
+  console.info('[Códice] SUPABASE_URL/PUBLISHABLE_KEY ausentes — sincronização desativada, dados apenas locais.');
 }
 
 /* =========================================================
@@ -1121,7 +1121,7 @@ function scheduleNotesSave(){
   }, 500);
 }
 async function queueSync(kind, row){
-  const item = { kind, row, ts:Date.now() };
+  const item = { kind, row, ts:Date.now(), owner_user_id: state.user?.id };
   const s = await idb('queue','readwrite'); s.add(item);
   refreshPending();
   flushQueue();
@@ -1175,6 +1175,7 @@ async function flushQueue(){
   let failed = 0; let lastErr = null;
   for(const item of all){
     try{
+      if(!state.user || item.owner_user_id !== state.user.id) continue;
       const table = item.kind === 'progress' ? 'codice_progress'
                   : item.kind === 'notes'    ? 'codice_notes'
                   : item.kind === 'settings' ? 'codice_settings' : null;
@@ -1227,7 +1228,7 @@ function updateSyncBadge(){
   const dot = $('#sync-dot'); const lbl = $('#sync-label'); const st = $('#sync-status');
   if(!supabase){
     dot.className='sync-dot off'; lbl.textContent='Local';
-    st.textContent='Sincronização desativada (configure SUPABASE_URL e SUPABASE_ANON_KEY)';
+    st.textContent='Sincronização desativada (configure SUPABASE_URL e SUPABASE_PUBLISHABLE_KEY)';
     updateRail(); return;
   }
   if(!state.user){
@@ -1375,11 +1376,11 @@ async function pullRemoteData(){
   }
 }
 async function signUp(email, password, displayName){
-  if(!supabase) throw new Error('Sincronização desativada — configure SUPABASE_URL/ANON_KEY.');
+  if(!supabase) throw new Error('Sincronização desativada — configure SUPABASE_URL/PUBLISHABLE_KEY.');
   const { data, error } = await supabase.auth.signUp({
     email, password,
     options: {
-      emailRedirectTo: window.location.origin + '/codice/index.html',
+      emailRedirectTo: window.location.origin + '/',
       data: { display_name: displayName || email.split('@')[0] },
     }
   });
@@ -1387,7 +1388,7 @@ async function signUp(email, password, displayName){
   return data;
 }
 async function signIn(email, password){
-  if(!supabase) throw new Error('Sincronização desativada — configure SUPABASE_URL/ANON_KEY.');
+  if(!supabase) throw new Error('Sincronização desativada — configure SUPABASE_URL/PUBLISHABLE_KEY.');
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if(error) throw error;
 }
@@ -1398,7 +1399,7 @@ async function signOut(){
   toast('Você saiu da conta');
 }
 function openAuth(){
-  if(!supabase){ toast('Sincronização desativada — configure SUPABASE_URL/ANON_KEY.'); return; }
+  if(!supabase){ toast('Sincronização desativada — configure SUPABASE_URL/PUBLISHABLE_KEY.'); return; }
   $('#auth-overlay').classList.add('show');
 }
 function closeAuth(){ $('#auth-overlay').classList.remove('show'); $('#auth-error').textContent=''; }
