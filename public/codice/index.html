@@ -1112,11 +1112,11 @@ function updateSyncBadge(){
   if(!supabase){
     dot.className='sync-dot off'; lbl.textContent='Local';
     st.textContent='Sincronização desativada (configure SUPABASE_URL e SUPABASE_ANON_KEY)';
-    return;
+    updateRail(); return;
   }
   if(!state.user){
     dot.className='sync-dot off'; lbl.textContent='Anônimo'; st.textContent='Somente local — entre para sincronizar';
-    return;
+    updateRail(); return;
   }
   if(navigator.onLine){
     dot.className='sync-dot on'; lbl.textContent = state.user.display_name || state.user.email;
@@ -1124,6 +1124,30 @@ function updateSyncBadge(){
   } else {
     dot.className='sync-dot off'; lbl.textContent='Offline'; st.textContent='Offline — sincroniza ao reconectar';
   }
+  updateRail();
+}
+
+function updateRail(){
+  const dot = document.getElementById('rail-dot');
+  const sync = document.getElementById('rail-sync');
+  const user = document.getElementById('rail-user');
+  const av = document.getElementById('rail-avatar');
+  if(!dot) return;
+  const name = state.user?.display_name || state.user?.email || 'Anônimo';
+  user.textContent = name;
+  av.textContent = (name[0]||'A').toUpperCase();
+  if(!supabase){ dot.className='sync-dot off'; sync.textContent='Local'; }
+  else if(!state.user){ dot.className='sync-dot off'; sync.textContent='Anônimo'; }
+  else if(navigator.onLine){ dot.className='sync-dot on'; sync.textContent='Sincronizado'; }
+  else { dot.className='sync-dot off'; sync.textContent='Offline'; }
+  // Enable/disable reader-scoped items
+  const has = !!state.activeBook;
+  ['nav-prev','nav-next','nav-toc','nav-notebook'].forEach(id=>{
+    const b = document.getElementById(id);
+    if(b){ b.disabled = !has; }
+  });
+  const foot = document.getElementById('rail-foot');
+  if(foot){ foot.style.cursor='pointer'; foot.onclick = ()=>openPanel('settings-panel'); }
 }
 
 /* =========================================================
