@@ -1655,6 +1655,17 @@ async function importNotesMarkdown(file){
  * =======================================================*/
 function wire(){
   // (importNotesMarkdown defined above)
+  // Auto-backup select
+  const abSel = document.getElementById('auto-backup-freq');
+  if(abSel){
+    abSel.value = getAutoBackupFreq();
+    abSel.addEventListener('change', ()=>{
+      localStorage.setItem('codice.autobackup.freq', abSel.value);
+      renderAutoBackupInfo();
+      scheduleAutoBackupCheck(1500);
+    });
+  }
+  renderAutoBackupInfo();
   // Drop
   const dz = $('#dropzone');
   ;['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add('drag')}));
