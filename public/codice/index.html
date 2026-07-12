@@ -1232,7 +1232,7 @@ function wire(){
   });
 
   // React to auth state
-  supabase.auth.onAuthStateChange(async (event)=>{
+  if(supabase) supabase.auth.onAuthStateChange(async (event)=>{
     if(event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION'){
       await refreshUser();
       if(state.user){ await pullRemoteData(); flushQueue(); }
