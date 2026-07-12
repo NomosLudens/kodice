@@ -530,9 +530,10 @@ function closeAllPanels(){
  * =======================================================*/
 function applyTheme(t){
   state.theme = t; document.documentElement.dataset.theme = t;
-  localStorage.setItem('codice.theme', t);
+  localStorage.setItem('codice.theme', t); // fallback for first paint
   $$('#theme-seg button').forEach(b=>b.classList.toggle('active', b.dataset.theme===t));
   document.querySelector('meta[name=theme-color]').setAttribute('content', t==='night' ? '#0B0C0F' : '#F5F0E7');
+  persistSettings();
 }
 function applySettings(s){
   state.settings = { ...state.settings, ...s };
@@ -541,7 +542,7 @@ function applySettings(s){
   if(cs.ls) document.documentElement.style.setProperty('--reader-line', cs.ls);
   if(cs.w)  document.documentElement.style.setProperty('--reader-width', cs.w+'ch');
   if(cs.z)  document.documentElement.style.setProperty('--reader-zoom', cs.z);
-  localStorage.setItem('codice.settings', JSON.stringify(state.settings));
+  localStorage.setItem('codice.settings', JSON.stringify(state.settings)); // fallback
   // reflect
   if(cs.fs){ $('#fs').value=cs.fs; $('#fs-val').textContent=cs.fs+'px'; }
   if(cs.ls){ $('#ls').value=cs.ls; $('#ls-val').textContent=(+cs.ls).toFixed(2); }
@@ -554,6 +555,43 @@ function applySettings(s){
       state.activeBook.rendition.themes.default({ 'body': { 'line-height': String(cs.ls||1.7) } });
     }catch(e){}
   }
+  persistSettings();
+}
+
+let settingsPersistTimer;
+let _suppressPersist = false;
+function persistSettings(){
+  if(_suppressPersist) return;
+  clearTimeout(settingsPersistTimer);
+  settingsPersistTimer = setTimeout(async ()=>{
+    const cs = state.settings || {};
+    const row = {
+      id: 'prefs',
+      theme: state.theme,
+      fs: cs.fs ?? null, ls: cs.ls ?? null,
+      w: cs.w ?? null,   z: cs.z ?? null,
+      updated_at: Date.now(),
+    };
+    try{ await dbPut('settings', row); }catch(e){ console.warn('idb settings fail', e); }
+    if(state.user){
+      queueSync('settings', {
+        user_id: state.user.id,
+        theme: row.theme, fs: row.fs, ls: row.ls, w: row.w, z: row.z,
+      });
+    }
+  }, 400);
+}
+async function loadLocalSettings(){
+  try{
+    const row = await dbGet('settings', 'prefs');
+    if(!row) return;
+    _suppressPersist = true;
+    if(row.theme) applyTheme(row.theme);
+    const partial = {};
+    ['fs','ls','w','z'].forEach(k=>{ if(row[k]!=null) partial[k]=row[k]; });
+    if(Object.keys(partial).length) applySettings(partial);
+    _suppressPersist = false;
+  }catch(e){ _suppressPersist = false; }
 }
 
 /* =========================================================
