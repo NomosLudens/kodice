@@ -1071,6 +1071,43 @@ async function refreshPending(){
   try{ const all = await dbAll('queue'); state.sync.pending = all.length; }catch(e){}
   renderSyncStatus();
 }
+async function mergeRemoteInto(kind, bookId){
+  try{
+    if(kind === 'progress'){
+      const { data } = await supabase.from('codice_progress').select('*')
+        .eq('user_id', state.user.id).eq('book_id', bookId).maybeSingle();
+      if(data){
+        await dbPut('progress', {
+          book_id: data.book_id, title: data.title,
+          cfi: data.cfi, page: data.page,
+          scrollTop: data.scroll_top, percentage: data.percentage,
+          updated_at: new Date(data.updated_at).getTime(),
+        });
+      }
+    } else if(kind === 'notes'){
+      const { data } = await supabase.from('codice_notes').select('*')
+        .eq('user_id', state.user.id).eq('book_id', bookId).maybeSingle();
+      if(data){
+        await dbPut('notes', { book_id:data.book_id, content:data.content||'', updated_at:new Date(data.updated_at).getTime() });
+        // Se o caderno do livro ativo está aberto, atualiza a textarea sem estourar o autosave.
+        if(state.activeBook?.id === data.book_id){
+          const ta = document.getElementById('notebook');
+          if(ta && ta.value !== data.content){ clearTimeout(notesTimer); ta.value = data.content||''; }
+        }
+      }
+    } else if(kind === 'settings'){
+      const { data } = await supabase.from('codice_settings').select('*')
+        .eq('user_id', state.user.id).maybeSingle();
+      if(data){
+        await dbPut('settings', {
+          id:'prefs', theme:data.theme,
+          fs:data.fs, ls:data.ls, w:data.w, z:data.z,
+          updated_at: new Date(data.updated_at).getTime(),
+        });
+      }
+    }
+  }catch(e){ console.warn('[Códice] mergeRemoteInto', kind, e); }
+}
 async function flushQueue(){
   if(state.sync.syncing) return;
   if(!supabase || !state.user || !navigator.onLine){ refreshPending(); return; }
