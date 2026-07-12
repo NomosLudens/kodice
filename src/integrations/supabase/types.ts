@@ -68,6 +68,36 @@ export type Database = {
         }
         Relationships: []
       }
+      codice_settings: {
+        Row: {
+          fs: number | null
+          ls: number | null
+          theme: string | null
+          updated_at: string
+          user_id: string
+          w: number | null
+          z: number | null
+        }
+        Insert: {
+          fs?: number | null
+          ls?: number | null
+          theme?: string | null
+          updated_at?: string
+          user_id: string
+          w?: number | null
+          z?: number | null
+        }
+        Update: {
+          fs?: number | null
+          ls?: number | null
+          theme?: string | null
+          updated_at?: string
+          user_id?: string
+          w?: number | null
+          z?: number | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null

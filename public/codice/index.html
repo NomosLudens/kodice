@@ -475,7 +475,7 @@ const state = {
 /* =========================================================
  * IndexedDB
  * =======================================================*/
-const DB_NAME = 'codice-db'; const DB_VER = 1;
+const DB_NAME = 'codice-db'; const DB_VER = 2;
 function openDB(){
   return new Promise((res,rej)=>{
     const r = indexedDB.open(DB_NAME, DB_VER);
@@ -485,6 +485,7 @@ function openDB(){
       if(!db.objectStoreNames.contains('notes')) db.createObjectStore('notes',{keyPath:'book_id'});
       if(!db.objectStoreNames.contains('progress')) db.createObjectStore('progress',{keyPath:'book_id'});
       if(!db.objectStoreNames.contains('queue')) db.createObjectStore('queue',{keyPath:'id',autoIncrement:true});
+      if(!db.objectStoreNames.contains('settings')) db.createObjectStore('settings',{keyPath:'id'});
     };
     r.onsuccess = () => res(r.result);
     r.onerror = () => rej(r.error);
@@ -529,9 +530,10 @@ function closeAllPanels(){
  * =======================================================*/
 function applyTheme(t){
   state.theme = t; document.documentElement.dataset.theme = t;
-  localStorage.setItem('codice.theme', t);
+  localStorage.setItem('codice.theme', t); // fallback for first paint
   $$('#theme-seg button').forEach(b=>b.classList.toggle('active', b.dataset.theme===t));
   document.querySelector('meta[name=theme-color]').setAttribute('content', t==='night' ? '#0B0C0F' : '#F5F0E7');
+  persistSettings();
 }
 function applySettings(s){
   state.settings = { ...state.settings, ...s };
@@ -540,7 +542,7 @@ function applySettings(s){
   if(cs.ls) document.documentElement.style.setProperty('--reader-line', cs.ls);
   if(cs.w)  document.documentElement.style.setProperty('--reader-width', cs.w+'ch');
   if(cs.z)  document.documentElement.style.setProperty('--reader-zoom', cs.z);
-  localStorage.setItem('codice.settings', JSON.stringify(state.settings));
+  localStorage.setItem('codice.settings', JSON.stringify(state.settings)); // fallback
   // reflect
   if(cs.fs){ $('#fs').value=cs.fs; $('#fs-val').textContent=cs.fs+'px'; }
   if(cs.ls){ $('#ls').value=cs.ls; $('#ls-val').textContent=(+cs.ls).toFixed(2); }
@@ -553,6 +555,43 @@ function applySettings(s){
       state.activeBook.rendition.themes.default({ 'body': { 'line-height': String(cs.ls||1.7) } });
     }catch(e){}
   }
+  persistSettings();
+}
+
+let settingsPersistTimer;
+let _suppressPersist = false;
+function persistSettings(){
+  if(_suppressPersist) return;
+  clearTimeout(settingsPersistTimer);
+  settingsPersistTimer = setTimeout(async ()=>{
+    const cs = state.settings || {};
+    const row = {
+      id: 'prefs',
+      theme: state.theme,
+      fs: cs.fs ?? null, ls: cs.ls ?? null,
+      w: cs.w ?? null,   z: cs.z ?? null,
+      updated_at: Date.now(),
+    };
+    try{ await dbPut('settings', row); }catch(e){ console.warn('idb settings fail', e); }
+    if(state.user){
+      queueSync('settings', {
+        user_id: state.user.id,
+        theme: row.theme, fs: row.fs, ls: row.ls, w: row.w, z: row.z,
+      });
+    }
+  }, 400);
+}
+async function loadLocalSettings(){
+  try{
+    const row = await dbGet('settings', 'prefs');
+    if(!row) return;
+    _suppressPersist = true;
+    if(row.theme) applyTheme(row.theme);
+    const partial = {};
+    ['fs','ls','w','z'].forEach(k=>{ if(row[k]!=null) partial[k]=row[k]; });
+    if(Object.keys(partial).length) applySettings(partial);
+    _suppressPersist = false;
+  }catch(e){ _suppressPersist = false; }
 }
 
 /* =========================================================
@@ -869,10 +908,13 @@ async function flushQueue(){
   const all = await dbAll('queue');
   for(const item of all){
     try{
-      const table = item.kind === 'progress' ? 'codice_progress' : 'codice_notes';
-      // ensure current user_id (in case queued before sign-in of another account)
+      const table = item.kind === 'progress' ? 'codice_progress'
+                  : item.kind === 'notes'    ? 'codice_notes'
+                  : item.kind === 'settings' ? 'codice_settings' : null;
+      if(!table){ await dbDel('queue', item.id); continue; }
       const row = { ...item.row, user_id: state.user.id };
-      const { error } = await supabase.from(table).upsert(row, { onConflict:'user_id,book_id' });
+      const onConflict = item.kind === 'settings' ? 'user_id' : 'user_id,book_id';
+      const { error } = await supabase.from(table).upsert(row, { onConflict });
       if(error) throw error;
       await dbDel('queue', item.id);
     }catch(e){ console.warn('sync fail', e); break; }
@@ -917,9 +959,10 @@ async function refreshUser(){
 async function pullRemoteData(){
   if(!state.user) return;
   try{
-    const [{ data: progress }, { data: notes }] = await Promise.all([
+    const [{ data: progress }, { data: notes }, { data: settings }] = await Promise.all([
       supabase.from('codice_progress').select('*').eq('user_id', state.user.id),
       supabase.from('codice_notes').select('*').eq('user_id', state.user.id),
+      supabase.from('codice_settings').select('*').eq('user_id', state.user.id).maybeSingle().then(r=>({ data: r.data ? [r.data] : [] })),
     ]);
     for(const p of (progress||[])){
       const local = await dbGet('progress', p.book_id);
@@ -942,6 +985,34 @@ async function pullRemoteData(){
     if(state.activeBook){
       const n = await dbGet('notes', state.activeBook.id);
       if(n && $('#notebook').value !== n.content) $('#notebook').value = n.content || '';
+    }
+    // Merge remote settings if newer than local
+    const remote = (settings||[])[0];
+    if(remote){
+      const local = await dbGet('settings', 'prefs');
+      const remoteTs = new Date(remote.updated_at).getTime();
+      if(!local || (local.updated_at||0) < remoteTs){
+        _suppressPersist = true;
+        if(remote.theme) applyTheme(remote.theme);
+        const partial = {};
+        ['fs','ls','w','z'].forEach(k=>{ if(remote[k]!=null) partial[k]=Number(remote[k]); });
+        if(Object.keys(partial).length) applySettings(partial);
+        _suppressPersist = false;
+        await dbPut('settings', {
+          id:'prefs', theme: remote.theme,
+          fs: remote.fs!=null?Number(remote.fs):null,
+          ls: remote.ls!=null?Number(remote.ls):null,
+          w:  remote.w!=null?Number(remote.w):null,
+          z:  remote.z!=null?Number(remote.z):null,
+          updated_at: remoteTs,
+        });
+      } else {
+        // local newer — push it up
+        persistSettings();
+      }
+    } else {
+      // no remote yet — push current settings
+      persistSettings();
     }
   }catch(e){ console.warn('pull fail', e); }
 }
@@ -1127,8 +1198,11 @@ function wire(){
  * =======================================================*/
 (async function boot(){
   wire();
+  _suppressPersist = true;
   applyTheme(state.theme);
   applySettings(Object.keys(state.settings).length ? state.settings : { fs:19, ls:1.7, w:64, z:1 });
+  _suppressPersist = false;
+  await loadLocalSettings();
   await loadLibrary();
   await refreshUser();
   if(state.user){ await pullRemoteData(); }
