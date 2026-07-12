@@ -1028,7 +1028,8 @@ async function nav(direction){
  * =======================================================*/
 async function saveProgress(payload){
   const b = state.activeBook; if(!b) return;
-  const local = { book_id:b.id, title:b.title, updated_at:Date.now(), ...payload };
+  const ts = Date.now();
+  const local = { book_id:b.id, title:b.title, ...payload, updated_at:ts };
   await dbPut('progress', local);
   if(state.user){
     queueSync('progress', {
@@ -1039,6 +1040,7 @@ async function saveProgress(payload){
       page: Number.isFinite(payload.page) ? payload.page : null,
       scroll_top: Number.isFinite(payload.scrollTop) ? payload.scrollTop : null,
       percentage: typeof payload.percentage === 'number' ? payload.percentage : null,
+      updated_at: new Date(ts).toISOString(),
     });
   }
 }
@@ -1048,9 +1050,10 @@ function scheduleNotesSave(){
   notesTimer = setTimeout(async()=>{
     const b = state.activeBook; if(!b) return;
     const content = $('#notebook').value;
-    await dbPut('notes', { book_id:b.id, content, updated_at:Date.now() });
+    const ts = Date.now();
+    await dbPut('notes', { book_id:b.id, content, updated_at:ts });
     if(state.user){
-      queueSync('notes', { user_id: state.user.id, book_id: b.id, content });
+      queueSync('notes', { user_id: state.user.id, book_id: b.id, content, updated_at:new Date(ts).toISOString() });
       toast('Anotações salvas na nuvem');
     } else {
       toast('Anotações salvas localmente');
