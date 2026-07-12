@@ -124,6 +124,31 @@
     background:var(--elev);color:var(--text);padding:8px 14px;border-radius:999px;font-size:12px;
     border:1px solid var(--border);opacity:0;transition:.25s;z-index:50;pointer-events:none;max-width:90vw}
   #status.show{opacity:1}
+
+  /* Auth overlay */
+  #auth-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(6px);
+    display:none;align-items:center;justify-content:center;z-index:100;padding:16px;
+    padding-top:calc(16px + var(--safe-t));padding-bottom:calc(16px + var(--safe-b));}
+  #auth-overlay.show{display:flex}
+  .auth-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;
+    width:min(420px,100%);max-height:100%;overflow:auto;padding:20px;
+    box-shadow:0 20px 60px rgba(0,0,0,.5);}
+  .auth-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .auth-head h3{font-family:Georgia,serif;font-size:22px;font-weight:600}
+  .auth-tabs{display:flex;gap:4px;background:var(--elev);border-radius:10px;padding:4px;margin-bottom:16px}
+  .auth-tabs button{flex:1;min-height:40px;border-radius:8px;color:var(--text-2);font-weight:500;font-size:14px}
+  .auth-tabs button.active{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.2)}
+  .auth-field{display:block;margin-bottom:12px}
+  .auth-field span{display:block;font-size:12px;color:var(--text-2);margin-bottom:4px;font-weight:500;letter-spacing:.02em;text-transform:uppercase}
+  .auth-field input{width:100%;min-height:44px;padding:0 12px;border-radius:10px;
+    background:var(--elev);border:1px solid var(--border);color:var(--text);font-size:15px;
+    font-family:inherit}
+  .auth-field input:focus{outline:none;border-color:var(--orange)}
+  #auth-error{color:var(--orange);font-size:13px;min-height:18px;margin:4px 0 8px}
+  #auth-submit{width:100%;min-height:48px;border-radius:10px;background:var(--orange);
+    color:#fff;font-weight:600;font-size:15px;margin-top:4px}
+  #auth-submit:disabled{opacity:.6;cursor:wait}
+  .auth-hint{font-size:12px;color:var(--text-2);text-align:center;margin-top:12px;line-height:1.5}
   .sync-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--amber);margin-right:6px;vertical-align:middle}
   .sync-dot.on{background:#4ad07a}
   .sync-dot.off{background:#888}
