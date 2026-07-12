@@ -924,8 +924,9 @@ async function queueSync(kind, row){
   flushQueue();
 }
 async function flushQueue(){
-  if(!state.user || !navigator.onLine) return;
+  if(!supabase || !state.user || !navigator.onLine) return;
   const all = await dbAll('queue');
+  let failed = 0; let lastErr = null;
   for(const item of all){
     try{
       const table = item.kind === 'progress' ? 'codice_progress'
@@ -937,12 +938,30 @@ async function flushQueue(){
       const { error } = await supabase.from(table).upsert(row, { onConflict });
       if(error) throw error;
       await dbDel('queue', item.id);
-    }catch(e){ console.warn('sync fail', e); break; }
+    }catch(e){
+      console.warn('[Códice] sync fail', item.kind, e);
+      lastErr = e; failed++;
+      // Auth/permission problems: parar e avisar o usuário.
+      const msg = (e?.message||'').toLowerCase();
+      if(msg.includes('jwt') || msg.includes('permission') || msg.includes('rls') || e?.code === '42501'){
+        toast('Sessão expirada — entre novamente para sincronizar');
+      }
+      break;
+    }
+  }
+  if(failed && lastErr){
+    const st = document.getElementById('sync-status');
+    if(st) st.textContent = 'Erro ao sincronizar: '+(lastErr.message||'tente novamente');
   }
   updateSyncBadge();
 }
 function updateSyncBadge(){
   const dot = $('#sync-dot'); const lbl = $('#sync-label'); const st = $('#sync-status');
+  if(!supabase){
+    dot.className='sync-dot off'; lbl.textContent='Local';
+    st.textContent='Sincronização desativada (configure SUPABASE_URL e SUPABASE_ANON_KEY)';
+    return;
+  }
   if(!state.user){
     dot.className='sync-dot off'; lbl.textContent='Anônimo'; st.textContent='Somente local — entre para sincronizar';
     return;
