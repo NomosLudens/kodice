@@ -808,9 +808,26 @@ function renderLibrary(){
   const list = $('#library-list');
   if(!state.books.length){
     list.innerHTML = '<div class="empty">Sua biblioteca está vazia.</div>';
+    const c = document.getElementById('lib-count'); if(c) c.textContent='';
     return;
   }
-  list.innerHTML = state.books.map(b=>`
+  const f = state.libFilter || (state.libFilter = { q:'', type:'all', sort:'recent' });
+  const q = f.q.trim().toLowerCase();
+  let items = state.books.filter(b=>{
+    if(f.type!=='all' && (b.type||'').toLowerCase()!==f.type) return false;
+    if(!q) return true;
+    return (b.title||'').toLowerCase().includes(q) || (b.author||'').toLowerCase().includes(q);
+  });
+  if(f.sort==='title') items.sort((a,b)=>(a.title||'').localeCompare(b.title||'','pt',{sensitivity:'base'}));
+  else if(f.sort==='author') items.sort((a,b)=>(a.author||'').localeCompare(b.author||'','pt',{sensitivity:'base'}));
+  else items = items.slice().sort((a,b)=>b.addedAt-a.addedAt);
+  const c = document.getElementById('lib-count');
+  if(c) c.textContent = `${items.length} de ${state.books.length} livro${state.books.length===1?'':'s'}`;
+  if(!items.length){
+    list.innerHTML = '<div class="empty">Nenhum livro encontrado.</div>';
+    return;
+  }
+  list.innerHTML = items.map(b=>`
     <div class="book-item" data-id="${b.id}">
       <div class="cover">${(b.title||'?').slice(0,1).toUpperCase()}</div>
       <div class="meta">
