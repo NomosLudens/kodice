@@ -1294,7 +1294,6 @@ function wire(){
   $('#btn-back').addEventListener('click', ()=>{
     if(state.activeBook) closeBook(); else openPanel('library-panel');
   });
-  $('#btn-settings-top').addEventListener('click', ()=>openPanel('settings-panel'));
 
   // Bottom nav
   $$('#bottombar button').forEach(btn=>{
