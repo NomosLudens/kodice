@@ -1858,6 +1858,17 @@ function wire(){
     if(!state.sync.lastError && state.sync.pending===0) toast('Sincronizado');
   });
 
+  // Retry no rodapé do sidebar
+  $('#rail-retry').addEventListener('click', async (e)=>{
+    e.stopPropagation();
+    if(!supabase){ toast('Sincronização desativada'); return; }
+    if(!state.user){ toast('Faça login para sincronizar'); return; }
+    if(!navigator.onLine){ toast('Sem conexão'); return; }
+    state.sync.lastError = null; updateRail(); renderSyncStatus();
+    await flushQueue();
+    if(!state.sync.lastError && state.sync.pending===0) toast('Sincronizado');
+  });
+
   // Online status
   window.addEventListener('online', ()=>{ state.online=true; updateSyncBadge(); renderSyncStatus(); flushQueue(); toast('Online — sincronizando...'); });
   window.addEventListener('offline',()=>{ state.online=false; updateSyncBadge(); renderSyncStatus(); toast('Offline — salvando local'); });
