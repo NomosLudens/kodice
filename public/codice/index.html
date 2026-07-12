@@ -391,12 +391,12 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 /* =========================================================
  * CONFIG — Supabase
  * =======================================================*/
-const SUPABASE_URL = "";       // preencha para ativar sync remoto
-const SUPABASE_ANON_KEY = "";  // preencha para ativar sync remoto
+const SUPABASE_URL = "https://sfslfvaoopaagxmvjwjl.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNmc2xmdmFvb3BhYWd4bXZqd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM4NjU0NzQsImV4cCI6MjA5OTQ0MTQ3NH0.__39jsCWGcAmaQJr59jaLOq2tT7dpFbZOlAeRSN8Rpk";
 
-const supabase = (SUPABASE_URL && SUPABASE_ANON_KEY)
-  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-  : null;
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { persistSession: true, autoRefreshToken: true, storageKey: 'codice.sb.auth' }
+});
 
 /* =========================================================
  * State
@@ -409,6 +409,7 @@ const state = {
   online: navigator.onLine,
   panels: { library:false, toc:false, notebook:false, settings:false },
   pdfPage: 1,
+  user: null,          // {id,email,display_name}
 };
 
 /* =========================================================
