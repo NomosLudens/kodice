@@ -399,6 +399,7 @@
         <span class="n" id="rail-user">Anônimo</span>
         <span class="s"><span class="sync-dot" id="rail-dot"></span><span id="rail-sync">Local</span></span>
       </div>
+      <button id="rail-retry" title="Tentar sincronizar agora" aria-label="Tentar sincronizar" style="display:none;margin-left:auto;background:var(--orange);color:#fff;border:0;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.04em">RETRY</button>
     </div>
   </aside>
   <div id="sidebar-scrim"></div>
@@ -1216,10 +1217,21 @@ function updateRail(){
   const name = state.user?.display_name || state.user?.email || 'Anônimo';
   user.textContent = name;
   av.textContent = (name[0]||'A').toUpperCase();
+  const { pending, lastError, syncing } = state.sync;
+  let showRetry = false;
   if(!supabase){ dot.className='sync-dot off'; sync.textContent='Local'; }
   else if(!state.user){ dot.className='sync-dot off'; sync.textContent='Anônimo'; }
-  else if(navigator.onLine){ dot.className='sync-dot on'; sync.textContent='Sincronizado'; }
-  else { dot.className='sync-dot off'; sync.textContent='Offline'; }
+  else if(syncing){ dot.className='sync-dot on'; sync.textContent='Sincronizando…'; }
+  else if(lastError){ dot.className='sync-dot off'; sync.textContent='Erro no sync'; showRetry = navigator.onLine; }
+  else if(!navigator.onLine){ dot.className='sync-dot off'; sync.textContent = pending>0 ? `Offline · ${pending} pend.` : 'Offline'; }
+  else if(pending>0){ dot.className='sync-dot off'; sync.textContent=`Pendente (${pending})`; showRetry = true; }
+  else { dot.className='sync-dot on'; sync.textContent='Sincronizado'; }
+  const retryBtn = document.getElementById('rail-retry');
+  if(retryBtn){
+    retryBtn.style.display = showRetry ? 'inline-flex' : 'none';
+    retryBtn.disabled = !!syncing;
+    retryBtn.style.opacity = syncing ? .6 : 1;
+  }
   // Enable/disable reader-scoped items
   const has = !!state.activeBook;
   ['nav-prev','nav-next','nav-toc','nav-notebook'].forEach(id=>{
@@ -1390,6 +1402,7 @@ function fmtRelTime(ts){
 }
 function renderSyncStatus(){
   const { pending, lastSync, lastError, syncing } = state.sync;
+  try { updateRail(); } catch {}
   let stateLabel, dotClass;
   if(!supabase){ stateLabel='Sincronização desativada'; dotClass='off'; }
   else if(!state.user){ stateLabel='Anônimo — somente local'; dotClass='off'; }
@@ -1842,6 +1855,17 @@ function wire(){
     if(!state.user){ toast('Faça login para sincronizar'); return; }
     if(!navigator.onLine){ toast('Sem conexão'); return; }
     state.sync.lastError = null; renderSyncStatus();
+    await flushQueue();
+    if(!state.sync.lastError && state.sync.pending===0) toast('Sincronizado');
+  });
+
+  // Retry no rodapé do sidebar
+  $('#rail-retry').addEventListener('click', async (e)=>{
+    e.stopPropagation();
+    if(!supabase){ toast('Sincronização desativada'); return; }
+    if(!state.user){ toast('Faça login para sincronizar'); return; }
+    if(!navigator.onLine){ toast('Sem conexão'); return; }
+    state.sync.lastError = null; updateRail(); renderSyncStatus();
     await flushQueue();
     if(!state.sync.lastError && state.sync.pending===0) toast('Sincronizado');
   });
