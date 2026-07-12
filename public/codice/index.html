@@ -1318,6 +1318,54 @@ function renderAccount(){
       <div style="font-size:12px;color:var(--text-2);margin-top:8px;text-align:center">Entre para sincronizar progresso e anotações entre dispositivos.</div>`;
     $('#btn-open-auth').addEventListener('click', openAuth);
   }
+  renderSyncStatus();
+}
+
+function fmtRelTime(ts){
+  if(!ts) return 'nunca';
+  const s = Math.floor((Date.now()-ts)/1000);
+  if(s<10) return 'agora mesmo';
+  if(s<60) return `há ${s}s`;
+  const m = Math.floor(s/60); if(m<60) return `há ${m} min`;
+  const h = Math.floor(m/60); if(h<24) return `há ${h}h`;
+  const d = Math.floor(h/24); return `há ${d}d`;
+}
+function renderSyncStatus(){
+  const box = document.getElementById('sync-status-box'); if(!box) return;
+  const { pending, lastSync, lastError, syncing } = state.sync;
+  let stateLabel, dotClass;
+  if(!supabase){ stateLabel='Sincronização desativada'; dotClass='off'; }
+  else if(!state.user){ stateLabel='Anônimo — somente local'; dotClass='off'; }
+  else if(!navigator.onLine){ stateLabel='Offline'; dotClass='off'; }
+  else if(syncing){ stateLabel='Sincronizando…'; dotClass='on'; }
+  else if(lastError){ stateLabel='Erro na última tentativa'; dotClass='off'; }
+  else if(pending>0){ stateLabel='Aguardando envio'; dotClass='off'; }
+  else { stateLabel='Tudo sincronizado'; dotClass='on'; }
+  const canRetry = !!supabase && !!state.user && navigator.onLine && !syncing;
+  box.innerHTML = `
+    <div style="border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--elev)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <span class="sync-dot ${dotClass}"></span>
+        <b style="font-size:13px">${escapeHtml(stateLabel)}</b>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:12px;color:var(--text-2)">
+        <span>Pendentes na fila</span><span style="color:var(--text);font-variant-numeric:tabular-nums">${pending}</span>
+        <span>Último sync</span><span style="color:var(--text)">${fmtRelTime(lastSync)}</span>
+        <span>Status da rede</span><span style="color:var(--text)">${navigator.onLine ? 'Online' : 'Offline'}</span>
+      </div>
+      ${lastError ? `<div style="margin-top:10px;padding:8px 10px;border-radius:8px;background:rgba(216,67,29,.12);border:1px solid rgba(216,67,29,.35);color:var(--text);font-size:12px;line-height:1.4"><b style="color:var(--orange)">Último erro:</b> ${escapeHtml(lastError)}</div>` : ''}
+      <div style="margin-top:10px;display:flex;gap:8px">
+        <button id="btn-sync-retry" ${canRetry?'':'disabled'} style="flex:1;min-height:38px;border-radius:8px;background:var(--orange);color:#fff;font-weight:600;font-size:13px;opacity:${canRetry?1:.5};cursor:${canRetry?'pointer':'not-allowed'}">${syncing?'Sincronizando…':'Tentar novamente'}</button>
+      </div>
+    </div>`;
+  const btn = document.getElementById('btn-sync-retry');
+  if(btn && canRetry){
+    btn.addEventListener('click', async ()=>{
+      state.sync.lastError = null; renderSyncStatus();
+      await flushQueue();
+      if(!state.sync.lastError && state.sync.pending===0) toast('Sincronizado');
+    });
+  }
 }
 
 /* =========================================================
