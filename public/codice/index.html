@@ -450,6 +450,24 @@
     <button class="panel-close" data-close-panel="library-panel" aria-label="Fechar">✕</button>
   </div>
   <div class="panel-body">
+    <div id="library-filters" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+      <div style="position:relative">
+        <input id="lib-search" type="search" placeholder="Buscar por título ou autor…" style="width:100%;min-height:40px;padding:8px 34px 8px 12px;border-radius:10px;background:var(--elev);border:1px solid var(--border);color:var(--text);font-size:14px;outline:none" />
+        <button id="lib-search-clear" title="Limpar" aria-label="Limpar busca" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);width:28px;height:28px;border-radius:6px;background:transparent;border:0;color:var(--text-2);cursor:pointer;font-size:16px">✕</button>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap" id="lib-type-filters">
+        <button class="lib-chip active" data-type="all" style="padding:6px 10px;border-radius:999px;background:var(--orange);color:#fff;border:0;font-size:12px;font-weight:600;cursor:pointer">Todos</button>
+        <button class="lib-chip" data-type="epub" style="padding:6px 10px;border-radius:999px;background:var(--elev);color:var(--text);border:1px solid var(--border);font-size:12px;font-weight:600;cursor:pointer">EPUB</button>
+        <button class="lib-chip" data-type="pdf" style="padding:6px 10px;border-radius:999px;background:var(--elev);color:var(--text);border:1px solid var(--border);font-size:12px;font-weight:600;cursor:pointer">PDF</button>
+        <button class="lib-chip" data-type="txt" style="padding:6px 10px;border-radius:999px;background:var(--elev);color:var(--text);border:1px solid var(--border);font-size:12px;font-weight:600;cursor:pointer">TXT</button>
+        <select id="lib-sort" style="margin-left:auto;min-height:32px;padding:0 8px;border-radius:8px;background:var(--elev);color:var(--text);border:1px solid var(--border);font-size:12px">
+          <option value="recent">Mais recentes</option>
+          <option value="title">Título (A–Z)</option>
+          <option value="author">Autor (A–Z)</option>
+        </select>
+      </div>
+      <div id="lib-count" style="color:var(--text-2);font-size:11px"></div>
+    </div>
     <div id="library-list"></div>
     <div style="margin-top:12px">
       <button id="btn-add-book" style="width:100%;min-height:44px;border-radius:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);font-weight:600">+ Adicionar livro</button>
@@ -790,9 +808,26 @@ function renderLibrary(){
   const list = $('#library-list');
   if(!state.books.length){
     list.innerHTML = '<div class="empty">Sua biblioteca está vazia.</div>';
+    const c = document.getElementById('lib-count'); if(c) c.textContent='';
     return;
   }
-  list.innerHTML = state.books.map(b=>`
+  const f = state.libFilter || (state.libFilter = { q:'', type:'all', sort:'recent' });
+  const q = f.q.trim().toLowerCase();
+  let items = state.books.filter(b=>{
+    if(f.type!=='all' && (b.type||'').toLowerCase()!==f.type) return false;
+    if(!q) return true;
+    return (b.title||'').toLowerCase().includes(q) || (b.author||'').toLowerCase().includes(q);
+  });
+  if(f.sort==='title') items.sort((a,b)=>(a.title||'').localeCompare(b.title||'','pt',{sensitivity:'base'}));
+  else if(f.sort==='author') items.sort((a,b)=>(a.author||'').localeCompare(b.author||'','pt',{sensitivity:'base'}));
+  else items = items.slice().sort((a,b)=>b.addedAt-a.addedAt);
+  const c = document.getElementById('lib-count');
+  if(c) c.textContent = `${items.length} de ${state.books.length} livro${state.books.length===1?'':'s'}`;
+  if(!items.length){
+    list.innerHTML = '<div class="empty">Nenhum livro encontrado.</div>';
+    return;
+  }
+  list.innerHTML = items.map(b=>`
     <div class="book-item" data-id="${b.id}">
       <div class="cover">${(b.title||'?').slice(0,1).toUpperCase()}</div>
       <div class="meta">
@@ -1781,6 +1816,45 @@ function wire(){
   document.addEventListener('drop', e=>{ if(!dz.contains(e.target)){ e.preventDefault(); handleFiles([...e.dataTransfer.files]); } });
   $('#btn-pick').addEventListener('click', ()=>$('#file-input').click());
   $('#btn-add-book').addEventListener('click', ()=>$('#file-input').click());
+
+  // Library search & filters
+  const libSearch = document.getElementById('lib-search');
+  const libClear = document.getElementById('lib-search-clear');
+  const libSort = document.getElementById('lib-sort');
+  if(libSearch){
+    libSearch.addEventListener('input', ()=>{
+      state.libFilter = state.libFilter || { q:'', type:'all', sort:'recent' };
+      state.libFilter.q = libSearch.value;
+      libClear.style.display = libSearch.value ? 'inline-flex' : 'none';
+      renderLibrary();
+    });
+  }
+  if(libClear){
+    libClear.addEventListener('click', ()=>{
+      libSearch.value=''; state.libFilter.q=''; libClear.style.display='none'; renderLibrary(); libSearch.focus();
+    });
+  }
+  document.querySelectorAll('#lib-type-filters .lib-chip').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      state.libFilter = state.libFilter || { q:'', type:'all', sort:'recent' };
+      state.libFilter.type = btn.dataset.type;
+      document.querySelectorAll('#lib-type-filters .lib-chip').forEach(b=>{
+        const active = b===btn;
+        b.classList.toggle('active', active);
+        b.style.background = active ? 'var(--orange)' : 'var(--elev)';
+        b.style.color = active ? '#fff' : 'var(--text)';
+        b.style.border = active ? '0' : '1px solid var(--border)';
+      });
+      renderLibrary();
+    });
+  });
+  if(libSort){
+    libSort.addEventListener('change', ()=>{
+      state.libFilter = state.libFilter || { q:'', type:'all', sort:'recent' };
+      state.libFilter.sort = libSort.value;
+      renderLibrary();
+    });
+  }
   $('#file-input').addEventListener('change', e=> handleFiles([...e.target.files]));
 
   // Top bar
