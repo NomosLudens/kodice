@@ -450,6 +450,24 @@
     <button class="panel-close" data-close-panel="library-panel" aria-label="Fechar">✕</button>
   </div>
   <div class="panel-body">
+    <div id="library-filters" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+      <div style="position:relative">
+        <input id="lib-search" type="search" placeholder="Buscar por título ou autor…" style="width:100%;min-height:40px;padding:8px 34px 8px 12px;border-radius:10px;background:var(--elev);border:1px solid var(--border);color:var(--text);font-size:14px;outline:none" />
+        <button id="lib-search-clear" title="Limpar" aria-label="Limpar busca" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);width:28px;height:28px;border-radius:6px;background:transparent;border:0;color:var(--text-2);cursor:pointer;font-size:16px">✕</button>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap" id="lib-type-filters">
+        <button class="lib-chip active" data-type="all" style="padding:6px 10px;border-radius:999px;background:var(--orange);color:#fff;border:0;font-size:12px;font-weight:600;cursor:pointer">Todos</button>
+        <button class="lib-chip" data-type="epub" style="padding:6px 10px;border-radius:999px;background:var(--elev);color:var(--text);border:1px solid var(--border);font-size:12px;font-weight:600;cursor:pointer">EPUB</button>
+        <button class="lib-chip" data-type="pdf" style="padding:6px 10px;border-radius:999px;background:var(--elev);color:var(--text);border:1px solid var(--border);font-size:12px;font-weight:600;cursor:pointer">PDF</button>
+        <button class="lib-chip" data-type="txt" style="padding:6px 10px;border-radius:999px;background:var(--elev);color:var(--text);border:1px solid var(--border);font-size:12px;font-weight:600;cursor:pointer">TXT</button>
+        <select id="lib-sort" style="margin-left:auto;min-height:32px;padding:0 8px;border-radius:8px;background:var(--elev);color:var(--text);border:1px solid var(--border);font-size:12px">
+          <option value="recent">Mais recentes</option>
+          <option value="title">Título (A–Z)</option>
+          <option value="author">Autor (A–Z)</option>
+        </select>
+      </div>
+      <div id="lib-count" style="color:var(--text-2);font-size:11px"></div>
+    </div>
     <div id="library-list"></div>
     <div style="margin-top:12px">
       <button id="btn-add-book" style="width:100%;min-height:44px;border-radius:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);font-weight:600">+ Adicionar livro</button>
