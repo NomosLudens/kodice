@@ -535,6 +535,22 @@
         <input type="file" id="backup-file" accept="application/json,.json" style="display:none" />
         <input type="file" id="notes-md-file" accept="text/markdown,.md,.markdown" style="display:none" />
       </div>
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+        <div class="setting-label" style="margin-bottom:6px"><b>Backup automático</b></div>
+        <div style="color:var(--text-2);font-size:13px;line-height:1.5;margin-bottom:10px">
+          Baixa um arquivo <code>.json</code> periodicamente quando houver mudanças relevantes na biblioteca, progresso, notas ou ajustes.
+        </div>
+        <label style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
+          <span>Frequência</span>
+          <select id="auto-backup-freq" style="min-height:40px;border-radius:8px;background:var(--elev);border:1px solid var(--border);color:var(--text);padding:6px 10px">
+            <option value="off">Desativado</option>
+            <option value="daily">Diário</option>
+            <option value="weekly">Semanal (padrão)</option>
+            <option value="monthly">Mensal</option>
+          </select>
+        </label>
+        <div id="auto-backup-info" style="color:var(--text-2);font-size:12px"></div>
+      </div>
     </div>
   </div>
 </aside>
