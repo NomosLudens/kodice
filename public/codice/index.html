@@ -1678,8 +1678,8 @@ function wire(){
   updateSyncBadge();
   if(state.user && navigator.onLine) flushQueue();
   refreshPending();
-  // Refresh relative timestamps every 30s while settings panel is visible
-  setInterval(()=>{ if(!document.getElementById('settings-panel')?.classList.contains('hidden')) renderSyncStatus(); }, 30000);
+  // Keep relative timestamps fresh
+  setInterval(renderSyncStatus, 30000);
   // If library has books, auto-open the last read
   const progressAll = await dbAll('progress');
   if(progressAll.length){
