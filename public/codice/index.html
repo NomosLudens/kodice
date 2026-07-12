@@ -1564,6 +1564,7 @@ async function importBackup(file){
  * Wire events
  * =======================================================*/
 function wire(){
+  // (importNotesMarkdown defined above)
   // Drop
   const dz = $('#dropzone');
   ;['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add('drag')}));
