@@ -1638,6 +1638,24 @@ function wire(){
   window.addEventListener('online', ()=>{ state.online=true; updateSyncBadge(); renderSyncStatus(); flushQueue(); toast('Online — sincronizando...'); });
   window.addEventListener('offline',()=>{ state.online=false; updateSyncBadge(); renderSyncStatus(); toast('Offline — salvando local'); });
 
+  // Retomar sincronização ao voltar para a aba / recuperar foco
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.visibilityState === 'visible' && navigator.onLine && state.user){
+      flushQueue();
+    }
+  });
+  window.addEventListener('focus', ()=>{
+    if(navigator.onLine && state.user) flushQueue();
+  });
+
+  // Retry periódico: enquanto houver itens pendentes, tenta a cada 30s.
+  setInterval(async ()=>{
+    await refreshPending();
+    if(state.sync.pending > 0 && navigator.onLine && state.user && !state.sync.syncing){
+      flushQueue();
+    }
+  }, 30000);
+
   // Keyboard for desktop
   document.addEventListener('keydown', e=>{
     if(e.target.tagName==='TEXTAREA' || e.target.tagName==='INPUT') return;
