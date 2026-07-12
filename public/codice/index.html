@@ -908,10 +908,13 @@ async function flushQueue(){
   const all = await dbAll('queue');
   for(const item of all){
     try{
-      const table = item.kind === 'progress' ? 'codice_progress' : 'codice_notes';
-      // ensure current user_id (in case queued before sign-in of another account)
+      const table = item.kind === 'progress' ? 'codice_progress'
+                  : item.kind === 'notes'    ? 'codice_notes'
+                  : item.kind === 'settings' ? 'codice_settings' : null;
+      if(!table){ await dbDel('queue', item.id); continue; }
       const row = { ...item.row, user_id: state.user.id };
-      const { error } = await supabase.from(table).upsert(row, { onConflict:'user_id,book_id' });
+      const onConflict = item.kind === 'settings' ? 'user_id' : 'user_id,book_id';
+      const { error } = await supabase.from(table).upsert(row, { onConflict });
       if(error) throw error;
       await dbDel('queue', item.id);
     }catch(e){ console.warn('sync fail', e); break; }
