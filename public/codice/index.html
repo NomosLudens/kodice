@@ -648,6 +648,7 @@ const state = {
   panels: { library:false, toc:false, notebook:false, settings:false },
   pdfPage: 1,
   user: null,          // {id,email,display_name}
+  sync: { pending:0, lastSync:0, lastError:null, syncing:false },
 };
 
 /* =========================================================
