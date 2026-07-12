@@ -1603,8 +1603,8 @@ function wire(){
   });
 
   // Online status
-  window.addEventListener('online', ()=>{ state.online=true; updateSyncBadge(); flushQueue(); toast('Online — sincronizando...'); });
-  window.addEventListener('offline',()=>{ state.online=false; updateSyncBadge(); toast('Offline — salvando local'); });
+  window.addEventListener('online', ()=>{ state.online=true; updateSyncBadge(); renderSyncStatus(); flushQueue(); toast('Online — sincronizando...'); });
+  window.addEventListener('offline',()=>{ state.online=false; updateSyncBadge(); renderSyncStatus(); toast('Offline — salvando local'); });
 
   // Keyboard for desktop
   document.addEventListener('keydown', e=>{
