@@ -98,8 +98,8 @@
   #epub-viewer{width:100%;max-width:100%;min-width:0;height:100%;min-height:0;overflow:hidden}
   #pdf-viewer{display:flex;flex-direction:column;align-items:center;gap:16px;padding:16px;width:100%;max-width:100%;min-width:0;overflow-x:hidden}
   #pdf-viewer canvas{display:block;max-width:100%;height:auto;box-shadow:0 2px 12px rgba(0,0,0,.25);background:#fff}
-  #reader-inline-nav{display:flex;justify-content:center;gap:12px;margin:0 auto 20px;max-width:var(--reader-width);width:100%}
-  #reader-inline-nav button{min-width:44px;min-height:44px;border-radius:999px;background:var(--elev);border:1px solid var(--border);font-size:24px;line-height:1;color:var(--text)}
+  #reader-inline-nav{position:absolute;left:0;right:0;bottom:calc(12px + var(--safe-b));z-index:12;display:flex;justify-content:center;gap:12px;margin:0 auto;max-width:var(--reader-width);width:100%;pointer-events:none}
+  #reader-inline-nav button{min-width:44px;min-height:44px;border-radius:999px;background:var(--elev);border:1px solid var(--border);font-size:24px;line-height:1;color:var(--text);pointer-events:auto}
   #reader-inline-nav button:disabled{opacity:.35;cursor:not-allowed}
 
   /* ---------- Landing / Upload ---------- */
@@ -445,14 +445,15 @@
     </section>
 
     <section id="reader" class="hidden">
-      <div id="reader-inline-nav" class="hidden" aria-label="Navegação de leitura">
-        <button id="reader-inline-prev" aria-label="Anterior" disabled>‹</button>
-        <button id="reader-inline-next" aria-label="Próximo" disabled>›</button>
-      </div>
       <div id="reader-content"></div>
       <div id="epub-viewer" class="hidden"></div>
       <div id="pdf-viewer" class="hidden"></div>
     </section>
+
+    <div id="reader-inline-nav" class="hidden" aria-label="Navegação de leitura">
+      <button id="reader-inline-prev" aria-label="Anterior" disabled>‹</button>
+      <button id="reader-inline-next" aria-label="Próximo" disabled>›</button>
+    </div>
   </main>
 
 </div>
