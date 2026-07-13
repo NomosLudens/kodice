@@ -1128,7 +1128,7 @@ async function openBook(id){
   if(state.activeBook?.rendition){ try{ state.activeBook.rendition.destroy(); }catch(e){} }
   const notebook = $('#notebook');
   if(notebook) notebook.value = '';
-  state.activeBook = { id, type:b.type, title:b.title, author:b.author, toc:[], progress:0 };
+  state.activeBook = { id, type:b.type, title:b.title, author:b.author, toc:[], progress:0, readerLocation:null };
   // UI
   $('#landing').classList.add('hidden');
   $('#reader').classList.remove('hidden');
@@ -1221,7 +1221,8 @@ function updateReaderNavState(loc){
   const b = state.activeBook;
   let canPrev = false;
   let canNext = false;
-  const location = Array.isArray(loc) ? loc[0] : loc;
+  const rawLocation = loc ?? b?.readerLocation ?? b?.rendition?.currentLocation?.();
+  const location = Array.isArray(rawLocation) ? rawLocation[0] : rawLocation;
   if(b?.type === 'epub' && location){
     canPrev = !location.atStart;
     canNext = !location.atEnd;
@@ -1260,6 +1261,8 @@ async function renderEpub(buf, saved){
   rendition.themes.select(state.theme);
 
   rendition.on('relocated', (loc)=>{
+    if(state.activeBook?.rendition !== rendition) return;
+    state.activeBook.readerLocation = loc;
     const p = loc?.start?.percentage ?? 0;
     updateProgress(p);
     updateReaderNavState(loc);
@@ -1267,14 +1270,18 @@ async function renderEpub(buf, saved){
   });
 
   await rendition.display(saved?.cfi || undefined);
-  updateReaderNavState(rendition.currentLocation?.());
+  if(state.activeBook?.rendition !== rendition) return;
+  state.activeBook.readerLocation = rendition.currentLocation?.() ?? null;
+  updateReaderNavState();
   await book.ready;
   try{
     const nav = await book.loaded.navigation;
     state.activeBook.toc = flattenToc(nav.toc);
     renderToc();
     await book.locations.generate(1200);
-    updateReaderNavState(rendition.currentLocation?.());
+    if(state.activeBook?.rendition !== rendition) return;
+    state.activeBook.readerLocation = rendition.currentLocation?.() ?? state.activeBook.readerLocation;
+    updateReaderNavState();
   }catch(e){ console.warn(e); }
 }
 function flattenToc(items, depth=0){
