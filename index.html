@@ -2538,7 +2538,6 @@ function wire(){
   }, 30000);
 
   let readerResizeTimer;
-  let readerResizeRun = 0;
   const readerForResize = $('#reader');
   let lastReaderSize = {
     width: readerForResize.clientWidth,
@@ -2554,28 +2553,8 @@ function wire(){
       };
       if(Math.abs(nextSize.width - lastReaderSize.width) < 1 && Math.abs(nextSize.height - lastReaderSize.height) < 1) return;
       lastReaderSize = nextSize;
-      const run = ++readerResizeRun;
       if(state.activeBook?.type === 'pdf') await renderPdfPage(state.pdfPage || 1);
-      else {
-        const activeBook = state.activeBook;
-        const rendition = activeBook?.rendition;
-        if(activeBook?.type === 'epub' && rendition && state.readingMode === 'paginated' && !readingModeSwitching){
-          const rawLocation = rendition.currentLocation?.() ?? activeBook.readerLocation;
-          const location = Array.isArray(rawLocation) ? rawLocation[0] : rawLocation;
-          const cfi = location?.start?.cfi || location?.cfi || activeBook.readerLocation?.start?.cfi || undefined;
-          try{
-            rendition.resize();
-            if(cfi){
-              await rendition.display(cfi);
-              if(run !== readerResizeRun || state.activeBook !== activeBook || activeBook.rendition !== rendition) return;
-            }
-            activeBook.readerLocation = rendition.currentLocation?.() ?? activeBook.readerLocation;
-            updateReaderNavState();
-          }catch(error){
-            console.warn('[Kódice] Falha ao reajustar paginação EPUB', error);
-          }
-        } else if(rendition) updateReaderNavState();
-      }
+      else if(state.activeBook?.rendition) updateReaderNavState();
     }, 150);
   };
   window.addEventListener('resize', handleReaderResize);
