@@ -1197,6 +1197,7 @@ async function saveProgress(payload){
 }
 let notesTimer;
 let pendingNotesSave = null;
+let notesSaveInFlight = null;
 
 async function saveNotesNow({ bookId, content, updatedAt = Date.now(), notify = false }){
   if(!bookId) return;
@@ -1213,6 +1214,33 @@ async function saveNotesNow({ bookId, content, updatedAt = Date.now(), notify = 
   } else if(notify){
     toast('Anotação salva localmente');
   }
+}
+
+async function persistNotesSnapshot(snapshot, { notify = false } = {}){
+  if(!snapshot?.bookId) return;
+  const inFlight = { snapshot, promise:null };
+  inFlight.promise = saveNotesNow({
+    bookId:snapshot.bookId,
+    content:snapshot.content,
+    updatedAt:snapshot.updatedAt,
+    notify,
+  });
+  notesSaveInFlight = inFlight;
+  try{
+    await inFlight.promise;
+    if(pendingNotesSave === snapshot) pendingNotesSave = null;
+  }catch(e){
+    if(!pendingNotesSave || pendingNotesSave === snapshot){
+      pendingNotesSave = { ...snapshot, timer:null };
+    }
+    throw e;
+  }finally{
+    if(notesSaveInFlight === inFlight) notesSaveInFlight = null;
+  }
+}
+
+function hasLocalNotesWriteForBook(bookId){
+  return pendingNotesSave?.bookId === bookId || notesSaveInFlight?.snapshot?.bookId === bookId;
 }
 
 function scheduleNotesSave(){
@@ -1233,10 +1261,10 @@ function scheduleNotesSave(){
   const snapshot = { bookId, content, updatedAt:Date.now(), timer:null };
   snapshot.timer = setTimeout(async()=>{
     if(pendingNotesSave !== snapshot) return;
-    pendingNotesSave = null;
-    notesTimer = null;
+    if(notesTimer === snapshot.timer) notesTimer = null;
+    snapshot.timer = null;
     try{
-      await saveNotesNow({ bookId:snapshot.bookId, content:snapshot.content, updatedAt:snapshot.updatedAt, notify:true });
+      await persistNotesSnapshot(snapshot, { notify:true });
     }catch(e){
       console.error('[Kódice] Falha ao salvar anotação', e);
       toast('Não foi possível salvar a anotação neste aparelho.');
@@ -1247,28 +1275,17 @@ function scheduleNotesSave(){
 }
 
 async function flushPendingNotes(){
+  if(notesSaveInFlight) await notesSaveInFlight.promise;
   const snapshot = pendingNotesSave;
   if(!snapshot) return;
   if(snapshot.timer) clearTimeout(snapshot.timer);
   if(notesTimer === snapshot.timer) notesTimer = null;
-  pendingNotesSave = null;
-  try{
-    await saveNotesNow({ bookId:snapshot.bookId, content:snapshot.content, updatedAt:snapshot.updatedAt, notify:true });
-  }catch(e){
-    if(!pendingNotesSave) pendingNotesSave = { ...snapshot, timer:null };
-    throw e;
-  }
+  snapshot.timer = null;
+  await persistNotesSnapshot(snapshot, { notify:true });
 }
 
 function persistCurrentNotesBestEffort(){
-  const bookId = state.activeBook?.id;
-  const notebook = document.getElementById('notebook');
-  if(!bookId || !notebook) return;
-  const content = notebook.value;
-  const updatedAt = Date.now();
-  flushPendingNotes()
-    .then(()=>saveNotesNow({ bookId, content, updatedAt, notify:false }))
-    .catch(e=>console.warn('[Kódice] Salvamento best-effort de anotação falhou', e));
+  flushPendingNotes().catch(e=>console.warn('[Kódice] Salvamento best-effort de anotação falhou', e));
 }
 async function queueSync(kind, row){
   const item = { kind, row, ts:Date.now(), owner_user_id: state.user?.id };
@@ -1301,7 +1318,7 @@ async function mergeRemoteInto(kind, bookId){
         // Se o caderno do livro ativo está aberto, atualiza a textarea sem estourar o autosave.
         if(state.activeBook?.id === data.book_id){
           const ta = document.getElementById('notebook');
-          if(ta && ta.value !== data.content){ clearTimeout(notesTimer); pendingNotesSave = null; ta.value = data.content||''; }
+          if(ta && ta.value !== data.content && !hasLocalNotesWriteForBook(data.book_id)){ clearTimeout(notesTimer); ta.value = data.content||''; }
         }
       }
     } else if(kind === 'settings'){
