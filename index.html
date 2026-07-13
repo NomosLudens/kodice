@@ -707,10 +707,38 @@ async function idb(store, mode='readonly'){
   const db = await openDB();
   return db.transaction(store, mode).objectStore(store);
 }
-async function dbPut(store, val){ return new Promise(async(res,rej)=>{ const s=await idb(store,'readwrite'); const r=s.put(val); r.onsuccess=()=>res(); r.onerror=()=>rej(r.error);});}
-async function dbGet(store, key){ return new Promise(async(res,rej)=>{ const s=await idb(store); const r=s.get(key); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);});}
-async function dbAll(store){ return new Promise(async(res,rej)=>{ const s=await idb(store); const r=s.getAll(); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);});}
-async function dbDel(store, key){ return new Promise(async(res,rej)=>{ const s=await idb(store,'readwrite'); const r=s.delete(key); r.onsuccess=()=>res(); r.onerror=()=>rej(r.error);});}
+async function dbPut(store, val){
+  const s = await idb(store,'readwrite');
+  return new Promise((res,rej)=>{
+    const r = s.put(val);
+    r.onsuccess = () => res();
+    r.onerror = () => rej(r.error);
+  });
+}
+async function dbGet(store, key){
+  const s = await idb(store);
+  return new Promise((res,rej)=>{
+    const r = s.get(key);
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function dbAll(store){
+  const s = await idb(store);
+  return new Promise((res,rej)=>{
+    const r = s.getAll();
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function dbDel(store, key){
+  const s = await idb(store,'readwrite');
+  return new Promise((res,rej)=>{
+    const r = s.delete(key);
+    r.onsuccess = () => res();
+    r.onerror = () => rej(r.error);
+  });
+}
 
 /* =========================================================
  * UI helpers
@@ -1198,6 +1226,7 @@ async function saveProgress(payload){
 let notesTimer;
 let pendingNotesSave = null;
 let notesSaveInFlight = null;
+let notesWriteChain = Promise.resolve();
 
 async function saveNotesNow({ bookId, content, updatedAt = Date.now(), notify = false }){
   if(!bookId) return;
@@ -1218,25 +1247,28 @@ async function saveNotesNow({ bookId, content, updatedAt = Date.now(), notify = 
 
 async function persistNotesSnapshot(snapshot, { notify = false } = {}){
   if(!snapshot?.bookId) return;
-  const inFlight = { snapshot, promise:null };
-  inFlight.promise = saveNotesNow({
-    bookId:snapshot.bookId,
-    content:snapshot.content,
-    updatedAt:snapshot.updatedAt,
-    notify,
-  });
-  notesSaveInFlight = inFlight;
-  try{
-    await inFlight.promise;
-    if(pendingNotesSave === snapshot) pendingNotesSave = null;
-  }catch(e){
-    if(!pendingNotesSave || pendingNotesSave === snapshot){
-      pendingNotesSave = { ...snapshot, timer:null };
+  const write = notesWriteChain.catch(()=>{}).then(async()=>{
+    const inFlight = { snapshot, promise:write };
+    notesSaveInFlight = inFlight;
+    try{
+      await saveNotesNow({
+        bookId:snapshot.bookId,
+        content:snapshot.content,
+        updatedAt:snapshot.updatedAt,
+        notify,
+      });
+      if(pendingNotesSave === snapshot) pendingNotesSave = null;
+    }catch(e){
+      if(!pendingNotesSave || (pendingNotesSave.updatedAt || 0) <= (snapshot.updatedAt || 0)){
+        pendingNotesSave = { ...snapshot, timer:null };
+      }
+      throw e;
+    }finally{
+      if(notesSaveInFlight === inFlight) notesSaveInFlight = null;
     }
-    throw e;
-  }finally{
-    if(notesSaveInFlight === inFlight) notesSaveInFlight = null;
-  }
+  });
+  notesWriteChain = write.catch(()=>{});
+  await write;
 }
 
 function hasLocalNotesWriteForBook(bookId){
@@ -1275,7 +1307,7 @@ function scheduleNotesSave(){
 }
 
 async function flushPendingNotes(){
-  if(notesSaveInFlight) await notesSaveInFlight.promise;
+  await notesWriteChain;
   const snapshot = pendingNotesSave;
   if(!snapshot) return;
   if(snapshot.timer) clearTimeout(snapshot.timer);
