@@ -98,9 +98,9 @@
   #epub-viewer{width:100%;max-width:100%;min-width:0;height:100%;min-height:0;overflow:hidden}
   #pdf-viewer{display:flex;flex-direction:column;align-items:center;gap:16px;padding:16px;width:100%;max-width:100%;min-width:0;overflow-x:hidden}
   #pdf-viewer canvas{display:block;max-width:100%;height:auto;box-shadow:0 2px 12px rgba(0,0,0,.25);background:#fff}
-  .reader-step{width:44px;min-width:44px;height:44px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;background:var(--elev);border:1px solid var(--border);font-size:24px;line-height:1;color:var(--text)}
-  .reader-step.hidden{display:none}
-  .reader-step:disabled{opacity:.35;cursor:not-allowed}
+  #reader-inline-nav{display:flex;justify-content:center;gap:12px;margin:0 auto 20px;max-width:var(--reader-width);width:100%}
+  #reader-inline-nav button{min-width:44px;min-height:44px;border-radius:999px;background:var(--elev);border:1px solid var(--border);font-size:24px;line-height:1;color:var(--text)}
+  #reader-inline-nav button:disabled{opacity:.35;cursor:not-allowed}
 
   /* ---------- Landing / Upload ---------- */
   #landing{
@@ -422,12 +422,10 @@
     <button class="icon" id="btn-rail-mobile" title="Menu" aria-label="Menu" style="display:none">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
     </button>
-    <button class="reader-step hidden" id="reader-prev" aria-label="Anterior" disabled>‹</button>
     <div class="title-wrap hidden" id="title-wrap">
       <div class="title" id="book-title"></div>
       <div class="author" id="book-author"></div>
     </div>
-    <button class="reader-step hidden" id="reader-next" aria-label="Próximo" disabled>›</button>
   </header>
 
   <div id="progress"><div></div></div>
@@ -447,6 +445,10 @@
     </section>
 
     <section id="reader" class="hidden">
+      <div id="reader-inline-nav" class="hidden" aria-label="Navegação de leitura">
+        <button id="reader-inline-prev" aria-label="Anterior" disabled>‹</button>
+        <button id="reader-inline-next" aria-label="Próximo" disabled>›</button>
+      </div>
       <div id="reader-content"></div>
       <div id="epub-viewer" class="hidden"></div>
       <div id="pdf-viewer" class="hidden"></div>
@@ -1131,8 +1133,8 @@ async function openBook(id){
   $('#landing').classList.add('hidden');
   $('#reader').classList.remove('hidden');
   $('#title-wrap').classList.remove('hidden');
-  setReaderControlsVisible(true);
   updateRail();
+  resetReaderNavState();
   $('#book-title').textContent = b.title || 'Sem título';
   $('#book-author').textContent = b.author || '';
   $('#reader-content').classList.add('hidden');
@@ -1170,7 +1172,8 @@ function showBookOpenError(id, e){
   $('#landing').classList.add('hidden');
   $('#reader').classList.remove('hidden');
   $('#title-wrap').classList.remove('hidden');
-  setReaderControlsVisible(true);
+  resetReaderNavState();
+  setReaderInlineNavVisible(false);
   $('#reader-content').classList.remove('hidden');
   $('#epub-viewer').classList.add('hidden');
   $('#pdf-viewer').classList.add('hidden');
@@ -1186,7 +1189,8 @@ async function closeBook(){
   $('#landing').classList.remove('hidden');
   $('#reader').classList.add('hidden');
   $('#title-wrap').classList.add('hidden');
-  setReaderControlsVisible(false);
+  resetReaderNavState();
+  setReaderInlineNavVisible(false);
   $('#book-title').textContent = ''; $('#book-author').textContent = '';
   updateProgress(0);
   $('#toc-body').innerHTML = '<div class="empty">Abra um livro para ver o sumário.</div>';
@@ -1201,33 +1205,47 @@ function updateProgress(p){
   if(state.activeBook){ state.activeBook.progress = clamped; }
 }
 
+function navControlIds(){
+  return ['nav-prev','nav-next','reader-inline-prev','reader-inline-next','pdf-prev','pdf-next'];
+}
+
+function setNavButtonState(ids, disabled){
+  ids.forEach(id=>{ const el = document.getElementById(id); if(el) el.disabled = disabled; });
+}
+
+function resetReaderNavState(){
+  setNavButtonState(navControlIds(), true);
+}
+
 function updateReaderNavState(loc){
   const b = state.activeBook;
-  let canPrev = !!b;
-  let canNext = !!b;
-  if(!b){
-    canPrev = false; canNext = false;
-  } else if(b.type === 'epub' && loc){
-    canPrev = !loc.atStart;
-    canNext = !loc.atEnd;
-  } else if(b.type === 'pdf' && b.pdf){
+  let canPrev = false;
+  let canNext = false;
+  const location = Array.isArray(loc) ? loc[0] : loc;
+  if(b?.type === 'epub' && location){
+    canPrev = !location.atStart;
+    canNext = !location.atEnd;
+  } else if(b?.type === 'pdf' && b.pdf){
     canPrev = state.pdfPage > 1;
     canNext = state.pdfPage < b.pdf.numPages;
-  } else if(b.type === 'txt'){
+  } else if(b?.type === 'txt'){
     const r = $('#reader');
     canPrev = r.scrollTop > 1;
     canNext = r.scrollTop + r.clientHeight < r.scrollHeight - 1;
   }
-  ['nav-prev','reader-prev'].forEach(id=>{ const el = document.getElementById(id); if(el) el.disabled = !canPrev; });
-  ['nav-next','reader-next'].forEach(id=>{ const el = document.getElementById(id); if(el) el.disabled = !canNext; });
+  setNavButtonState(['nav-prev','reader-inline-prev','pdf-prev'], !canPrev);
+  setNavButtonState(['nav-next','reader-inline-next','pdf-next'], !canNext);
 }
 
-function setReaderControlsVisible(visible){
-  ['reader-prev','reader-next'].forEach(id=>document.getElementById(id)?.classList.toggle('hidden', !visible));
+function setReaderInlineNavVisible(visible){
+  const nav = document.getElementById('reader-inline-nav');
+  if(nav) nav.classList.toggle('hidden', !visible);
+  if(!visible) setNavButtonState(['reader-inline-prev','reader-inline-next'], true);
 }
 
 /* --- EPUB --- */
 async function renderEpub(buf, saved){
+  setReaderInlineNavVisible(true);
   $('#epub-viewer').classList.remove('hidden');
   $('#epub-viewer').innerHTML = '';
   const book = window.ePub(buf);
@@ -1241,21 +1259,23 @@ async function renderEpub(buf, saved){
   rendition.themes.register('day', { ...containedTheme, 'body':{ ...containedTheme.body, 'background':'#F5F0E7 !important','color':'#211E1A !important','font-family':'Georgia, serif !important','padding':'16px !important' }, 'a':{'color':'#D8431D !important'} });
   rendition.themes.select(state.theme);
 
-  await rendition.display(saved?.cfi || undefined);
-  await book.ready;
-  try{
-    const nav = await book.loaded.navigation;
-    state.activeBook.toc = flattenToc(nav.toc);
-    renderToc();
-    await book.locations.generate(1200);
-  }catch(e){ console.warn(e); }
-
   rendition.on('relocated', (loc)=>{
     const p = loc?.start?.percentage ?? 0;
     updateProgress(p);
     updateReaderNavState(loc);
     saveProgress({ cfi: loc?.start?.cfi, percentage: p });
   });
+
+  await rendition.display(saved?.cfi || undefined);
+  updateReaderNavState(rendition.currentLocation?.());
+  await book.ready;
+  try{
+    const nav = await book.loaded.navigation;
+    state.activeBook.toc = flattenToc(nav.toc);
+    renderToc();
+    await book.locations.generate(1200);
+    updateReaderNavState(rendition.currentLocation?.());
+  }catch(e){ console.warn(e); }
 }
 function flattenToc(items, depth=0){
   const out = [];
@@ -1268,6 +1288,7 @@ function flattenToc(items, depth=0){
 
 /* --- PDF --- */
 async function renderPdf(buf, saved){
+  setReaderInlineNavVisible(false);
   $('#pdf-viewer').classList.remove('hidden');
   const viewer = $('#pdf-viewer'); viewer.innerHTML = '';
   const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
@@ -1289,8 +1310,8 @@ async function renderPdfPage(pageNumber){
   controls.innerHTML = `<button id="pdf-prev" aria-label="Página anterior" ${state.pdfPage===1?'disabled':''}>Página anterior</button><span>${state.pdfPage} / ${pdf.numPages}</span><button id="pdf-next" aria-label="Página seguinte" ${state.pdfPage===pdf.numPages?'disabled':''}>Página seguinte</button>`;
   viewer.appendChild(controls);
   controls.querySelectorAll('button').forEach(btn=>btn.style.cssText='min-height:44px;border-radius:10px;background:var(--elev);border:1px solid var(--border);padding:0 12px;opacity:'+(btn.disabled?'.35':'1'));
-  $('#pdf-prev').onclick = ()=>renderPdfPage(state.pdfPage-1);
-  $('#pdf-next').onclick = ()=>renderPdfPage(state.pdfPage+1);
+  $('#pdf-prev').onclick = ()=>nav('prev');
+  $('#pdf-next').onclick = ()=>nav('next');
   const page = await pdf.getPage(state.pdfPage);
   const base = page.getViewport({ scale:1 });
   const viewerStyle = getComputedStyle(viewer);
@@ -1322,6 +1343,7 @@ function flattenPdfOutline(items, pdf, depth=0){
 
 /* --- TXT --- */
 async function renderTxt(buf, saved){
+  setReaderInlineNavVisible(true);
   const el = $('#reader-content'); el.classList.remove('hidden');
   const txt = new TextDecoder('utf-8').decode(buf);
   el.innerHTML = txt.split(/\n{2,}/).map(p=>`<p>${escapeHtml(p).replace(/\n/g,'<br>')}</p>`).join('');
@@ -2294,7 +2316,7 @@ function wire(){
     if(state.activeBook) await closeBook(); else openPanel('library-panel');
   });
 
-  ['reader-prev','reader-next'].forEach(id=>{
+  ['reader-inline-prev','reader-inline-next'].forEach(id=>{
     const btn = document.getElementById(id);
     if(btn) btn.addEventListener('click', ()=>nav(id.endsWith('prev') ? 'prev' : 'next'));
   });
