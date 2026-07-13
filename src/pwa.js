@@ -35,5 +35,5 @@ export function initPwa({ onUpdateAvailable, beforeReload } = {}) {
         }
       });
     });
-  }).catch(err => console.warn('[Códice] Service worker indisponível.', err));
+  }).catch(err => console.warn('[Kódice] Service worker indisponível.', err));
 }

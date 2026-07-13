@@ -7,13 +7,13 @@
 <meta name="color-scheme" content="dark light" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-title" content="Códice" />
+<meta name="apple-mobile-web-app-title" content="Kódice" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="format-detection" content="telephone=no" />
 <link rel="manifest" href="/manifest.webmanifest" />
-<link rel="apple-touch-icon" sizes="180x180" href="/icon.png" />
-<link rel="icon" href="/favicon.png" type="image/png" />
-<title>CÓDICE — Leitura local</title>
+<link rel="apple-touch-icon" sizes="192x192" href="/icon-maskable-192.png" />
+<link rel="icon" href="/192x192.png" type="image/png" />
+<title>KÓDICE — Leitura local</title>
 <style>
   :root{
     --bg:#0B0C0F; --surface:#14161B; --elev:#1B1E24;
@@ -348,18 +348,18 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
     </button>
     <div class="brand">
-      <img src="./icon.png" alt="" />
+      <img src="./192x192.png" alt="" />
       <div class="brand-text">
-        <span class="n">CÓDICE</span>
+        <span class="n">KÓDICE</span>
         <span class="s">Leitura local</span>
       </div>
     </div>
     <div class="rail-progress" id="rail-progress" hidden><div></div></div>
     <nav>
-      <div class="nav-group-label">Biblioteca</div>
-      <button class="nav-btn" data-nav="library" aria-label="Biblioteca">
+      <div class="nav-group-label">Biblioteca do Kódice</div>
+      <button class="nav-btn" data-nav="library" aria-label="Biblioteca do Kódice">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h4v16H4zM10 4h4v16h-4zM16 6l4 1-3 15-4-1z"/></svg>
-        <span class="lbl">Biblioteca</span>
+        <span class="lbl">Biblioteca do Kódice</span>
       </button>
       <button class="nav-btn" data-nav="add" aria-label="Adicionar livro">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
@@ -427,10 +427,10 @@
 
   <main id="main">
     <section id="landing">
-      <img src="./icon.png" alt="" class="logo" />
+      <img src="./192x192.png" alt="" class="logo" />
       <div class="subtitle">Leitura local</div>
-      <h1>CÓDICE</h1>
-      <p class="lead">Abra um livro e continue a leitura no seu próprio ritmo.</p>
+      <h1>KÓDICE</h1>
+      <p class="lead">Kaline acolhe.<br>Kuan atende.<br>Klio constrói.<br>Kódice estuda.<br>Héstia sustenta.<br>Kairós conecta.</p>
       <div id="dropzone">
         <div class="hint">Solte aqui um arquivo EPUB, PDF ou TXT.</div>
         <button id="btn-pick">Escolher arquivo</button>
@@ -453,7 +453,7 @@
 <!-- Library Panel -->
 <aside id="library-panel">
   <div class="panel-header"><div class="grabber"></div>
-    <h3>Biblioteca</h3>
+    <h3>Biblioteca do Kódice</h3>
     <button class="panel-close" data-close-panel="library-panel" aria-label="Fechar">✕</button>
   </div>
   <div class="panel-body">
@@ -556,14 +556,14 @@
     </div>
     <div class="setting" id="install-setting" style="display:none">
       <div class="setting-label"><b>Instalação</b></div>
-      <button id="btn-install-app" style="min-height:44px;border-radius:10px;background:var(--orange);color:#fff;font-weight:600;padding:0 14px">Instalar Códice</button>
+      <button id="btn-install-app" style="min-height:44px;border-radius:10px;background:var(--orange);color:#fff;font-weight:600;padding:0 14px">Instalar Kódice</button>
       <div id="install-help" style="color:var(--text-2);font-size:12px;margin-top:8px"></div>
     </div>
     <div class="setting">
       <div class="setting-label"><b>Armazenamento local</b><span id="storage-estimate" style="color:var(--text-2);font-size:12px"></span></div>
     </div>
     <div class="setting">
-      <div class="setting-label"><b>Backup</b><span id="backup-status" style="color:var(--text-2);font-size:12px"></span></div>
+      <div class="setting-label"><b>Backup do Kódice</b><span id="backup-status" style="color:var(--text-2);font-size:12px"></span></div>
       <div style="color:var(--text-2);font-size:13px;line-height:1.5;margin-bottom:10px">
         Exporte biblioteca, progresso, anotações e ajustes em um arquivo JSON. Importe em qualquer dispositivo — funciona 100% offline.
       </div>
@@ -596,13 +596,13 @@
 
 <div id="status" aria-live="polite"></div>
 <div id="pwa-update" style="display:none;position:fixed;left:12px;right:12px;bottom:calc(12px + var(--safe-b));z-index:80;background:var(--elev);border:1px solid var(--border);border-radius:14px;padding:12px;box-shadow:0 10px 40px rgba(0,0,0,.35)">
-  <div style="font-weight:700;margin-bottom:8px">Nova versão do Códice disponível.</div>
+  <div style="font-weight:700;margin-bottom:8px">Nova versão do Kódice disponível.</div>
   <div style="display:flex;gap:8px"><button id="pwa-update-now" style="min-height:40px;border-radius:10px;background:var(--orange);color:#fff;padding:0 14px;font-weight:700">Atualizar agora</button><button id="pwa-update-later" style="min-height:40px;border-radius:10px;background:var(--surface);border:1px solid var(--border);padding:0 14px">Depois</button></div>
 </div>
 <div id="ios-install-sheet" class="side-panel" role="dialog" aria-modal="true" aria-label="Instalar no iPhone"><div class="panel-header"><div class="grabber"></div><h3>Instalar no iPhone</h3><button class="panel-close" id="ios-install-close" aria-label="Fechar">✕</button></div><div class="panel-body"><ol style="padding-left:22px;line-height:1.8"><li>Toque no botão Compartilhar do Safari.</li><li>Escolha “Adicionar à Tela de Início”.</li><li>Confirme tocando em “Adicionar”.</li></ol></div></div>
 
 <!-- Auth overlay -->
-<div id="auth-overlay" role="dialog" aria-modal="true" aria-label="Entrar no Códice">
+<div id="auth-overlay" role="dialog" aria-modal="true" aria-label="Entrar no Kódice">
   <div class="auth-card">
     <div class="auth-head">
       <h3 id="auth-title">Entrar</h3>
@@ -662,11 +662,11 @@ if(SYNC_ENABLED){
       auth: { persistSession: true, autoRefreshToken: true, storageKey: 'codice.sb.auth' }
     });
   }catch(e){
-    console.warn('[Códice] Falha ao inicializar Supabase — modo somente-local.', e);
+    console.warn('[Kódice] Falha ao inicializar Supabase — modo somente-local.', e);
     supabase = null;
   }
 } else {
-  console.info('[Códice] SUPABASE_URL/PUBLISHABLE_KEY ausentes — sincronização desativada, dados apenas locais.');
+  console.info('[Kódice] SUPABASE_URL/PUBLISHABLE_KEY ausentes — sincronização desativada, dados apenas locais.');
 }
 
 /* =========================================================
@@ -991,7 +991,7 @@ async function openBook(id){
       await renderTxt(b.data.slice(0), saved);
     }
   }catch(e){
-    console.warn('[Códice] Falha ao abrir livro', e?.code || e);
+    console.warn('[Kódice] Falha ao abrir livro', e?.code || e);
     $('#reader-content').classList.remove('hidden');
     $('#reader-content').innerHTML = `<div class="empty"><p>${/ENGINE|WORKER/.test(e?.code||'') ? 'Não foi possível carregar o motor de leitura. Tente novamente.' : 'Não foi possível abrir este livro. O arquivo pode estar danificado ou o motor de leitura não pôde ser carregado.'}</p><button id="retry-open" style="margin-top:12px;min-height:44px;border-radius:10px;background:var(--orange);color:#fff;padding:0 16px">Tentar novamente</button></div>`;
     $('#retry-open').onclick = ()=>openBook(id);
@@ -1252,7 +1252,7 @@ async function mergeRemoteInto(kind, bookId){
         });
       }
     }
-  }catch(e){ console.warn('[Códice] mergeRemoteInto', kind, e); }
+  }catch(e){ console.warn('[Kódice] mergeRemoteInto', kind, e); }
 }
 async function flushQueue(){
   if(state.sync.syncing) return;
@@ -1291,7 +1291,7 @@ async function flushQueue(){
       if(error) throw error;
       await dbDel('queue', item.id);
     }catch(e){
-      console.warn('[Códice] sync fail', item.kind, e);
+      console.warn('[Kódice] sync fail', item.kind, e);
       lastErr = e; failed++;
       // Auth/permission problems: parar e avisar o usuário.
       const msg = (e?.message||'').toLowerCase();
@@ -1458,7 +1458,7 @@ async function pullRemoteData(){
       persistSettings();
     }
   }catch(e){
-    console.warn('[Códice] pull fail', e);
+    console.warn('[Kódice] pull fail', e);
     toast('Não foi possível baixar dados da nuvem');
   }
 }
@@ -1589,7 +1589,7 @@ function renderSyncStatus(){
  * =======================================================*/
 function exportMarkdown(){
   const b = state.activeBook;
-  const title = b?.title || 'Notas Códice';
+  const title = b?.title || 'Notas Kódice';
   const content = $('#notebook').value || '';
   const md = `# ${title}\n\n_${b?.author || ''}_\n\n---\n\n${content}\n`;
   const blob = new Blob([md],{type:'text/markdown'});
@@ -1637,7 +1637,7 @@ async function exportBackup(){
     const fileName = `codice-backup-${stamp}.json`;
     const file = new File([blob], fileName, { type:'application/json' });
     if(navigator.canShare?.({ files:[file] }) && navigator.share){
-      await navigator.share({ files:[file], title:'Backup Códice' });
+      await navigator.share({ files:[file], title:'Backup do Kódice' });
     } else {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -1727,7 +1727,7 @@ async function exportNotesMarkdown(){
     const byId = new Map(books.map(b=>[b.id,b]));
     const filled = notes.filter(n => (n.content||'').trim().length);
     if(!filled.length){ toast('Nenhuma anotação para exportar'); return; }
-    const parts = ['# Anotações — Códice','', `_Exportado em ${new Date().toLocaleString()}_`,''];
+    const parts = ['# Anotações — Kódice','', `_Exportado em ${new Date().toLocaleString()}_`,''];
     for(const n of filled){
       const b = byId.get(n.book_id) || {};
       parts.push(`## ${b.title || n.book_id}`);
@@ -1896,7 +1896,7 @@ function wirePwaUi(){
     if(setting) setting.style.display = d.canInstall && !d.standalone ? 'block' : 'none';
     if(help) help.textContent = d.isIOS ? 'Abre instruções para adicionar pelo Safari.' : 'Instala pelo prompt do Chrome quando disponível.';
   });
-  window.addEventListener('codice:pwa-installed', ()=>toast('Códice instalado'));
+  window.addEventListener('codice:pwa-installed', ()=>toast('Kódice instalado'));
   window.addEventListener('codice:pwa-ios-instructions', ()=>openPanel('ios-install-sheet'));
   btn?.addEventListener('click', ()=>window.dispatchEvent(new CustomEvent('codice:pwa-install-request')));
   document.getElementById('ios-install-close')?.addEventListener('click', ()=>closePanel('ios-install-sheet'));
@@ -2128,7 +2128,7 @@ function wire(){
         await signIn(email, password);
       }
       closeAuth();
-      toast('Bem-vindo(a) ao Códice');
+      toast('Bem-vindo(a) ao Kódice');
     }catch(ex){
       err.textContent = ex?.message || 'Não foi possível autenticar.';
     } finally { btn.disabled = false; }

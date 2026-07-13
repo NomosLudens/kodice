@@ -1,9 +1,9 @@
-# Códice
+# Kódice
 
 Um leitor local de EPUB, PDF e TXT focado em privacidade, retenção e conforto.
 
 ## Arquitetura Local-First
-O Códice é primariamente uma aplicação offline. Seus livros, progresso e anotações são salvos localmente no seu dispositivo utilizando **IndexedDB**. Nada é enviado para a nuvem por padrão, garantindo total privacidade e funcionamento sem internet.
+O Kódice é primariamente uma aplicação offline. Seus livros, progresso e anotações são salvos localmente no seu dispositivo utilizando **IndexedDB**. Nada é enviado para a nuvem por padrão, garantindo total privacidade e funcionamento sem internet.
 
 Opcionalmente, você pode configurar o Supabase para sincronizar seu progresso, notas e preferências entre dispositivos. Os arquivos dos livros **nunca** são enviados para a nuvem.
 
@@ -41,7 +41,7 @@ Para ativar a sincronização entre dispositivos, você precisa de um projeto Su
 
 ## Configuração do Cloudflare Pages
 
-O Códice está pronto para ser hospedado gratuitamente no Cloudflare Pages.
+O Kódice está pronto para ser hospedado gratuitamente no Cloudflare Pages.
 
 1. Conecte o seu repositório ao Cloudflare Pages.
 2. Nas configurações de build:
@@ -57,12 +57,12 @@ Após o deploy, certifique-se de validar o login/sincronização e adicionar o d
 
 ## PWA e dispositivos móveis
 
-O Códice pode ser publicado como site estático no Cloudflare Pages e instalado como PWA após a primeira abertura online.
+O Kódice pode ser publicado como site estático no Cloudflare Pages e instalado como PWA após a primeira abertura online.
 
 ### Chrome Android
 
 1. Abra o site no Chrome.
-2. Use o botão **Instalar Códice** em **Ajustes**, quando disponível.
+2. Use o botão **Instalar Kódice** em **Ajustes**, quando disponível.
 3. Alternativamente, use o menu do Chrome e escolha **Adicionar à tela inicial** ou **Instalar app**.
 
 ### Safari iPhone
@@ -72,4 +72,4 @@ O Códice pode ser publicado como site estático no Cloudflare Pages e instalado
 3. Escolha **Adicionar à Tela de Início**.
 4. Confirme em **Adicionar**.
 
-No iPhone, prefira instalar o Códice antes de importar livros: Safari e a PWA instalada podem manter armazenamentos separados. Livros EPUB, PDF e TXT ficam no aparelho, em IndexedDB; o Supabase não recebe os arquivos dos livros. Os ícones usados pela PWA reutilizam os arquivos já existentes do app. Backup é responsabilidade do usuário e deve ser exportado manualmente. O modo offline exige uma primeira abertura online para baixar o app shell. Héstia não faz parte deste PR.
+No iPhone, prefira instalar o Kódice antes de importar livros: Safari e a PWA instalada podem manter armazenamentos separados. Livros EPUB, PDF e TXT ficam no aparelho, em IndexedDB; o Supabase não recebe os arquivos dos livros. Os ícones usados pela PWA reutilizam os arquivos já existentes do app. Backup é responsabilidade do usuário e deve ser exportado manualmente. O modo offline exige uma primeira abertura online para baixar o app shell. Héstia não faz parte deste PR.

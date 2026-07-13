@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 const dist = path.resolve('dist');
 const manifestPath = path.join(dist, '.vite/manifest.json');
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-const urls = new Set(['/', '/index.html', '/manifest.webmanifest', '/icon.png', '/favicon.png', '/favicon.ico']);
+const urls = new Set(['/', '/index.html', '/manifest.webmanifest', '/192x192.png', '/icon-maskable-192.png']);
 function add(file){ if(file) urls.add('/'+file.replace(/^\//,'')); }
 function walk(key, seen=new Set()){
  const e=manifest[key]; if(!e || seen.has(key)) return; seen.add(key);
