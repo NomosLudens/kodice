@@ -536,7 +536,7 @@
       </div>
     </div>
     <div class="setting">
-      <div class="setting-label"><b>Modo de leitura</b></div>
+      <div class="setting-label"><b>Modo do EPUB</b></div>
       <div class="seg" id="reading-mode-seg">
         <button data-reading-mode="paginated" class="active">Páginas</button>
         <button data-reading-mode="scrolled">Rolagem</button>
@@ -957,15 +957,48 @@ function applyTheme(t){
   persistSettings();
   if(typeof updateRail==='function') updateRail();
 }
-function applyReadingMode(mode){
+let readingModeSwitching = false;
+
+function setReadingModeSelector(mode, disabled=false){
+  $$('#reading-mode-seg button').forEach(b=>{
+    b.classList.toggle('active', b.dataset.readingMode===mode);
+    b.disabled = disabled;
+  });
+}
+
+async function applyReadingMode(mode){
   const next = mode === 'scrolled' ? 'scrolled' : 'paginated';
-  const previous = state.readingMode;
+  const previous = state.readingMode === 'scrolled' ? 'scrolled' : 'paginated';
+  if(readingModeSwitching) return;
+  if(next === previous){
+    setReadingModeSelector(previous, false);
+    return;
+  }
+
+  const hasOpenEpub = state.activeBook?.type === 'epub' && state.activeBook.book;
+  if(!hasOpenEpub){
+    state.readingMode = next;
+    localStorage.setItem('codice.readingMode', next);
+    setReadingModeSelector(next, false);
+    return;
+  }
+
+  readingModeSwitching = true;
+  const cfi = getCurrentEpubCfi();
+  setReadingModeSelector(previous, true);
   state.readingMode = next;
-  localStorage.setItem('codice.readingMode', next);
-  $$('#reading-mode-seg button').forEach(b=>b.classList.toggle('active', b.dataset.readingMode===next));
-  if(previous !== next && state.activeBook?.type === 'epub' && state.activeBook.book){
-    const cfi = getCurrentEpubCfi();
-    recreateEpubRendition(cfi);
+  try{
+    await recreateEpubRendition(cfi);
+    localStorage.setItem('codice.readingMode', next);
+    setReadingModeSelector(next, false);
+  }catch(e){
+    console.warn('[Kódice] Falha ao alterar modo de leitura EPUB', e);
+    state.readingMode = previous;
+    try{ await recreateEpubRendition(cfi); }catch(recoverError){ console.warn('[Kódice] Falha ao restaurar modo de leitura EPUB', recoverError); }
+    setReadingModeSelector(previous, false);
+    toast('Não foi possível alterar o modo de leitura.');
+  }finally{
+    readingModeSwitching = false;
   }
 }
 
@@ -980,6 +1013,12 @@ function getCurrentEpubCfi(){
   const loc = b?.rendition?.currentLocation?.() ?? b?.readerLocation;
   const location = Array.isArray(loc) ? loc[0] : loc;
   return location?.start?.cfi || location?.cfi || b?.readerLocation?.start?.cfi || undefined;
+}
+
+function applyCurrentEpubTypography(rendition){
+  const cs = state.settings || {};
+  rendition.themes.fontSize(Math.round((cs.fs||19)*(cs.z||1))+'px');
+  rendition.themes.default({ 'body': { 'line-height': String(cs.ls||1.7) } });
 }
 
 function applySettings(s){
@@ -997,10 +1036,7 @@ function applySettings(s){
   if(cs.z){ $('#z').value=cs.z; $('#z-val').textContent=Math.round(cs.z*100)+'%'; }
   // apply to epub rendition too
   if(state.activeBook?.rendition){
-    try{
-      state.activeBook.rendition.themes.fontSize(Math.round((cs.fs||19)*(cs.z||1))+'px');
-      state.activeBook.rendition.themes.default({ 'body': { 'line-height': String(cs.ls||1.7) } });
-    }catch(e){}
+    try{ applyCurrentEpubTypography(state.activeBook.rendition); }catch(e){}
   }
   persistSettings();
 }
@@ -1166,7 +1202,7 @@ async function openBook(id){
   if(state.activeBook?.rendition){ try{ state.activeBook.rendition.destroy(); }catch(e){} }
   const notebook = $('#notebook');
   if(notebook) notebook.value = '';
-  state.activeBook = { id, type:b.type, title:b.title, author:b.author, toc:[], progress:0, readerLocation:null };
+  state.activeBook = { id, type:b.type, title:b.title, author:b.author, toc:[], progress:0, readerLocation:null, locationsGenerated:false };
   // UI
   $('#landing').classList.add('hidden');
   $('#reader').classList.remove('hidden');
@@ -1297,7 +1333,6 @@ async function recreateEpubRendition(cfi){
   if(!b?.book) return;
   if(b.rendition){ try{ b.rendition.destroy(); }catch(e){} }
   await createEpubRendition(b.book, cfi);
-  applySettings(state.settings);
 }
 
 async function createEpubRendition(book, target){
@@ -1315,6 +1350,7 @@ async function createEpubRendition(book, target){
   rendition.themes.register('night', { ...containedTheme, 'body':{ ...containedTheme.body, 'background':'#0B0C0F !important','color':'#F5F1EA !important','font-family':'Georgia, serif !important','padding':'16px !important' }, 'a':{'color':'#FF4C1F !important'} });
   rendition.themes.register('day', { ...containedTheme, 'body':{ ...containedTheme.body, 'background':'#F5F0E7 !important','color':'#211E1A !important','font-family':'Georgia, serif !important','padding':'16px !important' }, 'a':{'color':'#D8431D !important'} });
   rendition.themes.select(state.theme);
+  applyCurrentEpubTypography(rendition);
 
   rendition.on('relocated', (loc)=>{
     if(state.activeBook?.rendition !== rendition) return;
@@ -1331,10 +1367,15 @@ async function createEpubRendition(book, target){
   updateReaderNavState();
   await book.ready;
   try{
-    const nav = await book.loaded.navigation;
-    state.activeBook.toc = flattenToc(nav.toc);
-    renderToc();
-    await book.locations.generate(1200);
+    if(!state.activeBook.toc?.length){
+      const nav = await book.loaded.navigation;
+      state.activeBook.toc = flattenToc(nav.toc);
+      renderToc();
+    }
+    if(!state.activeBook.locationsGenerated){
+      await book.locations.generate(1200);
+      state.activeBook.locationsGenerated = true;
+    }
     if(state.activeBook?.rendition !== rendition) return;
     state.activeBook.readerLocation = rendition.currentLocation?.() ?? state.activeBook.readerLocation;
     updateReaderNavState();
@@ -2417,7 +2458,7 @@ function wire(){
   $$('[data-close-panel]').forEach(b=>b.addEventListener('click',()=>closePanel(b.dataset.closePanel)));
   $('#backdrop').addEventListener('click', closeAllPanels);
 
-  applyReadingMode(state.readingMode);
+  setReadingModeSelector(state.readingMode === 'scrolled' ? 'scrolled' : 'paginated');
 
   // Theme
   $$('#theme-seg button').forEach(b=>b.addEventListener('click',()=>{
@@ -2425,7 +2466,7 @@ function wire(){
     if(state.activeBook?.rendition){ try{ state.activeBook.rendition.themes.select(state.theme); }catch(e){} }
   }));
 
-  $$('#reading-mode-seg button').forEach(b=>b.addEventListener('click',()=>applyReadingMode(b.dataset.readingMode)));
+  $$('#reading-mode-seg button').forEach(b=>b.addEventListener('click', async()=>{ await applyReadingMode(b.dataset.readingMode); }));
 
   // Settings sliders
   $('#fs').addEventListener('input', e=>applySettings({fs:+e.target.value}));
@@ -2497,13 +2538,21 @@ function wire(){
   }, 30000);
 
   let readerResizeTimer;
-  let lastReaderWidth = $('#reader').clientWidth;
+  const readerForResize = $('#reader');
+  let lastReaderSize = {
+    width: readerForResize.clientWidth,
+    height: readerForResize.clientHeight,
+  };
   const handleReaderResize = ()=>{
     clearTimeout(readerResizeTimer);
     readerResizeTimer = setTimeout(async()=>{
-      const width = $('#reader').clientWidth;
-      if(Math.abs(width - lastReaderWidth) < 1) return;
-      lastReaderWidth = width;
+      const reader = $('#reader');
+      const nextSize = {
+        width: reader.clientWidth,
+        height: reader.clientHeight,
+      };
+      if(Math.abs(nextSize.width - lastReaderSize.width) < 1 && Math.abs(nextSize.height - lastReaderSize.height) < 1) return;
+      lastReaderSize = nextSize;
       if(state.activeBook?.type === 'pdf') await renderPdfPage(state.pdfPage || 1);
       else if(state.activeBook?.type === 'epub' && state.readingMode === 'paginated' && state.activeBook.rendition){
         const cfi = getCurrentEpubCfi();
