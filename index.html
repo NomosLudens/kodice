@@ -957,10 +957,13 @@ async function handleFiles(files){
  * Reader — EPUB / PDF / TXT
  * =======================================================*/
 async function openBook(id){
+  try{ await flushPendingNotes(); }catch(e){ console.error('[Kódice] Falha ao salvar anotação pendente antes de abrir livro', e); toast('Não foi possível salvar a anotação neste aparelho.'); return; }
   const b = await dbGet('books', id);
   if(!b) return;
   // cleanup previous
   if(state.activeBook?.rendition){ try{ state.activeBook.rendition.destroy(); }catch(e){} }
+  const notebook = $('#notebook');
+  if(notebook) notebook.value = '';
   state.activeBook = { id, type:b.type, title:b.title, author:b.author, data:b.data, toc:[], progress:0 };
   // UI
   $('#landing').classList.add('hidden');
@@ -998,7 +1001,8 @@ async function openBook(id){
   }
   applySettings(state.settings);
 }
-function closeBook(){
+async function closeBook(){
+  try{ await flushPendingNotes(); }catch(e){ console.error('[Kódice] Falha ao salvar anotação pendente antes de fechar livro', e); toast('Não foi possível salvar a anotação neste aparelho.'); return; }
   if(state.activeBook?.rendition){ try{ state.activeBook.rendition.destroy(); }catch(e){} }
   $('#reader').onscroll = null; // Cleanup scroll listener
   state.activeBook = null;
@@ -1192,20 +1196,79 @@ async function saveProgress(payload){
   }
 }
 let notesTimer;
+let pendingNotesSave = null;
+
+async function saveNotesNow({ bookId, content, updatedAt = Date.now(), notify = false }){
+  if(!bookId) return;
+  const normalizedContent = String(content ?? '');
+  await dbPut('notes', { book_id:bookId, content:normalizedContent, updated_at:updatedAt });
+  if(state.user){
+    await queueSync('notes', {
+      user_id: state.user.id,
+      book_id: bookId,
+      content: normalizedContent,
+      updated_at: new Date(updatedAt).toISOString(),
+    });
+    if(notify) toast('Anotação salva · sincronização pendente');
+  } else if(notify){
+    toast('Anotação salva localmente');
+  }
+}
+
 function scheduleNotesSave(){
-  clearTimeout(notesTimer);
-  notesTimer = setTimeout(async()=>{
-    const b = state.activeBook; if(!b) return;
-    const content = $('#notebook').value;
-    const ts = Date.now();
-    await dbPut('notes', { book_id:b.id, content, updated_at:ts });
-    if(state.user){
-      queueSync('notes', { user_id: state.user.id, book_id: b.id, content, updated_at:new Date(ts).toISOString() });
-      toast('Anotações salvas na nuvem');
-    } else {
-      toast('Anotações salvas localmente');
+  const bookId = state.activeBook?.id;
+  const notebook = $('#notebook');
+  const content = notebook?.value ?? '';
+  if(!bookId) return;
+
+  if(pendingNotesSave?.bookId && pendingNotesSave.bookId !== bookId){
+    flushPendingNotes().catch(e=>{
+      console.error('[Kódice] Falha ao salvar anotação pendente', e);
+      toast('Não foi possível salvar a anotação neste aparelho.');
+    });
+  } else if(pendingNotesSave?.timer){
+    clearTimeout(pendingNotesSave.timer);
+  }
+
+  const snapshot = { bookId, content, updatedAt:Date.now(), timer:null };
+  snapshot.timer = setTimeout(async()=>{
+    if(pendingNotesSave !== snapshot) return;
+    pendingNotesSave = null;
+    notesTimer = null;
+    try{
+      await saveNotesNow({ bookId:snapshot.bookId, content:snapshot.content, updatedAt:snapshot.updatedAt, notify:true });
+    }catch(e){
+      console.error('[Kódice] Falha ao salvar anotação', e);
+      toast('Não foi possível salvar a anotação neste aparelho.');
     }
   }, 500);
+  notesTimer = snapshot.timer;
+  pendingNotesSave = snapshot;
+}
+
+async function flushPendingNotes(){
+  const snapshot = pendingNotesSave;
+  if(!snapshot) return;
+  if(snapshot.timer) clearTimeout(snapshot.timer);
+  if(notesTimer === snapshot.timer) notesTimer = null;
+  pendingNotesSave = null;
+  try{
+    await saveNotesNow({ bookId:snapshot.bookId, content:snapshot.content, updatedAt:snapshot.updatedAt, notify:true });
+  }catch(e){
+    if(!pendingNotesSave) pendingNotesSave = { ...snapshot, timer:null };
+    throw e;
+  }
+}
+
+function persistCurrentNotesBestEffort(){
+  const bookId = state.activeBook?.id;
+  const notebook = document.getElementById('notebook');
+  if(!bookId || !notebook) return;
+  const content = notebook.value;
+  const updatedAt = Date.now();
+  flushPendingNotes()
+    .then(()=>saveNotesNow({ bookId, content, updatedAt, notify:false }))
+    .catch(e=>console.warn('[Kódice] Salvamento best-effort de anotação falhou', e));
 }
 async function queueSync(kind, row){
   const item = { kind, row, ts:Date.now(), owner_user_id: state.user?.id };
@@ -1238,7 +1301,7 @@ async function mergeRemoteInto(kind, bookId){
         // Se o caderno do livro ativo está aberto, atualiza a textarea sem estourar o autosave.
         if(state.activeBook?.id === data.book_id){
           const ta = document.getElementById('notebook');
-          if(ta && ta.value !== data.content){ clearTimeout(notesTimer); ta.value = data.content||''; }
+          if(ta && ta.value !== data.content){ clearTimeout(notesTimer); pendingNotesSave = null; ta.value = data.content||''; }
         }
       }
     } else if(kind === 'settings'){
@@ -1909,8 +1972,7 @@ function showPwaUpdate(applyUpdate){
 }
 async function beforePwaReload(){
   if(state.activeBook) await saveProgress({ percentage: state.activeBook.progress || 0, page: state.pdfPage });
-  if(state.activeBook) await saveNotes();
-  await new Promise(r=>setTimeout(r,50));
+  await flushPendingNotes();
 }
 
 /* =========================================================
@@ -1981,8 +2043,8 @@ function wire(){
   $('#file-input').addEventListener('change', async e=>{ const input=e.target; input.disabled=true; try{ await handleFiles([...input.files]); } finally { input.value=''; input.disabled=false; } });
 
   // Top bar
-  $('#btn-back').addEventListener('click', ()=>{
-    if(state.activeBook) closeBook(); else openPanel('library-panel');
+  $('#btn-back').addEventListener('click', async ()=>{
+    if(state.activeBook) await closeBook(); else openPanel('library-panel');
   });
 
   // Sidebar nav
@@ -2073,10 +2135,12 @@ function wire(){
 
   // Retomar sincronização ao voltar para a aba / recuperar foco
   document.addEventListener('visibilitychange', ()=>{
+    if(document.visibilityState === 'hidden') persistCurrentNotesBestEffort();
     if(document.visibilityState === 'visible' && navigator.onLine && state.user){
       flushQueue();
     }
   });
+  window.addEventListener('pagehide', persistCurrentNotesBestEffort);
   window.addEventListener('focus', ()=>{
     if(navigator.onLine && state.user) flushQueue();
   });
