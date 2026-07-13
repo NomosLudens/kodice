@@ -691,6 +691,7 @@ const DB_NAME = 'codice-db'; const DB_VER = 3;
 const IDB_UPGRADE_BLOCKED = 'IDB_UPGRADE_BLOCKED';
 const BOOK_FILE_MISSING = 'BOOK_FILE_MISSING';
 let dbPromise = null;
+let idbUpgradeBlocked = false;
 
 function showUpgradeBlockedMessage(){
   const msg = 'Feche outras abas do Kódice e recarregue para atualizar a biblioteca.';
@@ -702,6 +703,11 @@ function showUpgradeBlockedMessage(){
       if(el){ el.textContent = msg; el.classList.add('show'); }
     }
   }catch(e){}
+}
+function createUpgradeBlockedError(){
+  const error = new Error('IndexedDB upgrade blocked');
+  error.code = IDB_UPGRADE_BLOCKED;
+  return error;
 }
 function requestToPromise(request){
   return new Promise((res, rej)=>{
@@ -748,10 +754,12 @@ function migrateBooksToFiles(db, tx){
   };
 }
 function openDB(){
+  if(idbUpgradeBlocked) return Promise.reject(createUpgradeBlockedError());
   if(dbPromise) return dbPromise;
   dbPromise = new Promise((res,rej)=>{
     const r = indexedDB.open(DB_NAME, DB_VER);
-    r.onupgradeneeded = () => {
+    let blocked = false;
+    r.onupgradeneeded = event => {
       const db = r.result;
       const tx = r.transaction;
       if(!db.objectStoreNames.contains('books')) db.createObjectStore('books',{keyPath:'id'});
@@ -760,18 +768,22 @@ function openDB(){
       if(!db.objectStoreNames.contains('queue')) db.createObjectStore('queue',{keyPath:'id',autoIncrement:true});
       if(!db.objectStoreNames.contains('settings')) db.createObjectStore('settings',{keyPath:'id'});
       if(!db.objectStoreNames.contains('book_files')) db.createObjectStore('book_files',{keyPath:'id'});
-      if(tx && tx.objectStoreNames.contains('books') && tx.objectStoreNames.contains('book_files')){
+      if(event.oldVersion < 3 && tx && tx.objectStoreNames.contains('books') && tx.objectStoreNames.contains('book_files')){
         migrateBooksToFiles(db, tx);
       }
     };
     r.onblocked = () => {
-      const err = new Error('IndexedDB upgrade blocked');
-      err.code = IDB_UPGRADE_BLOCKED;
-      showUpgradeBlockedMessage();
+      blocked = true;
+      idbUpgradeBlocked = true;
       dbPromise = null;
-      rej(err);
+      showUpgradeBlockedMessage();
+      rej(createUpgradeBlockedError());
     };
     r.onsuccess = () => {
+      if(blocked){
+        r.result.close();
+        return;
+      }
       const db = r.result;
       db.onversionchange = () => {
         db.close();
@@ -779,7 +791,11 @@ function openDB(){
       };
       res(db);
     };
-    r.onerror = () => { dbPromise = null; rej(r.error); };
+    r.onerror = () => {
+      if(blocked) return;
+      dbPromise = null;
+      rej(r.error);
+    };
   });
   return dbPromise;
 }
@@ -1023,8 +1039,8 @@ function renderLibrary(){
     el.addEventListener('click', async(e)=>{
       if(e.target.closest('[data-del]')) return;
       const id = el.dataset.id;
-      await openBook(id);
-      closePanel('library-panel');
+      const opened = await openBook(id);
+      if(opened) closePanel('library-panel');
     });
   });
   $$('#library-list [data-del]').forEach(btn=>{
@@ -1071,16 +1087,14 @@ async function handleFiles(files){
  * Reader — EPUB / PDF / TXT
  * =======================================================*/
 async function openBook(id){
-  try{ await flushPendingNotes(); }catch(e){ console.error('[Kódice] Falha ao salvar anotação pendente antes de abrir livro', e); toast('Não foi possível salvar a anotação neste aparelho.'); return; }
+  try{ await flushPendingNotes(); }catch(e){ console.error('[Kódice] Falha ao salvar anotação pendente antes de abrir livro', e); toast('Não foi possível salvar a anotação neste aparelho.'); return false; }
   const b = await getBookMetadata(id);
-  if(!b) return;
+  if(!b) return false;
   const file = await getBookFile(id);
   if(!file?.data){
-    const e = new Error('O arquivo deste livro não foi encontrado neste aparelho.');
-    e.code = BOOK_FILE_MISSING;
     console.warn('[Kódice]', BOOK_FILE_MISSING, id);
-    showBookOpenError(id, e);
-    return;
+    toast('O arquivo deste livro não foi encontrado neste aparelho.', 5000);
+    return false;
   }
   // cleanup previous
   if(state.activeBook?.rendition){ try{ state.activeBook.rendition.destroy(); }catch(e){} }
@@ -1110,6 +1124,7 @@ async function openBook(id){
     showBookOpenError(id, e);
   }
   applySettings(state.settings);
+  return true;
 }
 async function renderBookBuffer(metadata, buffer, saved){
   if(metadata.type==='epub') {
@@ -1131,9 +1146,7 @@ function showBookOpenError(id, e){
   $('#reader-content').classList.remove('hidden');
   $('#epub-viewer').classList.add('hidden');
   $('#pdf-viewer').classList.add('hidden');
-  const msg = e?.code === BOOK_FILE_MISSING
-    ? 'O arquivo deste livro não foi encontrado neste aparelho.'
-    : (/ENGINE|WORKER/.test(e?.code||'') ? 'Não foi possível carregar o motor de leitura. Tente novamente.' : 'Não foi possível abrir este livro. O arquivo pode estar danificado ou o motor de leitura não pôde ser carregado.');
+  const msg = /ENGINE|WORKER/.test(e?.code||'') ? 'Não foi possível carregar o motor de leitura. Tente novamente.' : 'Não foi possível abrir este livro. O arquivo pode estar danificado ou o motor de leitura não pôde ser carregado.';
   $('#reader-content').innerHTML = `<div class="empty"><p>${msg}</p><button id="retry-open" style="margin-top:12px;min-height:44px;border-radius:10px;background:var(--orange);color:#fff;padding:0 16px">Tentar novamente</button></div>`;
   $('#retry-open').onclick = ()=>openBook(id);
 }
@@ -1977,14 +1990,19 @@ async function importBackup(file){
     if(!data || data.app !== 'codice' || !Array.isArray(data.books)){
       throw new Error('Arquivo de backup inválido');
     }
-    let bAdded=0, pAdded=0, nAdded=0, sAdded=0;
+    let bAdded=0, bRepaired=0, pAdded=0, nAdded=0, sAdded=0;
     // Books — restaurar se ainda não existirem (não sobrescrever binário existente)
     for(const b of data.books){
       if(!b?.id) continue;
-      const existing = await dbGet('books', b.id);
-      if(existing) continue;
+      const existing = await getBookMetadata(b.id);
+      const existingFile = existing ? await getBookFile(b.id) : null;
+      if(existing && existingFile?.data) continue;
       const fileData = b.data_b64 ? b64ToBuf(b.data_b64) : null;
       if(!fileData){ continue; }
+      if(existing){
+        await putBook(existing, fileData); bRepaired++;
+        continue;
+      }
       const rec = {
         id: b.id, title: b.title || 'Sem título', author: b.author || '',
         type: b.type || 'epub', addedAt: b.addedAt || Date.now(),
@@ -2030,7 +2048,9 @@ async function importBackup(file){
       for(const n of (data.notes||[])) queueSync('notes', { book_id:n.book_id, content:n.content||'' });
       flushQueue();
     }
-    setBackupStatus(`${bAdded} livro(s), ${pAdded} progresso(s), ${nAdded} nota(s), ${sAdded} ajuste(s)`);
+    const statusParts = [`${bAdded} livro(s)`, `${pAdded} progresso(s)`, `${nAdded} nota(s)`, `${sAdded} ajuste(s)`];
+    if(bRepaired) statusParts.splice(1, 0, `${bRepaired} arquivo(s) reparado(s)`);
+    setBackupStatus(statusParts.join(', '));
     toast('Backup importado');
   }catch(e){
     console.error(e); setBackupStatus('Falha ao importar');
