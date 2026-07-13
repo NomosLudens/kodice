@@ -29,16 +29,18 @@ create table if not exists public.legal_units (
   id text primary key,
   norm_id text not null references public.legal_norms(id) on delete cascade,
   version_id text not null references public.legal_versions(id) on delete cascade,
-  parent_id text,
-  kind text not null,
+  parent_id text references public.legal_units(id),
+  kind text not null check (kind in ('preambulo','parte','livro','titulo','capitulo','secao','subsecao','artigo','paragrafo','inciso','alinea','item','disposicao_transitoria')),
   label text not null,
   canonical_path text not null,
   heading text,
   text text not null default '',
-  sort_order integer not null,
+  sort_order integer not null check (sort_order >= 0),
   status text not null,
   unique (norm_id, version_id, canonical_path)
 );
+create index if not exists legal_units_norm_version_sort_order_idx on public.legal_units (norm_id, version_id, sort_order);
+create index if not exists legal_units_parent_id_idx on public.legal_units (parent_id);
 create table if not exists public.legal_collections (
   id text primary key,
   slug text unique not null,

@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "verify:decoupling": "node scripts/verify-decoupling.mjs",
     "verify:pwa": "node scripts/verify-pwa.mjs",
-    "verify:legal": "node scripts/verify-legal-corpus.mjs"
+    "verify:legal": "node scripts/verify-legal-corpus.mjs",
+    "test:legal-gate": "node scripts/test-legal-gate.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",
