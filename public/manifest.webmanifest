@@ -1,0 +1,19 @@
+{
+  "id": "/",
+  "name": "Códice — Leitura local",
+  "short_name": "Códice",
+  "description": "Leitor local de EPUB, PDF e TXT.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0B0C0F",
+  "theme_color": "#0B0C0F",
+  "orientation": "any",
+  "prefer_related_applications": false,
+  "categories": ["books", "education"],
+  "icons": [
+    { "src": "/icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }
+  ]
+}

@@ -54,3 +54,22 @@ O Códice está pronto para ser hospedado gratuitamente no Cloudflare Pages.
    - `VITE_SUPABASE_PUBLISHABLE_KEY`
 
 Após o deploy, certifique-se de validar o login/sincronização e adicionar o domínio gerado ao seu projeto Supabase.
+
+## PWA e dispositivos móveis
+
+O Códice pode ser publicado como site estático no Cloudflare Pages e instalado como PWA após a primeira abertura online.
+
+### Chrome Android
+
+1. Abra o site no Chrome.
+2. Use o botão **Instalar Códice** em **Ajustes**, quando disponível.
+3. Alternativamente, use o menu do Chrome e escolha **Adicionar à tela inicial** ou **Instalar app**.
+
+### Safari iPhone
+
+1. Abra o site no Safari.
+2. Toque em **Compartilhar**.
+3. Escolha **Adicionar à Tela de Início**.
+4. Confirme em **Adicionar**.
+
+No iPhone, prefira instalar o Códice antes de importar livros: Safari e a PWA instalada podem manter armazenamentos separados. Livros EPUB, PDF e TXT ficam no aparelho, em IndexedDB; o Supabase não recebe os arquivos dos livros. Os ícones usados pela PWA reutilizam os arquivos já existentes do app. Backup é responsabilidade do usuário e deve ser exportado manualmente. O modo offline exige uma primeira abertura online para baixar o app shell. Héstia não faz parte deste PR.
