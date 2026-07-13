@@ -687,57 +687,182 @@ const state = {
 /* =========================================================
  * IndexedDB
  * =======================================================*/
-const DB_NAME = 'codice-db'; const DB_VER = 2;
+const DB_NAME = 'codice-db'; const DB_VER = 3;
+const IDB_UPGRADE_BLOCKED = 'IDB_UPGRADE_BLOCKED';
+const BOOK_FILE_MISSING = 'BOOK_FILE_MISSING';
+let dbPromise = null;
+let idbUpgradeBlocked = false;
+
+function showUpgradeBlockedMessage(){
+  const msg = 'Feche outras abas do Kódice e recarregue para atualizar a biblioteca.';
+  console.warn('[Kódice]', IDB_UPGRADE_BLOCKED, msg);
+  try{
+    if(typeof toast === 'function') toast(msg, 8000);
+    else {
+      const el = document.getElementById('status');
+      if(el){ el.textContent = msg; el.classList.add('show'); }
+    }
+  }catch(e){}
+}
+function createUpgradeBlockedError(){
+  const error = new Error('IndexedDB upgrade blocked');
+  error.code = IDB_UPGRADE_BLOCKED;
+  return error;
+}
+function requestToPromise(request){
+  return new Promise((res, rej)=>{
+    request.onsuccess = () => res(request.result);
+    request.onerror = () => rej(request.error);
+  });
+}
+function transactionDone(transaction){
+  return new Promise((res, rej)=>{
+    transaction.oncomplete = () => res();
+    transaction.onerror = () => rej(transaction.error || new Error('IndexedDB transaction failed'));
+    transaction.onabort = () => rej(transaction.error || new Error('IndexedDB transaction aborted'));
+  });
+}
+function bookMetadataFromRecord(record){
+  if(!record) return record;
+  const size = record.size ?? (record.data?.byteLength ?? null);
+  return {
+    id: record.id,
+    title: record.title || 'Sem título',
+    author: record.author || '',
+    type: record.type || 'epub',
+    addedAt: record.addedAt || Date.now(),
+    size,
+  };
+}
+function migrateBooksToFiles(db, tx){
+  const books = tx.objectStore('books');
+  const files = tx.objectStore('book_files');
+  const cursorReq = books.openCursor();
+  cursorReq.onerror = () => tx.abort();
+  cursorReq.onsuccess = event => {
+    const cursor = event.target.result;
+    if(!cursor) return;
+    const record = cursor.value;
+    const metadata = bookMetadataFromRecord(record);
+    if(record && Object.prototype.hasOwnProperty.call(record, 'data') && record.data){
+      const putFile = files.put({ id: record.id, data: record.data });
+      putFile.onerror = () => tx.abort();
+    }
+    const putBook = cursor.update(metadata);
+    putBook.onerror = () => tx.abort();
+    cursor.continue();
+  };
+}
 function openDB(){
-  return new Promise((res,rej)=>{
+  if(idbUpgradeBlocked) return Promise.reject(createUpgradeBlockedError());
+  if(dbPromise) return dbPromise;
+  dbPromise = new Promise((res,rej)=>{
     const r = indexedDB.open(DB_NAME, DB_VER);
-    r.onupgradeneeded = () => {
+    let blocked = false;
+    r.onupgradeneeded = event => {
       const db = r.result;
+      const tx = r.transaction;
       if(!db.objectStoreNames.contains('books')) db.createObjectStore('books',{keyPath:'id'});
       if(!db.objectStoreNames.contains('notes')) db.createObjectStore('notes',{keyPath:'book_id'});
       if(!db.objectStoreNames.contains('progress')) db.createObjectStore('progress',{keyPath:'book_id'});
       if(!db.objectStoreNames.contains('queue')) db.createObjectStore('queue',{keyPath:'id',autoIncrement:true});
       if(!db.objectStoreNames.contains('settings')) db.createObjectStore('settings',{keyPath:'id'});
+      if(!db.objectStoreNames.contains('book_files')) db.createObjectStore('book_files',{keyPath:'id'});
+      if(event.oldVersion < 3 && tx && tx.objectStoreNames.contains('books') && tx.objectStoreNames.contains('book_files')){
+        migrateBooksToFiles(db, tx);
+      }
     };
-    r.onsuccess = () => res(r.result);
-    r.onerror = () => rej(r.error);
+    r.onblocked = () => {
+      blocked = true;
+      idbUpgradeBlocked = true;
+      dbPromise = null;
+      showUpgradeBlockedMessage();
+      rej(createUpgradeBlockedError());
+    };
+    r.onsuccess = () => {
+      if(blocked){
+        r.result.close();
+        return;
+      }
+      const db = r.result;
+      db.onversionchange = () => {
+        db.close();
+        dbPromise = null;
+      };
+      res(db);
+    };
+    r.onerror = () => {
+      if(blocked) return;
+      dbPromise = null;
+      rej(r.error);
+    };
   });
+  return dbPromise;
 }
 async function idb(store, mode='readonly'){
   const db = await openDB();
   return db.transaction(store, mode).objectStore(store);
 }
 async function dbPut(store, val){
-  const s = await idb(store,'readwrite');
-  return new Promise((res,rej)=>{
-    const r = s.put(val);
-    r.onsuccess = () => res();
-    r.onerror = () => rej(r.error);
-  });
+  const db = await openDB();
+  const tx = db.transaction(store, 'readwrite');
+  tx.objectStore(store).put(val);
+  await transactionDone(tx);
 }
 async function dbGet(store, key){
   const s = await idb(store);
-  return new Promise((res,rej)=>{
-    const r = s.get(key);
-    r.onsuccess = () => res(r.result);
-    r.onerror = () => rej(r.error);
-  });
+  return requestToPromise(s.get(key));
 }
 async function dbAll(store){
   const s = await idb(store);
-  return new Promise((res,rej)=>{
-    const r = s.getAll();
-    r.onsuccess = () => res(r.result);
-    r.onerror = () => rej(r.error);
-  });
+  return requestToPromise(s.getAll());
 }
 async function dbDel(store, key){
-  const s = await idb(store,'readwrite');
-  return new Promise((res,rej)=>{
-    const r = s.delete(key);
-    r.onsuccess = () => res();
-    r.onerror = () => rej(r.error);
-  });
+  const db = await openDB();
+  const tx = db.transaction(store, 'readwrite');
+  tx.objectStore(store).delete(key);
+  await transactionDone(tx);
+}
+async function putBook(metadata, data){
+  const db = await openDB();
+  const tx = db.transaction(['books','book_files'], 'readwrite');
+  tx.objectStore('books').put(bookMetadataFromRecord(metadata));
+  tx.objectStore('book_files').put({ id: metadata.id, data });
+  await transactionDone(tx);
+}
+async function getBookMetadata(id){ return dbGet('books', id); }
+async function getBookFile(id){ return dbGet('book_files', id); }
+async function getAllBookMetadata(){ return dbAll('books'); }
+async function deleteBook(id){
+  const db = await openDB();
+  const tx = db.transaction(['books','book_files','notes','progress'], 'readwrite');
+  tx.objectStore('books').delete(id);
+  tx.objectStore('book_files').delete(id);
+  tx.objectStore('notes').delete(id);
+  tx.objectStore('progress').delete(id);
+  await transactionDone(tx);
+}
+async function removeBook(id){
+  const wasActive = state.activeBook?.id === id;
+  if(wasActive){
+    await closeBook();
+    if(state.activeBook?.id === id){
+      toast('Não foi possível salvar a anotação. O livro não foi removido.', 5000);
+      return false;
+    }
+  }
+  try{
+    if(hasLocalNotesWriteForBook(id)) await flushPendingNotes();
+  }catch(e){
+    console.error('[Kódice] Falha ao salvar anotação antes de remover livro', e);
+    toast('Não foi possível salvar a anotação. O livro não foi removido.', 5000);
+    return false;
+  }
+  await deleteBook(id);
+  await loadLibrary();
+  updateStorageEstimate();
+  toast('Livro removido');
+  return true;
 }
 
 /* =========================================================
@@ -875,7 +1000,7 @@ async function loadLocalSettings(){
  * =======================================================*/
 async function bookHash(file, data){
   if(crypto?.subtle){
-    const digest = await crypto.subtle.digest('SHA-256', data.slice(0));
+    const digest = await crypto.subtle.digest('SHA-256', data);
     return 'sha256_'+[...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,'0')).join('');
   }
   return 'legacy_'+btoa(unescape(encodeURIComponent(file.name)))+'_'+file.size;
@@ -896,8 +1021,8 @@ async function updateStorageEstimate(){
 
 
 async function loadLibrary(){
-  const rows = await dbAll('books');
-  state.books = rows.sort((a,b)=>b.addedAt-a.addedAt);
+  const rows = await getAllBookMetadata();
+  state.books = rows.map(bookMetadataFromRecord).sort((a,b)=>b.addedAt-a.addedAt);
   renderLibrary();
 }
 function renderLibrary(){
@@ -936,19 +1061,15 @@ function renderLibrary(){
     el.addEventListener('click', async(e)=>{
       if(e.target.closest('[data-del]')) return;
       const id = el.dataset.id;
-      await openBook(id);
-      closePanel('library-panel');
+      const opened = await openBook(id);
+      if(opened) closePanel('library-panel');
     });
   });
   $$('#library-list [data-del]').forEach(btn=>{
     btn.addEventListener('click', async(e)=>{
       e.stopPropagation();
       const id = btn.dataset.del;
-      await dbDel('books', id);
-      await dbDel('notes', id).catch(()=>{});
-      await dbDel('progress', id).catch(()=>{});
-      await loadLibrary();
-      toast('Livro removido');
+      await removeBook(id);
     });
   });
 }
@@ -973,8 +1094,8 @@ async function handleFiles(files){
         if(meta.creator) author = meta.creator;
       }catch(e){ console.warn(e); }
     }
-    const record = { id, title, author, type:ext, addedAt:Date.now(), data };
-    try{ await dbPut('books', record); await maybePersistStorageOnce(); }catch(e){ if(e?.name==='QuotaExceededError'){ toast('Não há espaço local suficiente para guardar este livro. Exporte um backup ou remova arquivos que não precisa manter neste aparelho.', 5000); continue; } throw e; }
+    const record = { id, title, author, type:ext, addedAt:Date.now(), size:file.size || data.byteLength };
+    try{ await putBook(record, data); await maybePersistStorageOnce(); }catch(e){ if(e?.name==='QuotaExceededError'){ toast('Não há espaço local suficiente para guardar este livro. Exporte um backup ou remova arquivos que não precisa manter neste aparelho.', 5000); continue; } throw e; }
     toast('Adicionado: '+title);
   }
   await loadLibrary();
@@ -985,14 +1106,20 @@ async function handleFiles(files){
  * Reader — EPUB / PDF / TXT
  * =======================================================*/
 async function openBook(id){
-  try{ await flushPendingNotes(); }catch(e){ console.error('[Kódice] Falha ao salvar anotação pendente antes de abrir livro', e); toast('Não foi possível salvar a anotação neste aparelho.'); return; }
-  const b = await dbGet('books', id);
-  if(!b) return;
+  try{ await flushPendingNotes(); }catch(e){ console.error('[Kódice] Falha ao salvar anotação pendente antes de abrir livro', e); toast('Não foi possível salvar a anotação neste aparelho.'); return false; }
+  const b = await getBookMetadata(id);
+  if(!b) return false;
+  const file = await getBookFile(id);
+  if(!file?.data){
+    console.warn('[Kódice]', BOOK_FILE_MISSING, id);
+    toast('O arquivo deste livro não foi encontrado neste aparelho.', 5000);
+    return false;
+  }
   // cleanup previous
   if(state.activeBook?.rendition){ try{ state.activeBook.rendition.destroy(); }catch(e){} }
   const notebook = $('#notebook');
   if(notebook) notebook.value = '';
-  state.activeBook = { id, type:b.type, title:b.title, author:b.author, data:b.data, toc:[], progress:0 };
+  state.activeBook = { id, type:b.type, title:b.title, author:b.author, toc:[], progress:0 };
   // UI
   $('#landing').classList.add('hidden');
   $('#reader').classList.remove('hidden');
@@ -1010,24 +1137,37 @@ async function openBook(id){
   $('#notebook').value = notes?.content || '';
 
   try{
-    if(b.type==='epub') {
-      toast('Carregando motor EPUB...', 1500);
-      await ensureEpubLibs();
-      await renderEpub(b.data.slice(0), saved);
-    } else if(b.type==='pdf') {
-      toast('Carregando motor PDF...', 1500);
-      await ensurePdfLib();
-      await renderPdf(b.data.slice(0), saved);
-    } else {
-      await renderTxt(b.data.slice(0), saved);
-    }
+    await renderBookBuffer(b, file.data, saved);
   }catch(e){
     console.warn('[Kódice] Falha ao abrir livro', e?.code || e);
-    $('#reader-content').classList.remove('hidden');
-    $('#reader-content').innerHTML = `<div class="empty"><p>${/ENGINE|WORKER/.test(e?.code||'') ? 'Não foi possível carregar o motor de leitura. Tente novamente.' : 'Não foi possível abrir este livro. O arquivo pode estar danificado ou o motor de leitura não pôde ser carregado.'}</p><button id="retry-open" style="margin-top:12px;min-height:44px;border-radius:10px;background:var(--orange);color:#fff;padding:0 16px">Tentar novamente</button></div>`;
-    $('#retry-open').onclick = ()=>openBook(id);
+    showBookOpenError(id, e);
   }
   applySettings(state.settings);
+  return true;
+}
+async function renderBookBuffer(metadata, buffer, saved){
+  if(metadata.type==='epub') {
+    toast('Carregando motor EPUB...', 1500);
+    await ensureEpubLibs();
+    await renderEpub(buffer, saved);
+  } else if(metadata.type==='pdf') {
+    toast('Carregando motor PDF...', 1500);
+    await ensurePdfLib();
+    await renderPdf(buffer, saved);
+  } else {
+    await renderTxt(buffer, saved);
+  }
+}
+function showBookOpenError(id, e){
+  $('#landing').classList.add('hidden');
+  $('#reader').classList.remove('hidden');
+  $('#title-wrap').classList.remove('hidden');
+  $('#reader-content').classList.remove('hidden');
+  $('#epub-viewer').classList.add('hidden');
+  $('#pdf-viewer').classList.add('hidden');
+  const msg = /ENGINE|WORKER/.test(e?.code||'') ? 'Não foi possível carregar o motor de leitura. Tente novamente.' : 'Não foi possível abrir este livro. O arquivo pode estar danificado ou o motor de leitura não pôde ser carregado.';
+  $('#reader-content').innerHTML = `<div class="empty"><p>${msg}</p><button id="retry-open" style="margin-top:12px;min-height:44px;border-radius:10px;background:var(--orange);color:#fff;padding:0 16px">Tentar novamente</button></div>`;
+  $('#retry-open').onclick = ()=>openBook(id);
 }
 async function closeBook(){
   try{ await flushPendingNotes(); }catch(e){ console.error('[Kódice] Falha ao salvar anotação pendente antes de fechar livro', e); toast('Não foi possível salvar a anotação neste aparelho.'); return; }
@@ -1732,15 +1872,20 @@ async function exportBackup(){
   setBackupStatus('Preparando...');
   try{
     const [books, progress, notes, settings] = await Promise.all([
-      dbAll('books'), dbAll('progress'), dbAll('notes'), dbAll('settings'),
+      getAllBookMetadata(), dbAll('progress'), dbAll('notes'), dbAll('settings'),
     ]);
+    const backupBooks = [];
+    for(const b of books){
+      const file = await getBookFile(b.id);
+      backupBooks.push({
+        id: b.id, title: b.title, author: b.author, type: b.type, addedAt: b.addedAt,
+        data_b64: file?.data ? bufToB64(file.data) : null,
+      });
+    }
     const payload = {
       app: 'codice', version: BACKUP_VERSION, exportedAt: new Date().toISOString(),
       user: state.user ? { id: state.user.id, email: state.user.email, display_name: state.user.display_name } : null,
-      books: books.map(b => ({
-        id: b.id, title: b.title, author: b.author, type: b.type, addedAt: b.addedAt,
-        data_b64: b.data ? bufToB64(b.data) : null,
-      })),
+      books: backupBooks,
       progress, notes, settings,
     };
     const json = JSON.stringify(payload);
@@ -1790,7 +1935,7 @@ function renderAutoBackupInfo(){
 }
 async function computeBackupSignature(){
   const [books, progress, notes, settings] = await Promise.all([
-    dbAll('books'), dbAll('progress'), dbAll('notes'), dbAll('settings'),
+    getAllBookMetadata(), dbAll('progress'), dbAll('notes'), dbAll('settings'),
   ]);
   const sig = {
     b: books.map(b=>b.id).sort().join('|'),
@@ -1815,7 +1960,7 @@ async function runAutoBackup({ force=false } = {}){
     saveAutoBackupMeta({ ...meta, lastCheckedAt: now });
     return false;
   }
-  const hasContent = (await dbAll('books')).length || (await dbAll('notes')).length;
+  const hasContent = (await getAllBookMetadata()).length || (await dbAll('notes')).length;
   if(!hasContent) return false;
   // Requer interação do usuário (foco na aba) para o download não ser bloqueado
   if(document.visibilityState !== 'visible') return false;
@@ -1835,7 +1980,7 @@ function scheduleAutoBackupCheck(delay=4000){
 
 async function exportNotesMarkdown(){
   try{
-    const [books, notes] = await Promise.all([dbAll('books'), dbAll('notes')]);
+    const [books, notes] = await Promise.all([getAllBookMetadata(), dbAll('notes')]);
     const byId = new Map(books.map(b=>[b.id,b]));
     const filled = notes.filter(n => (n.content||'').trim().length);
     if(!filled.length){ toast('Nenhuma anotação para exportar'); return; }
@@ -1864,19 +2009,25 @@ async function importBackup(file){
     if(!data || data.app !== 'codice' || !Array.isArray(data.books)){
       throw new Error('Arquivo de backup inválido');
     }
-    let bAdded=0, pAdded=0, nAdded=0, sAdded=0;
+    let bAdded=0, bRepaired=0, pAdded=0, nAdded=0, sAdded=0;
     // Books — restaurar se ainda não existirem (não sobrescrever binário existente)
     for(const b of data.books){
       if(!b?.id) continue;
-      const existing = await dbGet('books', b.id);
-      if(existing) continue;
+      const existing = await getBookMetadata(b.id);
+      const existingFile = existing ? await getBookFile(b.id) : null;
+      if(existing && existingFile?.data) continue;
+      const fileData = b.data_b64 ? b64ToBuf(b.data_b64) : null;
+      if(!fileData){ continue; }
+      if(existing){
+        await putBook({ ...existing, size: existing.size ?? fileData.byteLength }, fileData); bRepaired++;
+        continue;
+      }
       const rec = {
         id: b.id, title: b.title || 'Sem título', author: b.author || '',
         type: b.type || 'epub', addedAt: b.addedAt || Date.now(),
-        data: b.data_b64 ? b64ToBuf(b.data_b64) : null,
+        size: b.size ?? fileData.byteLength,
       };
-      if(!rec.data){ continue; }
-      await dbPut('books', rec); bAdded++;
+      await putBook(rec, fileData); bAdded++;
     }
     // Progress — última escrita vence (por updated_at)
     for(const p of (data.progress||[])){
@@ -1916,7 +2067,9 @@ async function importBackup(file){
       for(const n of (data.notes||[])) queueSync('notes', { book_id:n.book_id, content:n.content||'' });
       flushQueue();
     }
-    setBackupStatus(`${bAdded} livro(s), ${pAdded} progresso(s), ${nAdded} nota(s), ${sAdded} ajuste(s)`);
+    const statusParts = [`${bAdded} livro(s)`, `${pAdded} progresso(s)`, `${nAdded} nota(s)`, `${sAdded} ajuste(s)`];
+    if(bRepaired) statusParts.splice(1, 0, `${bRepaired} arquivo(s) reparado(s)`);
+    setBackupStatus(statusParts.join(', '));
     toast('Backup importado');
   }catch(e){
     console.error(e); setBackupStatus('Falha ao importar');
@@ -1960,7 +2113,7 @@ async function importNotesMarkdown(file){
     const text = await file.text();
     const blocks = parseNotesMarkdown(text);
     if(!blocks.length){ setBackupStatus('Nada para importar'); toast('Nenhuma anotação encontrada'); return; }
-    const books = await dbAll('books');
+    const books = await getAllBookMetadata();
     const byTitle = new Map(books.map(b=>[String(b.title||'').trim().toLowerCase(), b]));
     let merged=0, appended=0, created=0;
     const ts = Date.now();
