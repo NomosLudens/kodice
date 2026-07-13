@@ -12,7 +12,7 @@
 
 ### Chrome Android
 
-Abra o site, acesse **Ajustes** e toque em **Instalar Códice** quando o prompt do Chrome estiver disponível. Também é possível usar o menu do Chrome e escolher **Instalar app** ou **Adicionar à tela inicial**.
+Abra o site, acesse **Ajustes** e toque em **Instalar Kódice** quando o prompt do Chrome estiver disponível. Também é possível usar o menu do Chrome e escolher **Instalar app** ou **Adicionar à tela inicial**.
 
 ### Safari iPhone
 
@@ -22,7 +22,7 @@ Abra o site no Safari, toque em **Compartilhar**, escolha **Adicionar à Tela de
 
 A primeira abertura precisa ocorrer online para o navegador baixar o app shell. Depois disso, a biblioteca local e livros já importados abrem pelo IndexedDB. Safari e PWA instalada no iPhone podem manter armazenamentos separados; importe os livros no contexto que pretende usar.
 
-O Códice solicita persistência de armazenamento uma única vez após o primeiro livro importado, quando o navegador oferece `navigator.storage.persist()`. A concessão não é garantida.
+O Kódice solicita persistência de armazenamento uma única vez após o primeiro livro importado, quando o navegador oferece `navigator.storage.persist()`. A concessão não é garantida.
 
 ## Backup
 
