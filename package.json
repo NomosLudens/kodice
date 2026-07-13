@@ -8,7 +8,8 @@
     "build": "vite build && node scripts/build-service-worker.mjs",
     "preview": "vite preview",
     "verify:decoupling": "node scripts/verify-decoupling.mjs",
-    "verify:pwa": "node scripts/verify-pwa.mjs"
+    "verify:pwa": "node scripts/verify-pwa.mjs",
+    "verify:legal": "node scripts/verify-legal-corpus.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",
