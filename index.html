@@ -842,6 +842,28 @@ async function deleteBook(id){
   tx.objectStore('progress').delete(id);
   await transactionDone(tx);
 }
+async function removeBook(id){
+  const wasActive = state.activeBook?.id === id;
+  if(wasActive){
+    await closeBook();
+    if(state.activeBook?.id === id){
+      toast('Não foi possível salvar a anotação. O livro não foi removido.', 5000);
+      return false;
+    }
+  }
+  try{
+    if(hasLocalNotesWriteForBook(id)) await flushPendingNotes();
+  }catch(e){
+    console.error('[Kódice] Falha ao salvar anotação antes de remover livro', e);
+    toast('Não foi possível salvar a anotação. O livro não foi removido.', 5000);
+    return false;
+  }
+  await deleteBook(id);
+  await loadLibrary();
+  updateStorageEstimate();
+  toast('Livro removido');
+  return true;
+}
 
 /* =========================================================
  * UI helpers
@@ -1047,10 +1069,7 @@ function renderLibrary(){
     btn.addEventListener('click', async(e)=>{
       e.stopPropagation();
       const id = btn.dataset.del;
-      await deleteBook(id);
-      await loadLibrary();
-      updateStorageEstimate();
-      toast('Livro removido');
+      await removeBook(id);
     });
   });
 }
@@ -2000,7 +2019,7 @@ async function importBackup(file){
       const fileData = b.data_b64 ? b64ToBuf(b.data_b64) : null;
       if(!fileData){ continue; }
       if(existing){
-        await putBook(existing, fileData); bRepaired++;
+        await putBook({ ...existing, size: existing.size ?? fileData.byteLength }, fileData); bRepaired++;
         continue;
       }
       const rec = {
