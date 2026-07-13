@@ -5,12 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/build-service-worker.mjs",
     "preview": "vite preview",
-    "verify:decoupling": "node scripts/verify-decoupling.mjs"
+    "verify:decoupling": "node scripts/verify-decoupling.mjs",
+    "verify:pwa": "node scripts/verify-pwa.mjs"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.110.2"
+    "@supabase/supabase-js": "^2.110.2",
+    "epubjs": "0.3.93",
+    "pdfjs-dist": "3.11.174"
   },
   "devDependencies": {
     "vite": "^5.0.0"

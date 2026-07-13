@@ -4,9 +4,16 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0B0C0F" />
+<meta name="color-scheme" content="dark light" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="Códice" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="format-detection" content="telephone=no" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="apple-touch-icon" sizes="180x180" href="/icon.png" />
+<link rel="icon" href="/favicon.png" type="image/png" />
 <title>CÓDICE — Leitura local</title>
-<link rel="icon" href="./icon.png" type="image/png" />
-<link rel="apple-touch-icon" href="./icon.png" />
 <style>
   :root{
     --bg:#0B0C0F; --surface:#14161B; --elev:#1B1E24;
@@ -24,14 +31,14 @@
     --border:rgba(0,0,0,.08);
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-  html,body{height:100%;overflow:hidden;overscroll-behavior:none}
+  html,body{height:100%;height:100dvh;overflow:hidden;overscroll-behavior:none;-webkit-text-size-adjust:100%}
   body{
     font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
     background:var(--bg); color:var(--text);
     font-size:15px; line-height:1.5;
     -webkit-font-smoothing:antialiased;
   }
-  button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+  button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;touch-action:manipulation}
   a{color:var(--orange);text-decoration:none}
 
   /* ---------- Layout ---------- */
@@ -133,7 +140,7 @@
   .auth-field{display:block;margin-bottom:12px}
   .auth-field span{display:block;font-size:12px;color:var(--text-2);margin-bottom:4px;font-weight:500;letter-spacing:.02em;text-transform:uppercase}
   .auth-field input{width:100%;min-height:44px;padding:0 12px;border-radius:10px;
-    background:var(--elev);border:1px solid var(--border);color:var(--text);font-size:15px;
+    background:var(--elev);border:1px solid var(--border);color:var(--text);font-size:16px;
     font-family:inherit}
   .auth-field input:focus{outline:none;border-color:var(--orange)}
   #auth-error{color:var(--orange);font-size:13px;min-height:18px;margin:4px 0 8px}
@@ -535,6 +542,7 @@
       <div style="color:var(--text-2);font-size:13px;line-height:1.5;margin-bottom:10px">
         Notas e progresso são salvos offline (IndexedDB) e enviados ao Supabase quando conectado.
       </div>
+      <div id="offline-banner" style="display:none;color:var(--amber);font-size:13px;margin-bottom:10px">Modo local — sem conexão.</div>
       <div id="sync-pill-box" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span id="sync-pill" style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid var(--border);background:var(--elev);font-size:12px;font-weight:600"><span class="sync-dot off"></span><span>Local</span></span>
         <span id="sync-pill-meta" style="color:var(--text-2);font-size:12px"></span>
@@ -545,6 +553,14 @@
       <div class="setting-label"><b>Conta</b></div>
       <div id="account-box"></div>
       <div id="sync-status-box" style="margin-top:12px"></div>
+    </div>
+    <div class="setting" id="install-setting" style="display:none">
+      <div class="setting-label"><b>Instalação</b></div>
+      <button id="btn-install-app" style="min-height:44px;border-radius:10px;background:var(--orange);color:#fff;font-weight:600;padding:0 14px">Instalar Códice</button>
+      <div id="install-help" style="color:var(--text-2);font-size:12px;margin-top:8px"></div>
+    </div>
+    <div class="setting">
+      <div class="setting-label"><b>Armazenamento local</b><span id="storage-estimate" style="color:var(--text-2);font-size:12px"></span></div>
     </div>
     <div class="setting">
       <div class="setting-label"><b>Backup</b><span id="backup-status" style="color:var(--text-2);font-size:12px"></span></div>
@@ -560,15 +576,14 @@
         <input type="file" id="notes-md-file" accept="text/markdown,.md,.markdown" style="display:none" />
       </div>
       <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
-        <div class="setting-label" style="margin-bottom:6px"><b>Backup automático</b></div>
+        <div class="setting-label" style="margin-bottom:6px"><b>Lembrete de backup</b></div>
         <div style="color:var(--text-2);font-size:13px;line-height:1.5;margin-bottom:10px">
-          Baixa um arquivo <code>.json</code> periodicamente quando houver mudanças relevantes na biblioteca, progresso, notas ou ajustes.
+          Lembra você de exportar um backup quando houver mudanças relevantes. O arquivo só é gerado após tocar em Exportar backup.
         </div>
         <label style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
           <span>Frequência</span>
           <select id="auto-backup-freq" style="min-height:40px;border-radius:8px;background:var(--elev);border:1px solid var(--border);color:var(--text);padding:6px 10px">
             <option value="off">Desativado</option>
-            <option value="daily">Diário</option>
             <option value="weekly">Semanal (padrão)</option>
             <option value="monthly">Mensal</option>
           </select>
@@ -579,7 +594,12 @@
   </div>
 </aside>
 
-<div id="status"></div>
+<div id="status" aria-live="polite"></div>
+<div id="pwa-update" style="display:none;position:fixed;left:12px;right:12px;bottom:calc(12px + var(--safe-b));z-index:80;background:var(--elev);border:1px solid var(--border);border-radius:14px;padding:12px;box-shadow:0 10px 40px rgba(0,0,0,.35)">
+  <div style="font-weight:700;margin-bottom:8px">Nova versão do Códice disponível.</div>
+  <div style="display:flex;gap:8px"><button id="pwa-update-now" style="min-height:40px;border-radius:10px;background:var(--orange);color:#fff;padding:0 14px;font-weight:700">Atualizar agora</button><button id="pwa-update-later" style="min-height:40px;border-radius:10px;background:var(--surface);border:1px solid var(--border);padding:0 14px">Depois</button></div>
+</div>
+<div id="ios-install-sheet" class="side-panel" role="dialog" aria-modal="true" aria-label="Instalar no iPhone"><div class="panel-header"><div class="grabber"></div><h3>Instalar no iPhone</h3><button class="panel-close" id="ios-install-close" aria-label="Fechar">✕</button></div><div class="panel-body"><ol style="padding-left:22px;line-height:1.8"><li>Toque no botão Compartilhar do Safari.</li><li>Escolha “Adicionar à Tela de Início”.</li><li>Confirme tocando em “Adicionar”.</li></ol></div></div>
 
 <!-- Auth overlay -->
 <div id="auth-overlay" role="dialog" aria-modal="true" aria-label="Entrar no Códice">
@@ -616,6 +636,8 @@
 
 <script type="module">
 import { createClient } from '@supabase/supabase-js';
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url';
+import { initPwa } from './src/pwa.js';
 
 /* =========================================================
  * CONFIG — Supabase
@@ -707,29 +729,27 @@ function throttle(func, limit) {
   };
 }
 
-async function loadExternalScript(url) {
-  if (document.querySelector(`script[src="${url}"]`)) return;
-  return new Promise((res, rej) => {
-    const s = document.createElement('script');
-    s.src = url;
-    s.onload = res;
-    s.onerror = rej;
-    document.head.appendChild(s);
-  });
-}
-
+let epubFactoryPromise;
 async function ensureEpubLibs() {
-  if (window.ePub) return;
-  await loadExternalScript("https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js");
-  await loadExternalScript("https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js");
+  try{
+    if(!epubFactoryPromise) epubFactoryPromise = import('epubjs').then(m => m.default || m);
+    window.ePub = await epubFactoryPromise;
+    return window.ePub;
+  }catch(e){ e.code='EPUB_ENGINE_LOAD_FAILED'; throw e; }
 }
-
+let pdfLibPromise;
 async function ensurePdfLib() {
-  if (window.pdfjsLib) return;
-  await loadExternalScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js");
-  if (window.pdfjsLib && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-  }
+  try{
+    if(!pdfLibPromise) pdfLibPromise = import('pdfjs-dist/build/pdf').then(m=>{
+      const lib = m.default || m;
+      lib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+      window.pdfjsLib = lib;
+      return lib;
+    });
+    const lib = await pdfLibPromise;
+    if(!lib.GlobalWorkerOptions.workerSrc) { const e = new Error('PDF worker ausente'); e.code='PDF_WORKER_LOAD_FAILED'; throw e; }
+    return lib;
+  }catch(e){ e.code = e.code || 'PDF_ENGINE_LOAD_FAILED'; throw e; }
 }
 
 function toast(msg, ms=1800){
@@ -825,7 +845,27 @@ async function loadLocalSettings(){
 /* =========================================================
  * Library
  * =======================================================*/
-function bookHash(name, size){ return 'b_'+btoa(unescape(encodeURIComponent(name)))+'_'+size; }
+async function bookHash(file, data){
+  if(crypto?.subtle){
+    const digest = await crypto.subtle.digest('SHA-256', data.slice(0));
+    return 'sha256_'+[...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,'0')).join('');
+  }
+  return 'legacy_'+btoa(unescape(encodeURIComponent(file.name)))+'_'+file.size;
+}
+async function maybePersistStorageOnce(){
+  if(localStorage.getItem('codice.storage.persistAsked')) return;
+  localStorage.setItem('codice.storage.persistAsked','1');
+  try{
+    const granted = navigator.storage?.persist ? await navigator.storage.persist() : false;
+    localStorage.setItem('codice.storage.persistGranted', granted ? '1' : '0');
+  }catch(e){ localStorage.setItem('codice.storage.persistGranted','0'); }
+}
+async function updateStorageEstimate(){
+  const el = document.getElementById('storage-estimate'); if(!el || !navigator.storage?.estimate) return;
+  const est = await navigator.storage.estimate();
+  el.textContent = `${((est.usage||0)/1048576).toFixed(1)} MB usados`;
+}
+
 
 async function loadLibrary(){
   const rows = await dbAll('books');
@@ -894,21 +934,23 @@ async function handleFiles(files){
     const ext = (file.name.split('.').pop()||'').toLowerCase();
     if(!['epub','pdf','txt'].includes(ext)){ toast('Formato não suportado: '+ext); continue; }
     const data = await file.arrayBuffer();
-    const id = bookHash(file.name, file.size);
+    const id = await bookHash(file, data);
     let title = file.name.replace(/\.(epub|pdf|txt)$/i,''); let author = '';
     if(ext==='epub'){
       try{
-        const b = ePub(data);
+        const ePubFactory = await ensureEpubLibs();
+        const b = ePubFactory(data);
         const meta = await b.loaded.metadata;
         if(meta.title) title = meta.title;
         if(meta.creator) author = meta.creator;
       }catch(e){ console.warn(e); }
     }
     const record = { id, title, author, type:ext, addedAt:Date.now(), data };
-    await dbPut('books', record);
+    try{ await dbPut('books', record); await maybePersistStorageOnce(); }catch(e){ if(e?.name==='QuotaExceededError'){ toast('Não há espaço local suficiente para guardar este livro. Exporte um backup ou remova arquivos que não precisa manter neste aparelho.', 5000); continue; } throw e; }
     toast('Adicionado: '+title);
   }
   await loadLibrary();
+  updateStorageEstimate();
 }
 
 /* =========================================================
@@ -936,16 +978,23 @@ async function openBook(id){
   const notes = await dbGet('notes', id);
   $('#notebook').value = notes?.content || '';
 
-  if(b.type==='epub') {
-    toast('Carregando motor EPUB...', 1500);
-    await ensureEpubLibs();
-    await renderEpub(b.data.slice(0), saved);
-  } else if(b.type==='pdf') {
-    toast('Carregando motor PDF...', 1500);
-    await ensurePdfLib();
-    await renderPdf(b.data.slice(0), saved);
-  } else {
-    await renderTxt(b.data.slice(0), saved);
+  try{
+    if(b.type==='epub') {
+      toast('Carregando motor EPUB...', 1500);
+      await ensureEpubLibs();
+      await renderEpub(b.data.slice(0), saved);
+    } else if(b.type==='pdf') {
+      toast('Carregando motor PDF...', 1500);
+      await ensurePdfLib();
+      await renderPdf(b.data.slice(0), saved);
+    } else {
+      await renderTxt(b.data.slice(0), saved);
+    }
+  }catch(e){
+    console.warn('[Códice] Falha ao abrir livro', e?.code || e);
+    $('#reader-content').classList.remove('hidden');
+    $('#reader-content').innerHTML = `<div class="empty"><p>${/ENGINE|WORKER/.test(e?.code||'') ? 'Não foi possível carregar o motor de leitura. Tente novamente.' : 'Não foi possível abrir este livro. O arquivo pode estar danificado ou o motor de leitura não pôde ser carregado.'}</p><button id="retry-open" style="margin-top:12px;min-height:44px;border-radius:10px;background:var(--orange);color:#fff;padding:0 16px">Tentar novamente</button></div>`;
+    $('#retry-open').onclick = ()=>openBook(id);
   }
   applySettings(state.settings);
 }
@@ -974,7 +1023,7 @@ function updateProgress(p){
 async function renderEpub(buf, saved){
   $('#epub-viewer').classList.remove('hidden');
   $('#epub-viewer').innerHTML = '';
-  const book = ePub(buf);
+  const book = window.ePub(buf);
   const rendition = book.renderTo('epub-viewer', { width:'100%', height:'100%', flow:'scrolled-doc', spread:'none' });
   state.activeBook.rendition = rendition;
   state.activeBook.book = book;
@@ -1012,41 +1061,42 @@ function flattenToc(items, depth=0){
 async function renderPdf(buf, saved){
   $('#pdf-viewer').classList.remove('hidden');
   const viewer = $('#pdf-viewer'); viewer.innerHTML = '';
-  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
   state.activeBook.pdf = pdf;
   const outline = await pdf.getOutline().catch(()=>null);
   state.activeBook.toc = outline ? flattenPdfOutline(outline, pdf) : [];
   renderToc();
 
   state.pdfPage = saved?.page || 1;
-  await renderAllPdfPages(pdf);
-  updateProgress((state.pdfPage-1)/Math.max(1,pdf.numPages-1));
-
-  // observer to detect current page for progress
-  const io = new IntersectionObserver((entries)=>{
-    entries.forEach(en=>{
-      if(en.isIntersecting){
-        const p = parseInt(en.target.dataset.page,10);
-        state.pdfPage = p;
-        updateProgress((p-1)/Math.max(1,pdf.numPages-1));
-        saveProgress({ page:p });
-      }
-    });
-  },{ root: $('#reader'), threshold:0.4 });
-  $$('#pdf-viewer canvas').forEach(c=>io.observe(c));
+  await renderPdfPage(state.pdfPage);
 }
-async function renderAllPdfPages(pdf){
-  const viewer = $('#pdf-viewer');
-  const scale = 1.4;
-  for(let n=1; n<=pdf.numPages; n++){
-    const page = await pdf.getPage(n);
-    const viewport = page.getViewport({ scale });
-    const canvas = document.createElement('canvas');
-    canvas.dataset.page = String(n);
-    canvas.width = viewport.width; canvas.height = viewport.height;
-    viewer.appendChild(canvas);
-    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-  }
+async function renderPdfPage(pageNumber){
+  const b = state.activeBook; if(!b?.pdf) return;
+  const pdf = b.pdf;
+  const viewer = $('#pdf-viewer'); viewer.innerHTML = '';
+  state.pdfPage = Math.max(1, Math.min(pdf.numPages, pageNumber));
+  const controls = document.createElement('div');
+  controls.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center;margin-bottom:8px';
+  controls.innerHTML = `<button id="pdf-prev" aria-label="Página anterior">Página anterior</button><span>${state.pdfPage} / ${pdf.numPages}</span><button id="pdf-next" aria-label="Página seguinte">Página seguinte</button>`;
+  viewer.appendChild(controls);
+  controls.querySelectorAll('button').forEach(btn=>btn.style.cssText='min-height:44px;border-radius:10px;background:var(--elev);border:1px solid var(--border);padding:0 12px');
+  $('#pdf-prev').onclick = ()=>renderPdfPage(state.pdfPage-1);
+  $('#pdf-next').onclick = ()=>renderPdfPage(state.pdfPage+1);
+  const page = await pdf.getPage(state.pdfPage);
+  const base = page.getViewport({ scale:1 });
+  const available = Math.max(280, $('#reader').clientWidth - 40);
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const cssScale = Math.min(2.2, Math.max(.5, available / base.width));
+  const viewport = page.getViewport({ scale: cssScale * dpr });
+  const canvas = document.createElement('canvas');
+  canvas.dataset.page = String(state.pdfPage);
+  canvas.width = Math.floor(viewport.width); canvas.height = Math.floor(viewport.height);
+  canvas.style.width = Math.floor(base.width * cssScale) + 'px';
+  canvas.style.height = 'auto';
+  viewer.appendChild(canvas);
+  await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+  updateProgress((state.pdfPage-1)/Math.max(1,pdf.numPages-1));
+  saveProgress({ page:state.pdfPage });
 }
 function flattenPdfOutline(items, pdf, depth=0){
   const out=[];
@@ -1094,8 +1144,9 @@ function renderToc(){
           if(dest){
             const ref = dest[0];
             const pageIndex = await b.pdf.getPageIndex(ref);
-            const canvas = $(`#pdf-viewer canvas[data-page="${pageIndex+1}"]`);
-            canvas?.scrollIntoView({behavior:'smooth', block:'start'});
+            state.pdfPage = pageIndex+1;
+            await renderPdfPage(state.pdfPage);
+            saveProgress({ page: state.pdfPage });
           }
         }catch(e){ console.warn(e); }
       }
@@ -1113,8 +1164,7 @@ async function nav(direction){
     direction==='next' ? b.rendition.next() : b.rendition.prev();
   } else if(b.type==='pdf'){
     const n = Math.max(1, Math.min(b.pdf.numPages, state.pdfPage + (direction==='next'?1:-1)));
-    const c = $(`#pdf-viewer canvas[data-page="${n}"]`);
-    c?.scrollIntoView({behavior:'smooth', block:'start'});
+    renderPdfPage(n);
   } else {
     const r = $('#reader'); r.scrollBy({ top:(direction==='next'?1:-1)*r.clientHeight*0.9, behavior:'smooth' });
   }
@@ -1583,12 +1633,18 @@ async function exportBackup(){
     };
     const json = JSON.stringify(payload);
     const blob = new Blob([json], { type:'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
     const stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
-    a.href = url; a.download = `codice-backup-${stamp}.json`;
-    document.body.appendChild(a); a.click(); a.remove();
-    URL.revokeObjectURL(url);
+    const fileName = `codice-backup-${stamp}.json`;
+    const file = new File([blob], fileName, { type:'application/json' });
+    if(navigator.canShare?.({ files:[file] }) && navigator.share){
+      await navigator.share({ files:[file], title:'Backup Códice' });
+    } else {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = fileName;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    }
     const mb = (json.length/1048576).toFixed(2);
     setBackupStatus(`${books.length} livro(s) · ${mb} MB`);
     toast('Backup exportado');
@@ -1614,6 +1670,7 @@ function renderAutoBackupInfo(){
   const freq = getAutoBackupFreq();
   const meta = autoBackupMeta();
   if(freq === 'off'){ el.textContent = 'Desativado.'; return; }
+  if(meta.dueAt){ el.textContent = 'Há alterações desde o último backup.'; return; }
   const last = meta.lastAt ? `Último: ${fmtDateShort(meta.lastAt)}` : 'Nenhum backup ainda.';
   const nextAt = (meta.lastAt||0) + AUTO_BACKUP_INTERVALS[freq];
   const next = meta.lastAt ? ` · Próximo: ${fmtDateShort(nextAt)}` : '';
@@ -1651,9 +1708,9 @@ async function runAutoBackup({ force=false } = {}){
   // Requer interação do usuário (foco na aba) para o download não ser bloqueado
   if(document.visibilityState !== 'visible') return false;
   try{
-    await exportBackup();
-    saveAutoBackupMeta({ lastAt: now, lastSig: sig, lastCheckedAt: now, freq });
-    toast('Backup automático baixado');
+    setBackupStatus('Há alterações desde o último backup.');
+    toast('Há alterações desde o último backup.');
+    saveAutoBackupMeta({ ...meta, dueAt: now, lastSig: sig, lastCheckedAt: now, freq });
     renderAutoBackupInfo();
     return true;
   }catch(e){ console.error('auto-backup failed', e); return false; }
@@ -1829,10 +1886,38 @@ async function importNotesMarkdown(file){
   }
 }
 
+
+function wirePwaUi(){
+  const setting = document.getElementById('install-setting');
+  const btn = document.getElementById('btn-install-app');
+  const help = document.getElementById('install-help');
+  window.addEventListener('codice:pwa-install-state', (event)=>{
+    const d = event.detail || {};
+    if(setting) setting.style.display = d.canInstall && !d.standalone ? 'block' : 'none';
+    if(help) help.textContent = d.isIOS ? 'Abre instruções para adicionar pelo Safari.' : 'Instala pelo prompt do Chrome quando disponível.';
+  });
+  window.addEventListener('codice:pwa-installed', ()=>toast('Códice instalado'));
+  window.addEventListener('codice:pwa-ios-instructions', ()=>openPanel('ios-install-sheet'));
+  btn?.addEventListener('click', ()=>window.dispatchEvent(new CustomEvent('codice:pwa-install-request')));
+  document.getElementById('ios-install-close')?.addEventListener('click', ()=>closePanel('ios-install-sheet'));
+  document.getElementById('pwa-update-later')?.addEventListener('click', ()=>document.getElementById('pwa-update').style.display='none');
+}
+function showPwaUpdate(applyUpdate){
+  const box = document.getElementById('pwa-update'); if(!box) return;
+  box.style.display='block';
+  document.getElementById('pwa-update-now').onclick = async ()=>{ await applyUpdate(); };
+}
+async function beforePwaReload(){
+  if(state.activeBook) await saveProgress({ percentage: state.activeBook.progress || 0, page: state.pdfPage });
+  if(state.activeBook) await saveNotes();
+  await new Promise(r=>setTimeout(r,50));
+}
+
 /* =========================================================
  * Wire events
  * =======================================================*/
 function wire(){
+  wirePwaUi();
   // (importNotesMarkdown defined above)
   // Auto-backup select
   const abSel = document.getElementById('auto-backup-freq');
@@ -1893,7 +1978,7 @@ function wire(){
       renderLibrary();
     });
   }
-  $('#file-input').addEventListener('change', e=> handleFiles([...e.target.files]));
+  $('#file-input').addEventListener('change', async e=>{ const input=e.target; input.disabled=true; try{ await handleFiles([...input.files]); } finally { input.value=''; input.disabled=false; } });
 
   // Top bar
   $('#btn-back').addEventListener('click', ()=>{
@@ -2083,6 +2168,10 @@ function wire(){
   document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') scheduleAutoBackupCheck(3000); });
   window.addEventListener('focus', ()=> scheduleAutoBackupCheck(3000));
   setInterval(()=> runAutoBackup().catch(()=>{}), 15*60*1000);
+  updateStorageEstimate();
+  window.addEventListener('online', ()=>{ state.online=true; updateSyncBadge(); toast('Conexão restaurada'); });
+  window.addEventListener('offline', ()=>{ state.online=false; updateSyncBadge(); toast('Modo local — sem conexão.'); });
+  initPwa({ onUpdateAvailable: showPwaUpdate, beforeReload: beforePwaReload });
   // If library has books, auto-open the last read
   const progressAll = await dbAll('progress');
   if(progressAll.length){
