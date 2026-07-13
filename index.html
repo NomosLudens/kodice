@@ -95,7 +95,11 @@
   #reader-content img{max-width:100%;height:auto}
   #reader-content pre,#reader-content code{max-width:100%;overflow-x:auto;white-space:pre-wrap;overflow-wrap:anywhere}
   #reader-content table{max-width:100%;display:block;overflow-x:auto}
+  #reader.reader-mode-epub-paginated{overflow:hidden;padding:32px 20px calc(72px + var(--safe-b));}
+  #reader.reader-mode-epub-scrolled{overflow-y:auto;overflow-x:hidden;}
+  #reader.reader-mode-pdf,#reader.reader-mode-txt{overflow-y:auto;overflow-x:hidden;}
   #epub-viewer{width:100%;max-width:100%;min-width:0;height:100%;min-height:0;overflow:hidden}
+  #reader.reader-mode-epub-scrolled #epub-viewer{overflow:visible}
   #pdf-viewer{display:flex;flex-direction:column;align-items:center;gap:16px;padding:16px;width:100%;max-width:100%;min-width:0;overflow-x:hidden}
   #pdf-viewer canvas{display:block;max-width:100%;height:auto;box-shadow:0 2px 12px rgba(0,0,0,.25);background:#fff}
   #reader-inline-nav{position:absolute;left:0;right:0;bottom:calc(12px + var(--safe-b));z-index:12;display:flex;justify-content:center;gap:12px;margin:0 auto;max-width:var(--reader-width);width:100%;pointer-events:none}
@@ -532,6 +536,13 @@
       </div>
     </div>
     <div class="setting">
+      <div class="setting-label"><b>Modo de leitura</b></div>
+      <div class="seg" id="reading-mode-seg">
+        <button data-reading-mode="paginated" class="active">Páginas</button>
+        <button data-reading-mode="scrolled">Rolagem</button>
+      </div>
+    </div>
+    <div class="setting">
       <div class="setting-label"><b>Tamanho da fonte</b><span id="fs-val">19px</span></div>
       <input type="range" id="fs" min="14" max="28" step="1" value="19" />
     </div>
@@ -687,6 +698,7 @@ const state = {
   activeBook: null,    // {id,type,title,author,data,rendition?,pdf?,toc?,progress}
   theme: localStorage.getItem('codice.theme') || 'night',
   settings: JSON.parse(localStorage.getItem('codice.settings') || '{}'),
+  readingMode: localStorage.getItem('codice.readingMode') || 'paginated',
   online: navigator.onLine,
   panels: { library:false, toc:false, notebook:false, settings:false },
   pdfPage: 1,
@@ -945,6 +957,31 @@ function applyTheme(t){
   persistSettings();
   if(typeof updateRail==='function') updateRail();
 }
+function applyReadingMode(mode){
+  const next = mode === 'scrolled' ? 'scrolled' : 'paginated';
+  const previous = state.readingMode;
+  state.readingMode = next;
+  localStorage.setItem('codice.readingMode', next);
+  $$('#reading-mode-seg button').forEach(b=>b.classList.toggle('active', b.dataset.readingMode===next));
+  if(previous !== next && state.activeBook?.type === 'epub' && state.activeBook.book){
+    const cfi = getCurrentEpubCfi();
+    recreateEpubRendition(cfi);
+  }
+}
+
+function applyReaderModeClass(mode){
+  const reader = $('#reader');
+  reader.classList.remove('reader-mode-epub-paginated','reader-mode-epub-scrolled','reader-mode-pdf','reader-mode-txt');
+  if(mode) reader.classList.add(mode);
+}
+
+function getCurrentEpubCfi(){
+  const b = state.activeBook;
+  const loc = b?.rendition?.currentLocation?.() ?? b?.readerLocation;
+  const location = Array.isArray(loc) ? loc[0] : loc;
+  return location?.start?.cfi || location?.cfi || b?.readerLocation?.start?.cfi || undefined;
+}
+
 function applySettings(s){
   state.settings = { ...state.settings, ...s };
   const cs = state.settings;
@@ -1133,6 +1170,7 @@ async function openBook(id){
   // UI
   $('#landing').classList.add('hidden');
   $('#reader').classList.remove('hidden');
+  applyReaderModeClass(null);
   $('#title-wrap').classList.remove('hidden');
   updateRail();
   resetReaderNavState();
@@ -1141,6 +1179,7 @@ async function openBook(id){
   $('#reader-content').classList.add('hidden');
   $('#epub-viewer').classList.add('hidden');
   $('#pdf-viewer').classList.add('hidden');
+  applyReaderModeClass(b.type === 'epub' ? `reader-mode-epub-${state.readingMode}` : `reader-mode-${b.type}`);
 
   // load progress + notes
   const saved = await dbGet('progress', id);
@@ -1189,6 +1228,7 @@ async function closeBook(){
   state.activeBook = null;
   $('#landing').classList.remove('hidden');
   $('#reader').classList.add('hidden');
+  applyReaderModeClass(null);
   $('#title-wrap').classList.add('hidden');
   resetReaderNavState();
   setReaderInlineNavVisible(false);
@@ -1247,13 +1287,28 @@ function setReaderInlineNavVisible(visible){
 
 /* --- EPUB --- */
 async function renderEpub(buf, saved){
-  setReaderInlineNavVisible(true);
+  const book = window.ePub(buf);
+  state.activeBook.book = book;
+  await createEpubRendition(book, saved?.cfi || undefined);
+}
+
+async function recreateEpubRendition(cfi){
+  const b = state.activeBook;
+  if(!b?.book) return;
+  if(b.rendition){ try{ b.rendition.destroy(); }catch(e){} }
+  await createEpubRendition(b.book, cfi);
+  applySettings(state.settings);
+}
+
+async function createEpubRendition(book, target){
+  const mode = state.readingMode === 'scrolled' ? 'scrolled' : 'paginated';
+  setReaderInlineNavVisible(mode === 'paginated');
+  applyReaderModeClass(`reader-mode-epub-${mode}`);
+  $('#reader').onscroll = null;
   $('#epub-viewer').classList.remove('hidden');
   $('#epub-viewer').innerHTML = '';
-  const book = window.ePub(buf);
-  const rendition = book.renderTo('epub-viewer', { width:'100%', height:'100%', flow:'scrolled-doc', spread:'none' });
+  const rendition = book.renderTo('epub-viewer', { width:'100%', height:'100%', flow: mode === 'paginated' ? 'paginated' : 'scrolled-doc', spread:'none' });
   state.activeBook.rendition = rendition;
-  state.activeBook.book = book;
 
   // theme
   const containedTheme = {'html':{'max-width':'100% !important','min-width':'0 !important','box-sizing':'border-box !important','overflow-x':'hidden !important'},'*':{'box-sizing':'border-box !important'},'body':{'max-width':'100% !important','min-width':'0 !important','overflow-x':'hidden !important','overflow-wrap':'anywhere !important'},'img,svg,video,canvas':{'max-width':'100% !important','width':'auto !important','height':'auto !important','object-fit':'contain !important','display':'block !important','margin-left':'auto !important','margin-right':'auto !important'},'pre,code':{'max-width':'100% !important','overflow-x':'auto !important','white-space':'pre-wrap !important','overflow-wrap':'anywhere !important'},'table':{'max-width':'100% !important','display':'block !important','overflow-x':'auto !important'}};
@@ -1270,7 +1325,7 @@ async function renderEpub(buf, saved){
     saveProgress({ cfi: loc?.start?.cfi, percentage: p });
   });
 
-  await rendition.display(saved?.cfi || undefined);
+  await rendition.display(target || undefined);
   if(state.activeBook?.rendition !== rendition) return;
   state.activeBook.readerLocation = rendition.currentLocation?.() ?? null;
   updateReaderNavState();
@@ -1296,6 +1351,7 @@ function flattenToc(items, depth=0){
 
 /* --- PDF --- */
 async function renderPdf(buf, saved){
+  applyReaderModeClass('reader-mode-pdf');
   setReaderInlineNavVisible(false);
   $('#pdf-viewer').classList.remove('hidden');
   const viewer = $('#pdf-viewer'); viewer.innerHTML = '';
@@ -1351,6 +1407,7 @@ function flattenPdfOutline(items, pdf, depth=0){
 
 /* --- TXT --- */
 async function renderTxt(buf, saved){
+  applyReaderModeClass('reader-mode-txt');
   setReaderInlineNavVisible(true);
   const el = $('#reader-content'); el.classList.remove('hidden');
   const txt = new TextDecoder('utf-8').decode(buf);
@@ -2360,11 +2417,15 @@ function wire(){
   $$('[data-close-panel]').forEach(b=>b.addEventListener('click',()=>closePanel(b.dataset.closePanel)));
   $('#backdrop').addEventListener('click', closeAllPanels);
 
+  applyReadingMode(state.readingMode);
+
   // Theme
   $$('#theme-seg button').forEach(b=>b.addEventListener('click',()=>{
     applyTheme(b.dataset.theme);
     if(state.activeBook?.rendition){ try{ state.activeBook.rendition.themes.select(state.theme); }catch(e){} }
   }));
+
+  $$('#reading-mode-seg button').forEach(b=>b.addEventListener('click',()=>applyReadingMode(b.dataset.readingMode)));
 
   // Settings sliders
   $('#fs').addEventListener('input', e=>applySettings({fs:+e.target.value}));
@@ -2444,7 +2505,13 @@ function wire(){
       if(Math.abs(width - lastReaderWidth) < 1) return;
       lastReaderWidth = width;
       if(state.activeBook?.type === 'pdf') await renderPdfPage(state.pdfPage || 1);
-      else if(state.activeBook?.rendition) updateReaderNavState();
+      else if(state.activeBook?.type === 'epub' && state.readingMode === 'paginated' && state.activeBook.rendition){
+        const cfi = getCurrentEpubCfi();
+        try{ state.activeBook.rendition.resize(); }catch(e){}
+        if(cfi) await state.activeBook.rendition.display(cfi);
+        state.activeBook.readerLocation = state.activeBook.rendition.currentLocation?.() ?? state.activeBook.readerLocation;
+        updateReaderNavState();
+      } else if(state.activeBook?.rendition) updateReaderNavState();
     }, 150);
   };
   window.addEventListener('resize', handleReaderResize);
