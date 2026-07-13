@@ -31,7 +31,7 @@
     --border:rgba(0,0,0,.08);
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-  html,body{height:100%;height:100dvh;overflow:hidden;overscroll-behavior:none;-webkit-text-size-adjust:100%}
+  html,body{height:100%;height:100dvh;overflow:hidden;overscroll-behavior:none;-webkit-text-size-adjust:100%;max-width:100%}
   body{
     font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
     background:var(--bg); color:var(--text);
@@ -44,7 +44,7 @@
   /* ---------- Layout ---------- */
   :root{ --rail:0px; --rail-open:280px; }
   #app{
-    display:grid; height:100dvh;
+    display:grid; height:100dvh; width:100%; max-width:100%; min-width:0; min-height:0; overflow:hidden;
     grid-template-columns: 1fr;
     grid-template-rows:auto 1fr;
     grid-template-areas:
@@ -52,8 +52,8 @@
       "main";
     padding-top:var(--safe-t); padding-right:var(--safe-r);
   }
-  #topbar{grid-area:top}
-  #main{grid-area:main;min-width:0}
+  #topbar{grid-area:top;min-width:0}
+  #main{grid-area:main;min-width:0;min-height:0}
 
   /* ---------- Top bar ---------- */
   #topbar{
@@ -77,25 +77,30 @@
   @media(min-width:960px){ #progress{top:calc(56px + var(--safe-t))} }
 
   /* ---------- Main / Reader ---------- */
-  #main{position:relative;overflow:hidden;background:var(--bg)}
+  #main{position:relative;overflow:hidden;background:var(--bg);width:100%;max-width:100%;min-width:0;min-height:0}
   #reader{
-    height:100%;overflow-y:auto;overflow-x:hidden;
-    padding:32px 20px 48px;
+    height:100%;width:100%;max-width:100%;min-width:0;min-height:0;overflow-y:auto;overflow-x:hidden;
+    padding:32px 20px calc(72px + var(--safe-b));
     scroll-behavior:smooth;
   }
   #reader-content{
-    max-width:var(--reader-width);margin:0 auto;
+    width:min(100%, var(--reader-width));max-width:100%;min-width:0;margin:0 auto;
     font-family:Georgia,"Times New Roman",serif;
     font-size:calc(var(--reader-font-size) * var(--reader-zoom));
     line-height:var(--reader-line);
     color:var(--text);
   }
-  #reader-content p{margin:0 0 1em}
+  #reader-content p{margin:0 0 1em;overflow-wrap:anywhere}
   #reader-content h1,#reader-content h2,#reader-content h3{margin:1.4em 0 .6em;font-family:Georgia,serif}
   #reader-content img{max-width:100%;height:auto}
-  #epub-viewer{width:100%;height:100%}
-  #pdf-viewer{display:flex;flex-direction:column;align-items:center;gap:16px;padding:16px}
-  #pdf-viewer canvas{max-width:100%;height:auto;box-shadow:0 2px 12px rgba(0,0,0,.25);background:#fff}
+  #reader-content pre,#reader-content code{max-width:100%;overflow-x:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+  #reader-content table{max-width:100%;display:block;overflow-x:auto}
+  #epub-viewer{width:100%;max-width:100%;min-width:0;height:100%;min-height:0;overflow:hidden}
+  #pdf-viewer{display:flex;flex-direction:column;align-items:center;gap:16px;padding:16px;width:100%;max-width:100%;min-width:0;overflow-x:hidden}
+  #pdf-viewer canvas{display:block;max-width:100%;height:auto;box-shadow:0 2px 12px rgba(0,0,0,.25);background:#fff}
+  #reader-inline-nav{position:absolute;left:0;right:0;bottom:calc(12px + var(--safe-b));z-index:12;display:flex;justify-content:center;gap:12px;margin:0 auto;max-width:var(--reader-width);width:100%;pointer-events:none}
+  #reader-inline-nav button{min-width:44px;min-height:44px;border-radius:999px;background:var(--elev);border:1px solid var(--border);font-size:24px;line-height:1;color:var(--text);pointer-events:auto}
+  #reader-inline-nav button:disabled{opacity:.35;cursor:not-allowed}
 
   /* ---------- Landing / Upload ---------- */
   #landing{
@@ -444,6 +449,11 @@
       <div id="epub-viewer" class="hidden"></div>
       <div id="pdf-viewer" class="hidden"></div>
     </section>
+
+    <div id="reader-inline-nav" class="hidden" aria-label="Navegação de leitura">
+      <button id="reader-inline-prev" aria-label="Anterior" disabled>‹</button>
+      <button id="reader-inline-next" aria-label="Próximo" disabled>›</button>
+    </div>
   </main>
 
 </div>
@@ -1119,12 +1129,13 @@ async function openBook(id){
   if(state.activeBook?.rendition){ try{ state.activeBook.rendition.destroy(); }catch(e){} }
   const notebook = $('#notebook');
   if(notebook) notebook.value = '';
-  state.activeBook = { id, type:b.type, title:b.title, author:b.author, toc:[], progress:0 };
+  state.activeBook = { id, type:b.type, title:b.title, author:b.author, toc:[], progress:0, readerLocation:null };
   // UI
   $('#landing').classList.add('hidden');
   $('#reader').classList.remove('hidden');
   $('#title-wrap').classList.remove('hidden');
   updateRail();
+  resetReaderNavState();
   $('#book-title').textContent = b.title || 'Sem título';
   $('#book-author').textContent = b.author || '';
   $('#reader-content').classList.add('hidden');
@@ -1162,6 +1173,8 @@ function showBookOpenError(id, e){
   $('#landing').classList.add('hidden');
   $('#reader').classList.remove('hidden');
   $('#title-wrap').classList.remove('hidden');
+  resetReaderNavState();
+  setReaderInlineNavVisible(false);
   $('#reader-content').classList.remove('hidden');
   $('#epub-viewer').classList.add('hidden');
   $('#pdf-viewer').classList.add('hidden');
@@ -1177,6 +1190,8 @@ async function closeBook(){
   $('#landing').classList.remove('hidden');
   $('#reader').classList.add('hidden');
   $('#title-wrap').classList.add('hidden');
+  resetReaderNavState();
+  setReaderInlineNavVisible(false);
   $('#book-title').textContent = ''; $('#book-author').textContent = '';
   updateProgress(0);
   $('#toc-body').innerHTML = '<div class="empty">Abra um livro para ver o sumário.</div>';
@@ -1191,8 +1206,48 @@ function updateProgress(p){
   if(state.activeBook){ state.activeBook.progress = clamped; }
 }
 
+function navControlIds(){
+  return ['nav-prev','nav-next','reader-inline-prev','reader-inline-next','pdf-prev','pdf-next'];
+}
+
+function setNavButtonState(ids, disabled){
+  ids.forEach(id=>{ const el = document.getElementById(id); if(el) el.disabled = disabled; });
+}
+
+function resetReaderNavState(){
+  setNavButtonState(navControlIds(), true);
+}
+
+function updateReaderNavState(loc){
+  const b = state.activeBook;
+  let canPrev = false;
+  let canNext = false;
+  const rawLocation = loc ?? b?.readerLocation ?? b?.rendition?.currentLocation?.();
+  const location = Array.isArray(rawLocation) ? rawLocation[0] : rawLocation;
+  if(b?.type === 'epub' && location){
+    canPrev = !location.atStart;
+    canNext = !location.atEnd;
+  } else if(b?.type === 'pdf' && b.pdf){
+    canPrev = state.pdfPage > 1;
+    canNext = state.pdfPage < b.pdf.numPages;
+  } else if(b?.type === 'txt'){
+    const r = $('#reader');
+    canPrev = r.scrollTop > 1;
+    canNext = r.scrollTop + r.clientHeight < r.scrollHeight - 1;
+  }
+  setNavButtonState(['nav-prev','reader-inline-prev','pdf-prev'], !canPrev);
+  setNavButtonState(['nav-next','reader-inline-next','pdf-next'], !canNext);
+}
+
+function setReaderInlineNavVisible(visible){
+  const nav = document.getElementById('reader-inline-nav');
+  if(nav) nav.classList.toggle('hidden', !visible);
+  if(!visible) setNavButtonState(['reader-inline-prev','reader-inline-next'], true);
+}
+
 /* --- EPUB --- */
 async function renderEpub(buf, saved){
+  setReaderInlineNavVisible(true);
   $('#epub-viewer').classList.remove('hidden');
   $('#epub-viewer').innerHTML = '';
   const book = window.ePub(buf);
@@ -1201,24 +1256,34 @@ async function renderEpub(buf, saved){
   state.activeBook.book = book;
 
   // theme
-  rendition.themes.register('night', { 'body':{ 'background':'#0B0C0F !important','color':'#F5F1EA !important','font-family':'Georgia, serif !important','padding':'16px !important' }, 'a':{'color':'#FF4C1F !important'} });
-  rendition.themes.register('day', { 'body':{ 'background':'#F5F0E7 !important','color':'#211E1A !important','font-family':'Georgia, serif !important','padding':'16px !important' }, 'a':{'color':'#D8431D !important'} });
+  const containedTheme = {'html':{'max-width':'100% !important','min-width':'0 !important','box-sizing':'border-box !important','overflow-x':'hidden !important'},'*':{'box-sizing':'border-box !important'},'body':{'max-width':'100% !important','min-width':'0 !important','overflow-x':'hidden !important','overflow-wrap':'anywhere !important'},'img,svg,video,canvas':{'max-width':'100% !important','width':'auto !important','height':'auto !important','object-fit':'contain !important','display':'block !important','margin-left':'auto !important','margin-right':'auto !important'},'pre,code':{'max-width':'100% !important','overflow-x':'auto !important','white-space':'pre-wrap !important','overflow-wrap':'anywhere !important'},'table':{'max-width':'100% !important','display':'block !important','overflow-x':'auto !important'}};
+  rendition.themes.register('night', { ...containedTheme, 'body':{ ...containedTheme.body, 'background':'#0B0C0F !important','color':'#F5F1EA !important','font-family':'Georgia, serif !important','padding':'16px !important' }, 'a':{'color':'#FF4C1F !important'} });
+  rendition.themes.register('day', { ...containedTheme, 'body':{ ...containedTheme.body, 'background':'#F5F0E7 !important','color':'#211E1A !important','font-family':'Georgia, serif !important','padding':'16px !important' }, 'a':{'color':'#D8431D !important'} });
   rendition.themes.select(state.theme);
 
+  rendition.on('relocated', (loc)=>{
+    if(state.activeBook?.rendition !== rendition) return;
+    state.activeBook.readerLocation = loc;
+    const p = loc?.start?.percentage ?? 0;
+    updateProgress(p);
+    updateReaderNavState(loc);
+    saveProgress({ cfi: loc?.start?.cfi, percentage: p });
+  });
+
   await rendition.display(saved?.cfi || undefined);
+  if(state.activeBook?.rendition !== rendition) return;
+  state.activeBook.readerLocation = rendition.currentLocation?.() ?? null;
+  updateReaderNavState();
   await book.ready;
   try{
     const nav = await book.loaded.navigation;
     state.activeBook.toc = flattenToc(nav.toc);
     renderToc();
     await book.locations.generate(1200);
+    if(state.activeBook?.rendition !== rendition) return;
+    state.activeBook.readerLocation = rendition.currentLocation?.() ?? state.activeBook.readerLocation;
+    updateReaderNavState();
   }catch(e){ console.warn(e); }
-
-  rendition.on('relocated', (loc)=>{
-    const p = loc?.start?.percentage ?? 0;
-    updateProgress(p);
-    saveProgress({ cfi: loc?.start?.cfi, percentage: p });
-  });
 }
 function flattenToc(items, depth=0){
   const out = [];
@@ -1231,6 +1296,7 @@ function flattenToc(items, depth=0){
 
 /* --- PDF --- */
 async function renderPdf(buf, saved){
+  setReaderInlineNavVisible(false);
   $('#pdf-viewer').classList.remove('hidden');
   const viewer = $('#pdf-viewer'); viewer.innerHTML = '';
   const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
@@ -1249,25 +1315,29 @@ async function renderPdfPage(pageNumber){
   state.pdfPage = Math.max(1, Math.min(pdf.numPages, pageNumber));
   const controls = document.createElement('div');
   controls.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center;margin-bottom:8px';
-  controls.innerHTML = `<button id="pdf-prev" aria-label="Página anterior">Página anterior</button><span>${state.pdfPage} / ${pdf.numPages}</span><button id="pdf-next" aria-label="Página seguinte">Página seguinte</button>`;
+  controls.innerHTML = `<button id="pdf-prev" aria-label="Página anterior" ${state.pdfPage===1?'disabled':''}>Página anterior</button><span>${state.pdfPage} / ${pdf.numPages}</span><button id="pdf-next" aria-label="Página seguinte" ${state.pdfPage===pdf.numPages?'disabled':''}>Página seguinte</button>`;
   viewer.appendChild(controls);
-  controls.querySelectorAll('button').forEach(btn=>btn.style.cssText='min-height:44px;border-radius:10px;background:var(--elev);border:1px solid var(--border);padding:0 12px');
-  $('#pdf-prev').onclick = ()=>renderPdfPage(state.pdfPage-1);
-  $('#pdf-next').onclick = ()=>renderPdfPage(state.pdfPage+1);
+  controls.querySelectorAll('button').forEach(btn=>btn.style.cssText='min-height:44px;border-radius:10px;background:var(--elev);border:1px solid var(--border);padding:0 12px;opacity:'+(btn.disabled?'.35':'1'));
+  $('#pdf-prev').onclick = ()=>nav('prev');
+  $('#pdf-next').onclick = ()=>nav('next');
   const page = await pdf.getPage(state.pdfPage);
   const base = page.getViewport({ scale:1 });
-  const available = Math.max(280, $('#reader').clientWidth - 40);
+  const viewerStyle = getComputedStyle(viewer);
+  const horizontalPadding = parseFloat(viewerStyle.paddingLeft) + parseFloat(viewerStyle.paddingRight);
+  const available = Math.max(1, viewer.clientWidth - horizontalPadding);
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const cssScale = Math.min(2.2, Math.max(.5, available / base.width));
+  const cssScale = Math.min(2.2, available / base.width);
   const viewport = page.getViewport({ scale: cssScale * dpr });
   const canvas = document.createElement('canvas');
   canvas.dataset.page = String(state.pdfPage);
   canvas.width = Math.floor(viewport.width); canvas.height = Math.floor(viewport.height);
   canvas.style.width = Math.floor(base.width * cssScale) + 'px';
+  canvas.style.maxWidth = '100%';
   canvas.style.height = 'auto';
   viewer.appendChild(canvas);
   await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
   updateProgress((state.pdfPage-1)/Math.max(1,pdf.numPages-1));
+  updateReaderNavState();
   saveProgress({ page:state.pdfPage });
 }
 function flattenPdfOutline(items, pdf, depth=0){
@@ -1281,6 +1351,7 @@ function flattenPdfOutline(items, pdf, depth=0){
 
 /* --- TXT --- */
 async function renderTxt(buf, saved){
+  setReaderInlineNavVisible(true);
   const el = $('#reader-content'); el.classList.remove('hidden');
   const txt = new TextDecoder('utf-8').decode(buf);
   el.innerHTML = txt.split(/\n{2,}/).map(p=>`<p>${escapeHtml(p).replace(/\n/g,'<br>')}</p>`).join('');
@@ -1291,6 +1362,7 @@ async function renderTxt(buf, saved){
   const onScroll = throttle(()=>{
     const p = reader.scrollTop / Math.max(1, (reader.scrollHeight - reader.clientHeight));
     updateProgress(p);
+    updateReaderNavState();
     saveProgress({ scrollTop: reader.scrollTop, percentage: p });
   }, 500);
   reader.onscroll = onScroll;
@@ -1333,12 +1405,14 @@ function renderToc(){
 async function nav(direction){
   const b = state.activeBook; if(!b) return;
   if(b.type==='epub' && b.rendition){
-    direction==='next' ? b.rendition.next() : b.rendition.prev();
+    direction==='next' ? await b.rendition.next() : await b.rendition.prev();
   } else if(b.type==='pdf'){
     const n = Math.max(1, Math.min(b.pdf.numPages, state.pdfPage + (direction==='next'?1:-1)));
-    renderPdfPage(n);
+    await renderPdfPage(n);
   } else {
-    const r = $('#reader'); r.scrollBy({ top:(direction==='next'?1:-1)*r.clientHeight*0.9, behavior:'smooth' });
+    const r = $('#reader');
+    r.scrollBy({ top:(direction==='next'?1:-1)*r.clientHeight*0.9, behavior:'smooth' });
+    setTimeout(updateReaderNavState, 250);
   }
 }
 
@@ -1609,10 +1683,11 @@ function updateRail(){
   }
   // Enable/disable reader-scoped items
   const has = !!state.activeBook;
-  ['nav-prev','nav-next','nav-toc','nav-notebook'].forEach(id=>{
+  ['nav-toc','nav-notebook'].forEach(id=>{
     const b = document.getElementById(id);
     if(b){ b.disabled = !has; }
   });
+  updateReaderNavState();
   const foot = document.getElementById('rail-foot');
   if(foot){ foot.style.cursor='pointer'; foot.onclick = ()=>openPanel('settings-panel'); }
   // Theme & account button labels
@@ -2249,6 +2324,11 @@ function wire(){
     if(state.activeBook) await closeBook(); else openPanel('library-panel');
   });
 
+  ['reader-inline-prev','reader-inline-next'].forEach(id=>{
+    const btn = document.getElementById(id);
+    if(btn) btn.addEventListener('click', ()=>nav(id.endsWith('prev') ? 'prev' : 'next'));
+  });
+
   // Sidebar nav
   $$('#sidebar .nav-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
@@ -2354,6 +2434,21 @@ function wire(){
       flushQueue();
     }
   }, 30000);
+
+  let readerResizeTimer;
+  let lastReaderWidth = $('#reader').clientWidth;
+  const handleReaderResize = ()=>{
+    clearTimeout(readerResizeTimer);
+    readerResizeTimer = setTimeout(async()=>{
+      const width = $('#reader').clientWidth;
+      if(Math.abs(width - lastReaderWidth) < 1) return;
+      lastReaderWidth = width;
+      if(state.activeBook?.type === 'pdf') await renderPdfPage(state.pdfPage || 1);
+      else if(state.activeBook?.rendition) updateReaderNavState();
+    }, 150);
+  };
+  window.addEventListener('resize', handleReaderResize);
+  window.addEventListener('orientationchange', handleReaderResize);
 
   // Keyboard for desktop
   document.addEventListener('keydown', e=>{
