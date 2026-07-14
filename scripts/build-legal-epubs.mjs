@@ -1,34 +1,25 @@
 #!/usr/bin/env node
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
-import { execSync } from 'node:child_process';
+import JSZip from 'jszip';
 import { loadCorpus } from './legal-corpus-lib.mjs';
 
 async function createEpub(norm, destDir) {
-  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), `epub-${norm.id}-`));
+  const zip = new JSZip();
 
-  try {
-    // 1. mimetype (must not have newline)
-    await fs.writeFile(path.join(tmpDir, 'mimetype'), 'application/epub+zip');
+  // 1. mimetype (must be STORED/uncompressed)
+  zip.file('mimetype', 'application/epub+zip', { compression: 'STORE' });
 
-    // 2. META-INF/container.xml
-    const metaInfDir = path.join(tmpDir, 'META-INF');
-    await fs.mkdir(metaInfDir, { recursive: true });
-    await fs.writeFile(path.join(metaInfDir, 'container.xml'), `<?xml version="1.0" encoding="UTF-8"?>
+  // 2. META-INF/container.xml
+  zip.file('META-INF/container.xml', `<?xml version="1.0" encoding="UTF-8"?>
 <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
   <rootfiles>
     <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
   </rootfiles>
 </container>`);
 
-    // 3. OEBPS structure
-    const oebpsDir = path.join(tmpDir, 'OEBPS');
-    const textDir = path.join(oebpsDir, 'text');
-    await fs.mkdir(textDir, { recursive: true });
-
-    // CSS
-    await fs.writeFile(path.join(oebpsDir, 'style.css'), `body {
+  // 3. OEBPS structure
+  const styleCss = `body {
   font-family: "Outfit", "Inter", sans-serif;
   margin: 2em;
   line-height: 1.6;
@@ -91,23 +82,24 @@ h1 {
   border-radius: 0.375rem;
   margin-top: 2em;
   font-style: italic;
-}`);
+}`;
+  zip.file('OEBPS/style.css', styleCss);
 
-    // Generate XHTML content
-    let unitsXhtml = '';
-    const sortedUnits = [...norm.units].sort((a, b) => a.sortOrder - b.sortOrder);
-    
-    for (const unit of sortedUnits) {
-      const headingHtml = unit.heading ? `<h3 class="unit-heading">${unit.heading}</h3>` : '';
-      unitsXhtml += `
+  // Generate XHTML content
+  let unitsXhtml = '';
+  const sortedUnits = [...norm.units].sort((a, b) => a.sortOrder - b.sortOrder);
+  
+  for (const unit of sortedUnits) {
+    const headingHtml = unit.heading ? `<h3 class="unit-heading">${unit.heading}</h3>` : '';
+    unitsXhtml += `
       <div id="${unit.canonicalPath}" class="unit ${unit.kind}" data-urn="${norm.urn}#${unit.canonicalPath}">
         ${headingHtml}
         <span class="unit-label">${unit.label}</span>
         <span class="unit-text">${unit.text}</span>
       </div>`;
-    }
+  }
 
-    const mainXhtml = `<?xml version="1.0" encoding="UTF-8"?>
+  const mainXhtml = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="pt-BR">
 <head>
@@ -124,26 +116,25 @@ h1 {
   </div>
 </body>
 </html>`;
+  zip.file('OEBPS/text/main.xhtml', mainXhtml);
 
-    await fs.writeFile(path.join(textDir, 'main.xhtml'), mainXhtml);
-
-    // NCX
-    let ncxNavPoints = '';
-    let playOrder = 1;
-    const articles = sortedUnits.filter(u => u.kind === 'artigo');
-    
-    for (const art of articles) {
-      ncxNavPoints += `
+  // NCX
+  let ncxNavPoints = '';
+  let playOrder = 1;
+  const articles = sortedUnits.filter(u => u.kind === 'artigo');
+  
+  for (const art of articles) {
+    ncxNavPoints += `
     <navPoint id="navPoint-${playOrder}" playOrder="${playOrder}">
       <navLabel>
         <text>${art.label}</text>
       </navLabel>
       <content src="text/main.xhtml#${art.canonicalPath}"/>
     </navPoint>`;
-      playOrder++;
-    }
+    playOrder++;
+  }
 
-    const tocNcx = `<?xml version="1.0" encoding="UTF-8"?>
+  const tocNcx = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE ncx PUBLIC "-//NISO//DTD NCX 2005-1//EN" "http://www.daisy.org/z3986/2005/ncx-2005-1.dtd">
 <ncx xmlns="http://www.daisy.org/z3986/2005/ncx-2005-1.dtd" version="2005-1">
   <head>
@@ -165,11 +156,10 @@ h1 {
     ${ncxNavPoints}
   </navMap>
 </ncx>`;
+  zip.file('OEBPS/toc.ncx', tocNcx);
 
-    await fs.writeFile(path.join(oebpsDir, 'toc.ncx'), tocNcx);
-
-    // OPF Manifest & Spine items
-    const contentOpf = `<?xml version="1.0" encoding="UTF-8"?>
+  // OPF Manifest & Spine items
+  const contentOpf = `<?xml version="1.0" encoding="UTF-8"?>
 <package xmlns="http://www.idpf.org/2007/opf" unique-identifier="db-id" version="2.0">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">
     <dc:title>${norm.title}</dc:title>
@@ -187,26 +177,20 @@ h1 {
     <itemref id="main"/>
   </spine>
 </package>`;
+  zip.file('OEBPS/content.opf', contentOpf);
 
-    await fs.writeFile(path.join(oebpsDir, 'content.opf'), contentOpf);
+  // Compile EPUB
+  const epubFile = path.join(destDir, `${norm.id}.epub`);
+  await fs.rm(epubFile, { force: true });
 
-    // 4. Zip compilation (mimetype must be uncompressed first)
-    const epubFile = path.join(destDir, `${norm.id}.epub`);
-    
-    // Clean old file if exists
-    await fs.rm(epubFile, { force: true });
+  const content = await zip.generateAsync({
+    type: 'nodebuffer',
+    compression: 'DEFLATE',
+    compressionOptions: { level: 9 }
+  });
 
-    // mimetype uncompressed (using zip -0 -X)
-    execSync(`zip -0 -X "${epubFile}" mimetype`, { cwd: tmpDir });
-    
-    // rest compressed (using zip -9 -r)
-    execSync(`zip -9 -r "${epubFile}" META-INF OEBPS`, { cwd: tmpDir });
-
-    console.log(`Generated EPUB: ${epubFile}`);
-  } finally {
-    // Cleanup tmp dir
-    await fs.rm(tmpDir, { recursive: true, force: true });
-  }
+  await fs.writeFile(epubFile, content);
+  console.log(`Generated EPUB: ${epubFile}`);
 }
 
 async function main() {
