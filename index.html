@@ -868,20 +868,20 @@ async function dbDel(store, key){
 }
 async function enforceLRUCache(db, bytesNeeded) {
   const MAX_CACHE_SIZE = 150 * 1024 * 1024; // 150MB
-  const tx = db.transaction(['books', 'book_files'], 'readwrite');
-  const booksStore = tx.objectStore('books');
-  const filesStore = tx.objectStore('book_files');
 
-  const books = await new Promise((resolve, reject) => {
-    const req = booksStore.getAll();
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-
-  const filesKeys = await new Promise((resolve, reject) => {
-    const req = filesStore.getAllKeys();
-    req.onsuccess = () => resolve(new Set(req.result));
-    req.onerror = () => reject(req.error);
+  const { books, filesKeys } = await new Promise((resolve, reject) => {
+    const tx = db.transaction(['books', 'book_files'], 'readonly');
+    const booksReq = tx.objectStore('books').getAll();
+    const filesReq = tx.objectStore('book_files').getAllKeys();
+    
+    tx.oncomplete = () => {
+      resolve({
+        books: booksReq.result || [],
+        filesKeys: new Set(filesReq.result || [])
+      });
+    };
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error('Transaction aborted'));
   });
 
   const cachedBooks = books.filter(b => filesKeys.has(b.id));
@@ -894,12 +894,16 @@ async function enforceLRUCache(db, bytesNeeded) {
       return timeA - timeB;
     });
 
+    const tx = db.transaction('book_files', 'readwrite');
+    const filesStore = tx.objectStore('book_files');
+
     for (const book of cachedBooks) {
       if (totalSize + bytesNeeded <= MAX_CACHE_SIZE) break;
       filesStore.delete(book.id);
       totalSize -= (book.size || 0);
       console.log(`[Kódice] LRU Evicted book file: ${book.title} (${book.id}) to free space.`);
     }
+    await transactionDone(tx);
   }
 }
 async function putBook(metadata, data){
@@ -2004,7 +2008,14 @@ async function mergeRemoteInto(kind, bookId){
         // Se o caderno do livro ativo está aberto, atualiza a textarea sem estourar o autosave.
         if(state.activeBook?.id === data.book_id){
           const ta = document.getElementById('notebook');
-          if(ta && ta.value !== data.content && !hasLocalNotesWriteForBook(data.book_id)){ clearTimeout(notesTimer); ta.value = data.content||''; }
+          if(ta && !hasLocalNotesWriteForBook(data.book_id)){
+            state.activeBookNotes = parseStructuredNotes(data.content || '');
+            const currentVal = state.activeBookNotes[state.activeNoteKey || 'global'] || '';
+            if (ta.value !== currentVal) {
+              clearTimeout(notesTimer);
+              ta.value = currentVal;
+            }
+          }
         }
       }
     } else if(kind === 'settings'){
