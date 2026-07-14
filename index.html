@@ -446,9 +446,9 @@
       <h1>KÓDICE</h1>
       <p class="lead">Kaline acolhe.<br>Kuan atende.<br>Klio constrói.<br>Kódice estuda.<br>Héstia sustenta.<br>Kairós conecta.</p>
       <div id="dropzone">
-        <div class="hint">Solte aqui um arquivo EPUB, PDF ou TXT.</div>
+        <div class="hint">Solte aqui um arquivo EPUB, PDF, TXT ou DOCX.</div>
         <button id="btn-pick">Escolher arquivo</button>
-        <input type="file" id="file-input" accept=".epub,.pdf,.txt,application/epub+zip,application/pdf,text/plain" hidden />
+        <input type="file" id="file-input" accept=".epub,.pdf,.txt,.docx,application/epub+zip,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden />
       </div>
       <div style="color:var(--text-2);font-size:12px;margin-top:8px"><span class="sync-dot" id="sync-dot"></span><span id="sync-label">Local</span></div>
     </section>
@@ -724,6 +724,7 @@ const state = {
   pdfPage: 1,
   user: null,          // {id,email,display_name}
   sync: { pending:0, lastSync:0, lastError:null, syncing:false },
+  hestiaBooks: [],     // Books loaded from Héstia server API
 };
 
 /* =========================================================
@@ -1311,6 +1312,81 @@ async function loadLocalSettings(){
 }
 
 /* =========================================================
+ * Héstia API Integration
+ * =======================================================*/
+const HESTIA_API_BASE = 'http://127.0.0.1:4517/api/codice';
+
+async function fetchHestiaLibrary() {
+  try {
+    const res = await fetch(`${HESTIA_API_BASE}/library`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return data.books || [];
+  } catch (e) {
+    console.warn('[Kódice] Héstia backend offline ou inacessível:', e.message);
+    return [];
+  }
+}
+
+async function downloadHestiaBook(id, title, format) {
+  toast(`Baixando "${title}" da Héstia...`, 3000);
+  try {
+    const res = await fetch(`${HESTIA_API_BASE}/books/${id}`);
+    if (!res.ok) throw new Error(`HTTP status ${res.status}`);
+    const buffer = await res.arrayBuffer();
+
+    const record = {
+      id,
+      title,
+      author: 'Héstia',
+      type: format,
+      addedAt: Date.now(),
+      size: buffer.byteLength
+    };
+
+    await putBook(record, buffer);
+    await loadLibrary();
+    toast(`"${title}" baixado com sucesso!`);
+    return true;
+  } catch (e) {
+    console.error('[Kódice] Falha ao baixar livro da Héstia:', e);
+    toast(`Erro de rede: não foi possível baixar "${title}" da Héstia.`, 5000);
+    return false;
+  }
+}
+
+async function importDocxToHestia(file) {
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  if (ext !== 'docx') {
+    toast('O conversor da Héstia aceita apenas a extensão .docx');
+    return;
+  }
+  toast(`Enviando "${file.name}" para conversão na Héstia...`, 3000);
+  try {
+    const res = await fetch(`${HESTIA_API_BASE}/import?name=${encodeURIComponent(file.name)}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      },
+      body: file
+    });
+
+    if (!res.ok) throw new Error(`HTTP status ${res.status}`);
+    const result = await res.json();
+    if (result.ok && result.book) {
+      toast(`Conversão de "${file.name}" concluída!`);
+      const hb = result.book;
+      await downloadHestiaBook(hb.id, hb.title, 'epub');
+    } else {
+      throw new Error(result.message || 'Erro de conversão na API Héstia');
+    }
+  } catch (e) {
+    console.error('[Kódice] Falha ao importar .docx:', e);
+    toast(`Falha na conversão de "${file.name}". Verifique se o console da Héstia está rodando.`, 5000);
+  }
+}
+
+/* =========================================================
  * Library
  * =======================================================*/
 async function bookHash(file, data){
@@ -1338,18 +1414,38 @@ async function updateStorageEstimate(){
 async function loadLibrary(){
   const rows = await getAllBookMetadata();
   state.books = rows.map(bookMetadataFromRecord).sort((a,b)=>b.addedAt-a.addedAt);
+  try {
+    state.hestiaBooks = await fetchHestiaLibrary();
+  } catch (e) {
+    state.hestiaBooks = [];
+  }
   renderLibrary();
 }
 function renderLibrary(){
   const list = $('#library-list');
-  if(!state.books.length){
+  const localIds = new Set(state.books.map(b => b.id));
+  const hestiaItems = (state.hestiaBooks || [])
+    .filter(hb => !localIds.has(hb.id))
+    .map(hb => ({
+      id: hb.id,
+      title: hb.title,
+      author: 'Héstia Server',
+      type: hb.format || 'epub',
+      addedAt: new Date(hb.mtimeIso || Date.now()).getTime(),
+      size: hb.size,
+      isHestia: true
+    }));
+
+  const allBooks = [...state.books, ...hestiaItems];
+
+  if(!allBooks.length){
     list.innerHTML = '<div class="empty">Sua biblioteca está vazia.</div>';
     const c = document.getElementById('lib-count'); if(c) c.textContent='';
     return;
   }
   const f = state.libFilter || (state.libFilter = { q:'', type:'all', sort:'recent' });
   const q = f.q.trim().toLowerCase();
-  let items = state.books.filter(b=>{
+  let items = allBooks.filter(b=>{
     if(f.type!=='all' && (b.type||'').toLowerCase()!==f.type) return false;
     if(!q) return true;
     return (b.title||'').toLowerCase().includes(q) || (b.author||'').toLowerCase().includes(q);
@@ -1358,12 +1454,24 @@ function renderLibrary(){
   else if(f.sort==='author') items.sort((a,b)=>(a.author||'').localeCompare(b.author||'','pt',{sensitivity:'base'}));
   else items = items.slice().sort((a,b)=>b.addedAt-a.addedAt);
   const c = document.getElementById('lib-count');
-  if(c) c.textContent = `${items.length} de ${state.books.length} livro${state.books.length===1?'':'s'}`;
+  if(c) c.textContent = `${items.length} de ${allBooks.length} livro${allBooks.length===1?'':'s'}`;
   if(!items.length){
     list.innerHTML = '<div class="empty">Nenhum livro encontrado.</div>';
     return;
   }
-  list.innerHTML = items.map(b=>`
+  list.innerHTML = items.map(b=>{
+    if (b.isHestia) {
+      return `
+    <div class="book-item cloud-book" data-id="${b.id}" data-hestia="true">
+      <div class="cover" style="color:var(--teal);border:1px dashed var(--teal);background:transparent">${(b.title||'?').slice(0,1).toUpperCase()}</div>
+      <div class="meta">
+        <div class="bt">${escapeHtml(b.title||'Sem título')}</div>
+        <div class="ba">${escapeHtml(b.author||'—')} · ${b.type.toUpperCase()}</div>
+      </div>
+      <button class="del download-btn" data-download="${b.id}" style="color:var(--teal)" aria-label="Baixar">☁️</button>
+    </div>`;
+    }
+    return `
     <div class="book-item" data-id="${b.id}">
       <div class="cover">${(b.title||'?').slice(0,1).toUpperCase()}</div>
       <div class="meta">
@@ -1371,13 +1479,33 @@ function renderLibrary(){
         <div class="ba">${escapeHtml(b.author||'—')} · ${b.type.toUpperCase()}</div>
       </div>
       <button class="del" data-del="${b.id}" aria-label="Remover">✕</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+
   $$('#library-list .book-item').forEach(el=>{
     el.addEventListener('click', async(e)=>{
-      if(e.target.closest('[data-del]')) return;
+      if(e.target.closest('[data-del]') || e.target.closest('[data-download]')) return;
       const id = el.dataset.id;
-      const opened = await openBook(id);
-      if(opened) closePanel('library-panel');
+      const isHestia = el.dataset.hestia === 'true';
+      if (isHestia) {
+        const item = items.find(b => b.id === id);
+        const downloaded = await downloadHestiaBook(id, item.title, item.type);
+        if (downloaded) {
+          const opened = await openBook(id);
+          if(opened) closePanel('library-panel');
+        }
+      } else {
+        const opened = await openBook(id);
+        if(opened) closePanel('library-panel');
+      }
+    });
+  });
+  $$('#library-list [data-download]').forEach(btn=>{
+    btn.addEventListener('click', async(e)=>{
+      e.stopPropagation();
+      const id = btn.dataset.download;
+      const item = items.find(b => b.id === id);
+      await downloadHestiaBook(id, item.title, item.type);
     });
   });
   $$('#library-list [data-del]').forEach(btn=>{
@@ -1396,7 +1524,13 @@ function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({ '&':'&amp;','
 async function handleFiles(files){
   for(const file of files){
     const ext = (file.name.split('.').pop()||'').toLowerCase();
-    if(!['epub','pdf','txt'].includes(ext)){ toast('Formato não suportado: '+ext); continue; }
+    if(!['epub','pdf','txt','docx'].includes(ext)){ toast('Formato não suportado: '+ext); continue; }
+    
+    if (ext === 'docx') {
+      await importDocxToHestia(file);
+      continue;
+    }
+
     const data = await file.arrayBuffer();
     const id = await bookHash(file, data);
     let title = file.name.replace(/\.(epub|pdf|txt)$/i,''); let author = '';
@@ -1503,24 +1637,34 @@ async function openBook(id){
   }
   let file = await getBookFile(id);
   if(!file?.data){
-    const isLegal = id === 'cf88' || id === 'cpc2015';
-    if (isLegal) {
-      toast('Baixando documento da base jurídica...', 3000);
-      try {
-        const res = await fetch(`/legal/${id}.epub`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const buffer = await res.arrayBuffer();
-        await putBook(b, buffer);
-        file = { id, data: buffer };
-      } catch (e) {
-        console.error('[Kódice] Falha ao baixar EPUB da base jurídica', e);
-        toast('Erro de rede: não foi possível obter o documento offline.', 5000);
+    const onHestia = (state.hestiaBooks || []).some(hb => hb.id === id);
+    if (onHestia) {
+      const downloaded = await downloadHestiaBook(id, b.title, b.type);
+      if (downloaded) {
+        file = await getBookFile(id);
+      } else {
         return false;
       }
     } else {
-      console.warn('[Kódice]', BOOK_FILE_MISSING, id);
-      toast('O arquivo deste livro não foi encontrado neste aparelho.', 5000);
-      return false;
+      const isLegal = id === 'cf88' || id === 'cpc2015';
+      if (isLegal) {
+        toast('Baixando documento da base jurídica...', 3000);
+        try {
+          const res = await fetch(`/legal/${id}.epub`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const buffer = await res.arrayBuffer();
+          await putBook(b, buffer);
+          file = { id, data: buffer };
+        } catch (e) {
+          console.error('[Kódice] Falha ao baixar EPUB da base jurídica', e);
+          toast('Erro de rede: não foi possível obter o documento offline.', 5000);
+          return false;
+        }
+      } else {
+        console.warn('[Kódice]', BOOK_FILE_MISSING, id);
+        toast('O arquivo deste livro não foi encontrado neste aparelho.', 5000);
+        return false;
+      }
     }
   }
   // cleanup previous
