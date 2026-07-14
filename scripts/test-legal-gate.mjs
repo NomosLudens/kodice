@@ -7,12 +7,16 @@ import {
   assertStablePackagesEqual,
   buildPackage,
   loadCorpus,
+  sha256,
   sha256Bytes,
+  stablePackageContent,
   stableStringify,
   validateNorm,
   verifyFoundation
 } from './legal-corpus-lib.mjs';
 
+class SkipError extends Error {}
+function skip(msg){ throw new SkipError(msg); }
 function assert(cond, msg){ if(!cond) throw new Error(msg); }
 async function tempRoot(){ return fs.mkdtemp(path.join(os.tmpdir(), 'codice-legal-gate-')); }
 function unit(normId, id, kind, canonicalPath, sortOrder, extra={}){
@@ -69,7 +73,10 @@ async function writeCorpus(root){
 }
 async function test(name, fn){
   try { await fn(); console.log(`ok - ${name}`); }
-  catch (error) { console.error(`not ok - ${name}: ${error.message}`); process.exitCode = 1; }
+  catch (error) {
+    if(error instanceof SkipError){ console.log(`skip - ${name}: ${error.message}`); return; }
+    console.error(`not ok - ${name}: ${error.message}`); process.exitCode = 1;
+  }
 }
 
 await test('pacote público stale é rejeitado', async()=>{
@@ -90,14 +97,14 @@ await test('hash de arquivo de origem incorreto é rejeitado', async()=>{
   await loadCorpus('legal/corpus', { root }).then(()=>{ throw new Error('accepted bad sourceHash'); }, error=>assert(/sourceHash mismatch/.test(error.message), error.message));
 });
 
-await test('normIds divergentes são rejeitados', async()=>{
+await test('normIds divergentes são rejeitados com hash válido', async()=>{
   const root = await tempRoot(); await writeCorpus(root);
   const pkg = buildPackage(await loadCorpus('legal/corpus', { root }));
-  pkg.normIds = ['cf88']; pkg.hash = '0'.repeat(64);
-  assert(() => true);
-  let rejected = false;
-  try { verifyFoundation(pkg); } catch { rejected = true; }
-  assert(rejected, 'divergent normIds accepted');
+  pkg.normIds = ['cf88'];
+  pkg.hash = sha256(stableStringify(stablePackageContent(pkg)));
+  let message = '';
+  try { verifyFoundation(pkg); } catch (error) { message = error.message; }
+  assert(/normIds must exactly match norms/.test(message), `unexpected error: ${message}`);
 });
 
 await test('norm ID duplicado é rejeitado', async()=>{
@@ -117,6 +124,27 @@ await test('ciclo de parent é rejeitado', async()=>{
   let rejected = false;
   try { validateNorm(cf); } catch { rejected = true; }
   assert(rejected, 'cycle accepted');
+});
+
+
+await test('symlink externo em legal/sources é rejeitado', async()=>{
+  const root = await tempRoot(); await writeCorpus(root);
+  const outside = path.join(root, 'outside-source.txt');
+  await fs.writeFile(outside, 'outside bytes');
+  const link = path.join(root, 'legal/sources/sample/escape.txt');
+  try { await fs.symlink(outside, link); }
+  catch (error) {
+    if(['EPERM','EACCES','ENOSYS'].includes(error?.code)) skip(`symlink unavailable: ${error.code}`);
+    throw error;
+  }
+  const cfPath = path.join(root, 'legal/corpus/cf88.json');
+  const cf = JSON.parse(await fs.readFile(cfPath,'utf8'));
+  cf.sourceFile = 'legal/sources/sample/escape.txt';
+  cf.sourceHash = sha256Bytes(await fs.readFile(outside));
+  cf.acquisition.sourceFile = cf.sourceFile;
+  cf.acquisition.sourceHash = cf.sourceHash;
+  await fs.writeFile(cfPath, JSON.stringify(cf));
+  await loadCorpus('legal/corpus', { root }).then(()=>{ throw new Error('accepted escaping symlink'); }, error=>assert(/sourceFile resolves outside legal\/sources/.test(error.message), error.message));
 });
 
 await test('sourceFile com ../ é rejeitado', async()=>{
@@ -147,10 +175,10 @@ await test('dois builds iguais produzem bytes iguais', async()=>{
   run = spawnSync(process.execPath, [script], { cwd:root, env, encoding:'utf8' });
   assert(run.status === 0, run.stderr || run.stdout);
   const second = await fs.readFile(path.join(root, 'public/legal/foundation-v1.json'));
-  assert(stableStringify(first.toString()) === stableStringify(second.toString()), 'build output differed');
+  assert(first.equals(second), 'build output differed');
 });
 
-await test('falha antes do rename preserva pacote anterior', async()=>{
+await test('falha de validação preserva pacote anterior', async()=>{
   const root = await tempRoot();
   await fs.mkdir(path.join(root, 'public/legal'), { recursive:true });
   const previous = '{"previous":true}\n';

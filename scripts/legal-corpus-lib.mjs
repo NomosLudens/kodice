@@ -58,8 +58,14 @@ export function resolveSourceFile(sourceFile, root=process.cwd()){
 export async function verifySourceHash(norm, root=process.cwd()){
   const { absolute } = resolveSourceFile(norm.sourceFile, root);
   let bytes;
-  try { bytes = await fs.readFile(absolute); }
-  catch (error) {
+  try {
+    const sourcesReal = await fs.realpath(path.resolve(root, 'legal/sources'));
+    const sourceReal = await fs.realpath(absolute);
+    if(sourceReal !== sourcesReal && !sourceReal.startsWith(`${sourcesReal}${path.sep}`)){
+      throw new Error(`${norm.id}: sourceFile resolves outside legal/sources`);
+    }
+    bytes = await fs.readFile(sourceReal);
+  } catch (error) {
     if(error?.code === 'ENOENT') throw new Error(`${norm.id}: ARQUIVO OFICIAL DE ORIGEM AUSENTE: ${norm.sourceFile}`);
     throw error;
   }
@@ -105,6 +111,7 @@ export function validateAcquisition(norm){
   assert(nonEmptyString(a.firstCanonicalPath), `${norm.id}: acquisition firstCanonicalPath required`);
   assert(nonEmptyString(a.lastCanonicalPath), `${norm.id}: acquisition lastCanonicalPath required`);
   assert(validDateString(a.verifiedAt), `${norm.id}: acquisition verifiedAt invalid`);
+  assert(a.verifiedAt === norm.lastVerifiedAt, `${norm.id}: acquisition verifiedAt must equal lastVerifiedAt`);
   assert(a.complete === true, `${norm.id}: acquisition complete must be true`);
 }
 

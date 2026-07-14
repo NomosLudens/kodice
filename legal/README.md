@@ -65,3 +65,25 @@ O validador compara esses valores com as unidades realmente presentes no corpus.
 Nenhum texto jurídico deve ser escrito manualmente ou inventado. Antes de adicionar uma norma em `legal/corpus`, confirme fonte oficial, URL, versão, data de verificação, hash SHA-256 do material de origem e estrutura integral validada.
 
 Se Constituição Federal, ADCT e CPC não puderem ser obtidos e conferidos em fonte oficial, o resultado do PR permanece: **BLOQUEADO — CORPUS OFICIAL AUSENTE**.
+
+## Datas de aquisição
+
+Enquanto não houver uma razão operacional concreta para duas datas diferentes, `acquisition.verifiedAt` deve ser exatamente igual a `lastVerifiedAt`.
+
+## Limite atual do gate
+
+O gate atual comprova:
+
+- identidade do arquivo oficial por SHA-256;
+- procedência declarada por URL permitida;
+- consistência estrutural interna;
+- contagens e caminhos do corpus;
+- determinismo do pacote.
+
+O gate ainda não comprova:
+
+- que cada texto em `legal/corpus` foi extraído corretamente do arquivo oficial;
+- que não houve alteração durante a transformação;
+- fidelidade fonte → unidades.
+
+Essa prova será implementada quando os arquivos oficiais forem definidos, através de importadores determinísticos específicos para o formato real das fontes. Não há parser genérico neste commit.
