@@ -1,0 +1,44 @@
+{
+  "id": "cpc2015",
+  "urn": "urn:lex:br:federal:lei:2015-03-16;13105",
+  "type": "lei",
+  "number": "13105",
+  "year": 2015,
+  "title": "Código de Processo Civil de 2015",
+  "popularName": "CPC/2015",
+  "aliases": [
+    "cpc2015"
+  ],
+  "ementa": "Ementa oficial da norma cpc2015",
+  "status": "vigente",
+  "publicationDate": "2015-03-17",
+  "versionDate": "2015-03-17",
+  "officialSourceUrl": "https://www.planalto.gov.br/ccivil_03/constituicao/constituicao.htm",
+  "sourceFile": "legal/sources/sample/source.txt",
+  "sourceHash": "3c336710302bf11e2c22195d8595e722bb467b55cc1b0d101cfc8def4a9ed83d",
+  "lastVerifiedAt": "2026-07-14T00:00:00.000Z",
+  "acquisition": {
+    "normId": "cpc2015",
+    "sourceFile": "legal/sources/sample/source.txt",
+    "sourceHash": "3c336710302bf11e2c22195d8595e722bb467b55cc1b0d101cfc8def4a9ed83d",
+    "unitCount": 1,
+    "articleCount": 1,
+    "firstCanonicalPath": "art300",
+    "lastCanonicalPath": "art300",
+    "verifiedAt": "2026-07-14T00:00:00.000Z",
+    "complete": true
+  },
+  "units": [
+    {
+      "id": "cpc2015-art300",
+      "parentId": null,
+      "kind": "artigo",
+      "label": "ART300",
+      "canonicalPath": "art300",
+      "heading": null,
+      "text": "A tutela de urgência será concedida quando houver elementos que evidenciem a probabilidade do direito e o perigo de dano ou o risco ao resultado útil do processo.",
+      "sortOrder": 1,
+      "status": "vigente"
+    }
+  ]
+}

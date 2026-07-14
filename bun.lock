@@ -1,11 +1,13 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "tanstack_start_ts",
       "dependencies": {
         "@supabase/supabase-js": "^2.110.2",
         "epubjs": "0.3.93",
+        "jszip": "^3.10.1",
         "pdfjs-dist": "3.11.174",
       },
       "devDependencies": {

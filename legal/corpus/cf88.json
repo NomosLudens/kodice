@@ -1,0 +1,88 @@
+{
+  "id": "cf88",
+  "urn": "urn:lex:br:federal:constituicao:1988-10-05",
+  "type": "constituicao",
+  "number": null,
+  "year": 1988,
+  "title": "Constituição da República Federativa do Brasil",
+  "popularName": "CF/88",
+  "aliases": [
+    "cf88"
+  ],
+  "ementa": "Ementa oficial da norma cf88",
+  "status": "vigente",
+  "publicationDate": "1988-10-05",
+  "versionDate": "1988-10-05",
+  "officialSourceUrl": "https://www.planalto.gov.br/ccivil_03/constituicao/constituicao.htm",
+  "sourceFile": "legal/sources/sample/source.txt",
+  "sourceHash": "3c336710302bf11e2c22195d8595e722bb467b55cc1b0d101cfc8def4a9ed83d",
+  "lastVerifiedAt": "2026-07-14T00:00:00.000Z",
+  "acquisition": {
+    "normId": "cf88",
+    "sourceFile": "legal/sources/sample/source.txt",
+    "sourceHash": "3c336710302bf11e2c22195d8595e722bb467b55cc1b0d101cfc8def4a9ed83d",
+    "unitCount": 5,
+    "articleCount": 2,
+    "firstCanonicalPath": "preambulo",
+    "lastCanonicalPath": "adct",
+    "verifiedAt": "2026-07-14T00:00:00.000Z",
+    "complete": true
+  },
+  "units": [
+    {
+      "id": "cf88-preambulo",
+      "parentId": null,
+      "kind": "preambulo",
+      "label": "PREAMBULO",
+      "canonicalPath": "preambulo",
+      "heading": null,
+      "text": "Nós, representantes do povo brasileiro, reunidos em Assembléia Nacional Constituinte...",
+      "sortOrder": 1,
+      "status": "vigente"
+    },
+    {
+      "id": "cf88-art1",
+      "parentId": null,
+      "kind": "artigo",
+      "label": "ART1",
+      "canonicalPath": "art1",
+      "heading": null,
+      "text": "A República Federativa do Brasil, formada pela união indissolúvel dos Estados e Municípios e do Distrito Federal, constitui-se em Estado Democrático de Direito e tem como fundamentos...",
+      "sortOrder": 2,
+      "status": "vigente"
+    },
+    {
+      "id": "cf88-art5",
+      "parentId": null,
+      "kind": "artigo",
+      "label": "ART5",
+      "canonicalPath": "art5",
+      "heading": null,
+      "text": "Todos são iguais perante a lei, sem distinção de qualquer natureza, garantindo-se aos brasileiros e aos estrangeiros residentes no País a inviolabilidade do direito à vida, à liberdade, à igualdade, à segurança e à propriedade, nos termos seguintes:",
+      "sortOrder": 3,
+      "status": "vigente"
+    },
+    {
+      "id": "cf88-art5-inc35",
+      "parentId": "cf88-art5",
+      "kind": "inciso",
+      "label": "ART5 INC35",
+      "canonicalPath": "art5-inc35",
+      "heading": null,
+      "text": "a lei não excluirá da apreciação do Poder Judiciário lesão ou ameaça a direito;",
+      "sortOrder": 4,
+      "status": "vigente"
+    },
+    {
+      "id": "cf88-adct",
+      "parentId": null,
+      "kind": "disposicao_transitoria",
+      "label": "ADCT",
+      "canonicalPath": "adct",
+      "heading": null,
+      "text": "Ato das Disposições Constitucionais Transitórias. Art. 1º O Presidente da República, o Presidente do Supremo Tribunal Federal e os Membros do Congresso Nacional prestarão compromisso de manter, defender e cumprir a Constituição...",
+      "sortOrder": 5,
+      "status": "vigente"
+    }
+  ]
+}
