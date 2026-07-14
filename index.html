@@ -519,6 +519,12 @@
     <button class="panel-close" data-close-panel="notebook-panel" aria-label="Fechar">✕</button>
   </div>
   <div class="panel-body" style="display:flex;flex-direction:column;padding-bottom:0">
+    <div id="note-selector-container" class="hidden" style="margin-bottom:12px;display:flex;flex-direction:column;gap:4px;">
+      <label for="note-key-selector" style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-2);font-weight:bold;">Anotar seção:</label>
+      <select id="note-key-selector" style="width:100%;padding:10px;border-radius:8px;background:var(--elev);color:var(--text);border:1px solid var(--border);font-family:inherit;font-size:14px;outline:none;">
+        <option value="global">Nota Geral (Livro Inteiro)</option>
+      </select>
+    </div>
     <textarea id="notebook" placeholder="Suas anotações sobre esta leitura..."></textarea>
   </div>
   <div class="nb-actions">
@@ -767,6 +773,7 @@ function bookMetadataFromRecord(record){
     author: record.author || '',
     type: record.type || 'epub',
     addedAt: record.addedAt || Date.now(),
+    accessedAt: record.accessedAt || record.addedAt || Date.now(),
     size,
   };
 }
@@ -859,10 +866,55 @@ async function dbDel(store, key){
   tx.objectStore(store).delete(key);
   await transactionDone(tx);
 }
+async function enforceLRUCache(db, bytesNeeded) {
+  const MAX_CACHE_SIZE = 150 * 1024 * 1024; // 150MB
+  const tx = db.transaction(['books', 'book_files'], 'readwrite');
+  const booksStore = tx.objectStore('books');
+  const filesStore = tx.objectStore('book_files');
+
+  const books = await new Promise((resolve, reject) => {
+    const req = booksStore.getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+
+  const filesKeys = await new Promise((resolve, reject) => {
+    const req = filesStore.getAllKeys();
+    req.onsuccess = () => resolve(new Set(req.result));
+    req.onerror = () => reject(req.error);
+  });
+
+  const cachedBooks = books.filter(b => filesKeys.has(b.id));
+  let totalSize = cachedBooks.reduce((sum, b) => sum + (b.size || 0), 0);
+
+  if (totalSize + bytesNeeded > MAX_CACHE_SIZE) {
+    cachedBooks.sort((a, b) => {
+      const timeA = a.accessedAt || a.addedAt || 0;
+      const timeB = b.accessedAt || b.addedAt || 0;
+      return timeA - timeB;
+    });
+
+    for (const book of cachedBooks) {
+      if (totalSize + bytesNeeded <= MAX_CACHE_SIZE) break;
+      filesStore.delete(book.id);
+      totalSize -= (book.size || 0);
+      console.log(`[Kódice] LRU Evicted book file: ${book.title} (${book.id}) to free space.`);
+    }
+  }
+}
 async function putBook(metadata, data){
   const db = await openDB();
+  const bytesNeeded = data?.byteLength || 0;
+  try {
+    await enforceLRUCache(db, bytesNeeded);
+  } catch (e) {
+    console.warn('[Kódice] Falha ao executar política LRU no cache.', e);
+  }
   const tx = db.transaction(['books','book_files'], 'readwrite');
-  tx.objectStore('books').put(bookMetadataFromRecord(metadata));
+  const record = bookMetadataFromRecord(metadata);
+  record.size = bytesNeeded;
+  record.accessedAt = Date.now();
+  tx.objectStore('books').put(record);
   tx.objectStore('book_files').put({ id: metadata.id, data });
   await transactionDone(tx);
 }
@@ -1174,8 +1226,25 @@ function installEpubTouchNavigation(contents){
   doc.addEventListener('click', e=>{
     if(Date.now() < suppressSyntheticClickUntil) return;
     if(e.detail && e.detail > 1) return;
-    const ownerDoc = e.target?.ownerDocument;
-    if(isInteractiveEpubTarget(e.target) || hasEpubSelection(ownerDoc)) return;
+    const target = e.target;
+    const unitEl = target?.closest?.('.unit');
+    if (unitEl && unitEl.id) {
+      const key = unitEl.id;
+      const selector = $('#note-key-selector');
+      if (selector && selector.querySelector(`option[value="${key}"]`)) {
+        if (state.activeBookNotes) {
+          state.activeBookNotes[state.activeNoteKey || 'global'] = $('#notebook').value || '';
+        }
+        state.activeNoteKey = key;
+        selector.value = key;
+        $('#notebook').value = state.activeBookNotes[key] || '';
+        openPanel('notebook-panel');
+        toast(`Anotando: ${unitEl.querySelector('.unit-label')?.textContent || key}`);
+        return;
+      }
+    }
+    const ownerDoc = target?.ownerDocument;
+    if(isInteractiveEpubTarget(target) || hasEpubSelection(ownerDoc)) return;
     handleEpubTapZone(e.clientX, ownerDoc);
   });
 }
@@ -1344,6 +1413,77 @@ async function handleFiles(files){
   updateStorageEstimate();
 }
 
+function parseStructuredNotes(rawContent) {
+  try {
+    if (rawContent && rawContent.trim().startsWith('{')) {
+      return JSON.parse(rawContent);
+    }
+  } catch (e) {}
+  return { global: rawContent || "" };
+}
+
+function serializeStructuredNotes(notesMap) {
+  return JSON.stringify(notesMap);
+}
+
+function updateNoteKeySelectorOptions() {
+  const b = state.activeBook;
+  const selector = $('#note-key-selector');
+  const container = $('#note-selector-container');
+  if (!b || !selector || !container) return;
+
+  selector.innerHTML = '<option value="global">Nota Geral (Livro Inteiro)</option>';
+
+  const isLegal = b.type === 'constituicao' || b.type === 'lei' || (b.toc && b.toc.length > 0);
+  if (isLegal && b.toc && b.toc.length > 0) {
+    container.classList.remove('hidden');
+    b.toc.forEach(item => {
+      const hashIndex = item.href.indexOf('#');
+      const key = hashIndex !== -1 ? item.href.slice(hashIndex + 1) : null;
+      if (key) {
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = item.label || key;
+        selector.appendChild(opt);
+      }
+    });
+  } else {
+    container.classList.add('hidden');
+  }
+  
+  state.activeNoteKey = 'global';
+  selector.value = 'global';
+}
+
+function autoSelectNoteKeyFromLocation(loc) {
+  if (document.activeElement === $('#notebook')) return;
+  const b = state.activeBook;
+  if (!b || !b.toc || b.toc.length === 0 || !b.rendition) return;
+
+  const rawLocation = loc ?? b.rendition.currentLocation();
+  const startLoc = Array.isArray(rawLocation) ? rawLocation[0] : rawLocation;
+  if (startLoc && startLoc.start) {
+    const currentHref = b.rendition.book.spine.get(startLoc.start.cfi)?.href;
+    const matchingItem = b.toc.find(item => {
+      const baseHref = item.href.split('#')[0];
+      return baseHref === currentHref;
+    });
+    if (matchingItem) {
+      const hashIndex = matchingItem.href.indexOf('#');
+      const key = hashIndex !== -1 ? matchingItem.href.slice(hashIndex + 1) : 'global';
+      const selector = $('#note-key-selector');
+      if (selector && selector.value !== key && selector.querySelector(`option[value="${key}"]`)) {
+        if (state.activeBookNotes) {
+          state.activeBookNotes[state.activeNoteKey || 'global'] = $('#notebook').value || '';
+        }
+        state.activeNoteKey = key;
+        selector.value = key;
+        $('#notebook').value = state.activeBookNotes[key] || '';
+      }
+    }
+  }
+}
+
 /* =========================================================
  * Reader — EPUB / PDF / TXT
  * =======================================================*/
@@ -1351,11 +1491,33 @@ async function openBook(id){
   try{ await flushPendingNotes(); }catch(e){ console.error('[Kódice] Falha ao salvar anotação pendente antes de abrir livro', e); toast('Não foi possível salvar a anotação neste aparelho.'); return false; }
   const b = await getBookMetadata(id);
   if(!b) return false;
-  const file = await getBookFile(id);
+  try {
+    b.accessedAt = Date.now();
+    await dbPut('books', b);
+  } catch (e) {
+    console.warn('[Kódice] Falha ao atualizar timestamp de acesso do livro.', e);
+  }
+  let file = await getBookFile(id);
   if(!file?.data){
-    console.warn('[Kódice]', BOOK_FILE_MISSING, id);
-    toast('O arquivo deste livro não foi encontrado neste aparelho.', 5000);
-    return false;
+    const isLegal = id === 'cf88' || id === 'cpc2015';
+    if (isLegal) {
+      toast('Baixando documento da base jurídica...', 3000);
+      try {
+        const res = await fetch(`/legal/${id}.epub`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const buffer = await res.arrayBuffer();
+        await putBook(b, buffer);
+        file = { id, data: buffer };
+      } catch (e) {
+        console.error('[Kódice] Falha ao baixar EPUB da base jurídica', e);
+        toast('Erro de rede: não foi possível obter o documento offline.', 5000);
+        return false;
+      }
+    } else {
+      console.warn('[Kódice]', BOOK_FILE_MISSING, id);
+      toast('O arquivo deste livro não foi encontrado neste aparelho.', 5000);
+      return false;
+    }
   }
   // cleanup previous
   if(state.activeBook?.rendition){ try{ state.activeBook.rendition.destroy(); }catch(e){} }
@@ -1380,7 +1542,10 @@ async function openBook(id){
   // load progress + notes
   const saved = await dbGet('progress', id);
   const notes = await dbGet('notes', id);
-  $('#notebook').value = notes?.content || '';
+  state.activeBookNotes = parseStructuredNotes(notes?.content || '');
+  state.activeNoteKey = 'global';
+  $('#notebook').value = state.activeBookNotes['global'] || '';
+  updateNoteKeySelectorOptions();
 
   try{
     await renderBookBuffer(b, file.data, saved);
@@ -1524,6 +1689,11 @@ async function createEpubRendition(book, target){
     updateProgress(p);
     updateReaderNavState(loc);
     saveProgress({ cfi: loc?.start?.cfi, percentage: p });
+    try {
+      autoSelectNoteKeyFromLocation(loc);
+    } catch (e) {
+      console.warn('[Kódice] Falha ao auto-selecionar nota pela localização', e);
+    }
   });
 
   await rendition.display(target || undefined);
@@ -1536,6 +1706,7 @@ async function createEpubRendition(book, target){
       const nav = await book.loaded.navigation;
       state.activeBook.toc = flattenToc(nav.toc);
       renderToc();
+      updateNoteKeySelectorOptions();
     }
     if(!state.activeBook.locationsGenerated){
       await book.locations.generate(1200);
@@ -1754,9 +1925,15 @@ function hasLocalNotesWriteForBook(bookId){
 
 function scheduleNotesSave(){
   const bookId = state.activeBook?.id;
-  const notebook = $('#notebook');
-  const content = notebook?.value ?? '';
   if(!bookId) return;
+
+  if (state.activeBookNotes) {
+    state.activeBookNotes[state.activeNoteKey || 'global'] = $('#notebook').value || '';
+  } else {
+    state.activeBookNotes = { global: $('#notebook').value || '' };
+  }
+
+  const content = serializeStructuredNotes(state.activeBookNotes);
 
   if(pendingNotesSave?.bookId && pendingNotesSave.bookId !== bookId){
     flushPendingNotes().catch(e=>{
@@ -2017,7 +2194,11 @@ async function pullRemoteData(){
     // If viewing a book with fresh notes, reload textarea
     if(state.activeBook){
       const n = await dbGet('notes', state.activeBook.id);
-      if(n && $('#notebook').value !== n.content) $('#notebook').value = n.content || '';
+      if(n){
+        state.activeBookNotes = parseStructuredNotes(n.content || '');
+        const currentVal = state.activeBookNotes[state.activeNoteKey || 'global'] || '';
+        if($('#notebook').value !== currentVal) $('#notebook').value = currentVal;
+      }
     }
     // Merge remote settings if newer than local
     const remote = (settings||[])[0];
@@ -2181,8 +2362,23 @@ function renderSyncStatus(){
 function exportMarkdown(){
   const b = state.activeBook;
   const title = b?.title || 'Notas Kódice';
-  const content = $('#notebook').value || '';
-  const md = `# ${title}\n\n_${b?.author || ''}_\n\n---\n\n${content}\n`;
+  let content = '';
+  
+  if (state.activeBookNotes) {
+    if (state.activeBookNotes.global) {
+      content += `## Nota Geral\n\n${state.activeBookNotes.global}\n\n`;
+    }
+    for (const key of Object.keys(state.activeBookNotes)) {
+      if (key === 'global') continue;
+      const tocItem = b?.toc?.find(item => item.href.endsWith(`#${key}`));
+      const sectionName = tocItem ? tocItem.label : key.toUpperCase().replace('-', ' ');
+      content += `## ${sectionName}\n\n${state.activeBookNotes[key]}\n\n`;
+    }
+  } else {
+    content = $('#notebook').value || '';
+  }
+
+  const md = `# ${title}\n\n_${b?.author || ''}_\n\n---\n\n${content}`;
   const blob = new Blob([md],{type:'text/markdown'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -2398,7 +2594,11 @@ async function importBackup(file){
     // Se o livro aberto teve notas atualizadas, refletir
     if(state.activeBook){
       const n = await dbGet('notes', state.activeBook.id);
-      if(n && $('#notebook').value !== (n.content||'')) $('#notebook').value = n.content || '';
+      if(n){
+        state.activeBookNotes = parseStructuredNotes(n.content || '');
+        const currentVal = state.activeBookNotes[state.activeNoteKey || 'global'] || '';
+        if($('#notebook').value !== currentVal) $('#notebook').value = currentVal;
+      }
     }
     // Enfileirar dados importados para nuvem, se logado
     if(supabase && state.user){
@@ -2462,22 +2662,23 @@ async function importNotesMarkdown(file){
       const bookId = book ? book.id : slugifyId(blk.title);
       const local = await dbGet('notes', bookId);
       let content;
-      if(local && (local.content||'').trim().length){
-        // Mescla sem duplicar: se o conteúdo importado já estiver presente, ignora
-        if(local.content.includes(blk.content)) continue;
-        content = local.content.trim() + '\n\n---\n\n' + blk.content;
+      if(local?.content){
+        let parsed = parseStructuredNotes(local.content);
+        parsed.global = (parsed.global || '').trim() + '\n\n---\n\n' + blk.content;
+        content = serializeStructuredNotes(parsed);
         appended++;
       } else {
-        content = blk.content;
+        content = serializeStructuredNotes({ global: blk.content });
         if(book) merged++; else created++;
       }
       await dbPut('notes', { book_id: bookId, content, updated_at: ts });
       if(supabase && state.user){
         queueSync('notes', { book_id: bookId, content, updated_at: new Date(ts).toISOString() });
       }
-      // Se for o livro aberto, atualiza o textarea
       if(state.activeBook && state.activeBook.id === bookId){
-        const ta = $('#notebook'); if(ta) ta.value = content;
+        state.activeBookNotes = parseStructuredNotes(content);
+        const currentVal = state.activeBookNotes[state.activeNoteKey || 'global'] || '';
+        const ta = $('#notebook'); if(ta) ta.value = currentVal;
       }
     }
     if(supabase && state.user) flushQueue();
@@ -2644,6 +2845,20 @@ function wire(){
 
   // Notebook
   $('#notebook').addEventListener('input', scheduleNotesSave);
+  $('#note-key-selector').addEventListener('change', async (e) => {
+    const newKey = e.target.value;
+    if (!state.activeBook || !state.activeBookNotes) return;
+    state.activeBookNotes[state.activeNoteKey || 'global'] = $('#notebook').value || '';
+    const content = serializeStructuredNotes(state.activeBookNotes);
+    await saveNotesNow({
+      bookId: state.activeBook.id,
+      content,
+      updatedAt: Date.now(),
+      notify: false
+    });
+    state.activeNoteKey = newKey;
+    $('#notebook').value = state.activeBookNotes[newKey] || '';
+  });
   $('#btn-export-md').addEventListener('click', exportMarkdown);
 
   // Backup

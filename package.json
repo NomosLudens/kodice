@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/build-service-worker.mjs",
+    "build": "vite build && node scripts/build-service-worker.mjs && node scripts/build-legal-epubs.mjs",
+    "build:epubs": "node scripts/build-legal-epubs.mjs",
     "preview": "vite preview",
     "verify:decoupling": "node scripts/verify-decoupling.mjs",
     "verify:pwa": "node scripts/verify-pwa.mjs",
