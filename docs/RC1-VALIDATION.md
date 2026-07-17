@@ -4,130 +4,127 @@ O Kódice é um web app/PWA publicado no Cloudflare com arquitetura local-first.
 
 ## A. Preview Cloudflare
 
-- **pré-condição:** Deploy de preview concluído no Cloudflare Pages.
-- **ação:** Acessar a URL do preview.
-- **resultado esperado:** Preview abre em HTTPS, resposta 200, assets carregam, manifest carrega, service worker carrega, reload direto funciona, console sem erro, nenhuma URL privada aparece no bundle, nenhum mixed content.
-- **resultado obtido:** PENDENTE
-- **status:** PENDENTE
-- **evidência:** PENDENTE
-- **incidente:** PENDENTE
+| ID | Verificação | Resultado esperado | Obtido | Status | Evidência | Incidente |
+|---|---|---|---|---|---|---|
+| A01 | Abrir URL HTTPS | HTTP 200 | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| A02 | Carregar assets | Todos 200 | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| A03 | Carregar manifest | HTTP 200 e JSON válido | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| A04 | Carregar service worker | HTTP 200 | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| A05 | Recarregar página | App reabre | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| A06 | Inspecionar console | Nenhum erro | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| A07 | Verificar mixed content | Nenhuma ocorrência | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+
+*(Testes devem ser feitos no deploy de preview do Cloudflare Workers/Pages)*
 
 ## B. Desktop
 
-- **pré-condição:** Navegador Firefox ou Chromium.
-- **ação:** Abrir a biblioteca e navegar pelas abas Local e Estação. Testar painéis, teclado, importação por seletor, drag and drop, leitura e navegação.
-- **resultado esperado:** Tudo funciona perfeitamente sem erros.
-- **resultado obtido:** PENDENTE
-- **status:** PENDENTE
-- **evidência:** PENDENTE
-- **incidente:** PENDENTE
+| ID | Verificação | Resultado esperado | Obtido | Status | Evidência | Incidente |
+|---|---|---|---|---|---|---|
+| B01 | Abrir navegador compatível | Firefox ou Chromium aberto | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| B02 | Navegar na aba Local | Exibição correta da biblioteca local | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| B03 | Navegar na aba Estação | Exibição correta da estação configurada | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| B04 | Testar importação por seletor | Livro importado sem erros | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| B05 | Testar drag and drop | Arquivo solto abre corretamente | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| B06 | Testar painéis UI | Painéis abrem e fecham perfeitamente | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| B07 | Testar teclado | Atalhos e navegação funcionais | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 
 ## C. Mobile
 
-- **pré-condição:** Dispositivo móvel ou simulador com touch.
-- **ação:** Testar viewport móvel, toque, sidebar, painéis, teclado virtual, mudança de orientação, instalação da PWA, leitura EPUB/PDF/TXT.
-- **resultado esperado:** Interface responsiva, toques reconhecidos corretamente e instalação PWA bem-sucedida.
-- **resultado obtido:** PENDENTE
-- **status:** PENDENTE
-- **evidência:** PENDENTE
-- **incidente:** PENDENTE
+| ID | Verificação | Resultado esperado | Obtido | Status | Evidência | Incidente |
+|---|---|---|---|---|---|---|
+| C01 | Viewport móvel | Interface responsiva carrega corretamente | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| C02 | Interação por toque | Toques reconhecidos sem lentidão | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| C03 | Sidebar e painéis | Abrem e fecham com animação suave | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| C04 | Teclado virtual | Layout adapta-se sem sobreposições | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| C05 | Mudança de orientação | UI refaz layout corretamente | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| C06 | Instalação PWA | Instalação concluída com sucesso | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 
 ## D. Boot local-first
 
-- **pré-condição:** App recém aberto com URL Station ausente.
-- **ação:** Analisar requests na aba Network e console.
-- **resultado esperado:** Nenhuma request /api/codice, biblioteca local disponível, ausência de Supabase não quebra o app, console sem erro.
-- **resultado obtido:** PENDENTE
-- **status:** PENDENTE
-- **evidência:** PENDENTE
-- **incidente:** PENDENTE
+| ID | Verificação | Resultado esperado | Obtido | Status | Evidência | Incidente |
+|---|---|---|---|---|---|---|
+| D01 | Ausência de URL Station | App inicializa sem erros | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| D02 | Analisar requests iniciais | Nenhuma request /api/codice disparada | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| D03 | Acesso à biblioteca local | Totalmente funcional | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| D04 | Inspecionar console pós-boot | Nenhum erro registrado | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 
 ## E. EPUB local real
 
-- **pré-condição:** App aberto, EPUB local válido disponível.
-- **ação:** Importar, abrir, navegar, criar nota, verificar progresso, realizar reload e verificar persistência.
-- **resultado esperado:** O arquivo abre rapidamente, notas e progresso são salvos e persistem após o reload.
-- **resultado obtido:** PENDENTE
-- **status:** PENDENTE
-- **evidência:** PENDENTE
-- **incidente:** PENDENTE
+| ID | Verificação | Resultado esperado | Obtido | Status | Evidência | Incidente |
+|---|---|---|---|---|---|---|
+| E01 | Importar arquivo válido | Parse bem-sucedido | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| E02 | Navegar páginas | Mudança sem travamentos | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| E03 | Criar nota | Nota salva e exibida | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| E04 | Realizar reload | Arquivo reabre na mesma página com nota salva | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 
 ## F. PDF local real
 
-- **pré-condição:** App aberto, PDF local válido disponível.
-- **ação:** Importar, abrir, mudar de páginas, criar nota, realizar reload e verificar persistência.
-- **resultado esperado:** Navegação fluida, notas salvas na página certa e persistência funcionando.
-- **resultado obtido:** PENDENTE
-- **status:** PENDENTE
-- **evidência:** PENDENTE
-- **incidente:** PENDENTE
+| ID | Verificação | Resultado esperado | Obtido | Status | Evidência | Incidente |
+|---|---|---|---|---|---|---|
+| F01 | Importar arquivo válido | PDF carrega com sucesso | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| F02 | Navegar páginas | Renderização fluida | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| F03 | Criar nota | Nota vinculada à página correta | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| F04 | Realizar reload | PDF reabre na mesma página com nota | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 
 ## G. TXT local real
 
-- **pré-condição:** App aberto, arquivo TXT válido disponível.
-- **ação:** Importar, abrir, dar scroll, criar nota, realizar reload e verificar persistência.
-- **resultado esperado:** Leitura correta, posição do scroll armazenada e persistência pós-reload.
-- **resultado obtido:** PENDENTE
-- **status:** PENDENTE
-- **evidência:** PENDENTE
-- **incidente:** PENDENTE
+| ID | Verificação | Resultado esperado | Obtido | Status | Evidência | Incidente |
+|---|---|---|---|---|---|---|
+| G01 | Importar arquivo válido | Texto renderizado e legível | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| G02 | Dar scroll no conteúdo | Scroll fluido | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| G03 | Criar nota | Nota salva no contexto local | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| G04 | Realizar reload | Scroll restabelecido e nota presente | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 
 ## H. Supabase web
 
-- **pré-condição:** Modo sem variáveis iniciais, seguido de login caso configurado.
-- **ação:** Testar login, logout, sincronização, falha de rede. Monitorar pacotes de dados.
-- **resultado esperado:** Sincronização robusta, nenhuma URL Station enviada, nenhum catálogo Station enviado, nenhum byte remoto enviado.
-- **resultado obtido:** PENDENTE
-- **status:** PENDENTE
-- **evidência:** PENDENTE
-- **incidente:** PENDENTE
+| ID | Verificação | Resultado esperado | Obtido | Status | Evidência | Incidente |
+|---|---|---|---|---|---|---|
+| H01 | Testar login com Supabase | Login bem-sucedido | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| H02 | Sincronizar dados online | Sincronização sem falhas de integridade | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| H03 | Monitorar pacotes HTTP | Nenhuma URL Station é trafegada | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| H04 | Sincronizar catálogo | Nenhum arquivo da Station é enviado à nuvem | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| H05 | Falha de rede provocada | Recuperação limpa ao voltar online | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 
 ## I. Station via web app
 
-- **pré-condição:** Station privada configurada e online.
-- **ação:** Informar URL HTTPS real, verificar health e library. Acionar Atualizar, abrir EPUB, PDF e TXT remotos. Testar CORS, Station indisponível e funcionamento isolado.
-- **resultado esperado:** Station é listada corretamente (read-only). Biblioteca Local continua funcionando paralelamente caso Station caia.
-- **resultado obtido:** PENDENTE
-- **status:** PENDENTE
-- **evidência:** PENDENTE
-- **incidente:** PENDENTE
+| ID | Verificação | Resultado esperado | Obtido | Status | Evidência | Incidente |
+|---|---|---|---|---|---|---|
+| I01 | Informar URL HTTPS real | Health check (HTTP 200 e schema válido) | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| I02 | Acionar "Atualizar" | Catálogo obtido com sucesso | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| I03 | Abrir EPUB, PDF, TXT remoto | Download direto no Reader sem gravação local persistente | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| I04 | Testar CORS em domínio diferente | Requisição CORS aprovada | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| I05 | Station indisponível abruptamente | App relata erro de rede isolado, biblioteca local mantida | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 
 ## J. Privacidade no navegador
 
-- **pré-condição:** Station conectada e dados locais gerados.
-- **ação:** Inspecionar Local Storage, IndexedDB, CacheStorage, service worker, Network, backup exportado e requisições Supabase.
-- **resultado esperado:** baseUrl somente em localStorage. Catálogo e bytes remotos somente em memória. Nenhum byte Station salvo no IndexedDB (books/book_files) ou CacheStorage. Backup livre de referências Station.
-- **resultado obtido:** PENDENTE
-- **status:** PENDENTE
-- **evidência:** PENDENTE
-- **incidente:** PENDENTE
+| ID | Verificação | Resultado esperado | Obtido | Status | Evidência | Incidente |
+|---|---|---|---|---|---|---|
+| J01 | Inspecionar localStorage | baseUrl da Station presente, sem blobs | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| J02 | Inspecionar IndexedDB (books) | Nenhum byte/catálogo Station armazenado | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| J03 | Inspecionar CacheStorage | Nenhum byte Station armazenado | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| J04 | Inspecionar Service Worker | Nenhuma interceptação gravando dados da Station | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 
 ## K. PWA
 
-- **pré-condição:** PWA passível de instalação (desktop ou mobile).
-- **ação:** Instalar, abrir instalada, atualizar o cache/service worker, dar reload e ativar modo offline.
-- **resultado esperado:** Funciona offline para os livros locais. A aba Station avisa a indisponibilidade isoladamente, restabelecendo-se ao voltar online. Nenhum cache de livro remoto no SW.
-- **resultado obtido:** PENDENTE
-- **status:** PENDENTE
-- **evidência:** PENDENTE
-- **incidente:** PENDENTE
+| ID | Verificação | Resultado esperado | Obtido | Status | Evidência | Incidente |
+|---|---|---|---|---|---|---|
+| K01 | Instalar via prompt | Ícone criado e abre standalone | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| K02 | Atualizar assets em background | SW detecta nova versão e reporta | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| K03 | Ativar modo offline e abrir | PWA carrega e exibe interface local | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| K04 | Tentar ler livro Station offline | Aviso limpo de indisponibilidade de rede | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 
 ## L. Backup
 
-- **pré-condição:** Dados e livros presentes, Station conectada.
-- **ação:** Exportar backup, inspecionar conteúdo (JSON), importar em perfil limpo e conferir.
-- **resultado esperado:** O arquivo exportado contém apenas livros locais, notas e progresso. Nenhuma URL e nenhum catálogo da Station. Importação recria o estado com sucesso.
-- **resultado obtido:** PENDENTE
-- **status:** PENDENTE
-- **evidência:** PENDENTE
-- **incidente:** PENDENTE
+| ID | Verificação | Resultado esperado | Obtido | Status | Evidência | Incidente |
+|---|---|---|---|---|---|---|
+| L01 | Exportar backup via UI | Arquivo JSON gerado e baixado | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| L02 | Inspecionar JSON gerado | Nenhuma menção à URL ou dados da Station | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| L03 | Importar JSON em perfil limpo | Todos os dados locais (notas, config, etc) restaurados | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 
 ## M. Jurídico
 
-- **pré-condição:** Inspecionar os builds e diretórios gerados.
-- **ação:** Verificar se pacotes jurídicos foram injetados. Testar build:epubs sem corpus produtivo.
-- **resultado esperado:** Nenhum EPUB jurídico, nenhum JSON jurídico produtivo solto, nenhum Vade Mecum, nenhum texto "completo", e nenhum arquivo jurídico falso em `dist`. Build correspondente falha adequadamente.
-- **resultado obtido:** PENDENTE
-- **status:** PENDENTE
-- **evidência:** PENDENTE
-- **incidente:** PENDENTE
+| ID | Verificação | Resultado esperado | Obtido | Status | Evidência | Incidente |
+|---|---|---|---|---|---|---|
+| M01 | Inspecionar dist/ final | Nenhum arquivo jurídico solto ou EPUB mock | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| M02 | Inspecionar código da UI | Nenhum botão "Vade Mecum completo" produtivo | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| M03 | Fallback fetch ausente | Tentativas de fetch em "/legal/id.epub" bloqueadas/inexistentes | PENDENTE | PENDENTE | PENDENTE | PENDENTE |

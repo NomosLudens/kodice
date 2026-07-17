@@ -4,16 +4,6 @@
  *
  * Verifica que o produto Kódice não contém resíduos da integração Héstia
  * nem corpus jurídico amostral em posição produtiva.
- *
- * Caminhos inspecionados:
- *   - index.html
- *   - src/        (recursivo)
- *   - public/     (recursivo)
- *   - dist/       (recursivo, quando existir)
- *   - package.json
- *   - legal/corpus/*.json  (apenas nível raiz, não _sample/)
- *
- * Encerra com código ≠ 0 em caso de violação.
  */
 
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
@@ -30,6 +20,8 @@ function fail(file, rule, excerpt) {
 // Regras textuais
 // ──────────────────────────────────────────────────────────────────────────────
 const TEXT_RULES = [
+  { id: 'include-credentials', pattern: /credentials\s*:\s*['"]include['"]/g, rule: 'credentials include proibido' },
+  { id: 'no-cors-mode', pattern: /mode\s*:\s*['"]no-cors['"]/g, rule: 'mode no-cors proibido' },
   { id: 'ip-127-porta', pattern: /127\.0\.0\.1:4519/g, rule: 'Endereço 127.0.0.1:4519 é proibido' },
   { id: 'localhost-4519', pattern: /localhost:4519/g, rule: 'Endereço localhost:4519 é proibido' },
   { id: 'ip-tailscale', pattern: /100\.\d+\.\d+\.\d+/g, rule: 'Endereço Tailscale (100.x) hardcoded proibido' },
@@ -62,27 +54,18 @@ const TEXT_EXTENSIONS = new Set([
   '.json', '.css', '.txt', '.md', '.webmanifest',
 ]);
 
-function extractFunctionBody(content, fnName) {
-  const regex = new RegExp(`(?:async\\s+)?function\\s+${fnName}\\s*\\([^)]*\\)\\s*\\{`, 'g');
-  const match = regex.exec(content);
-  if (!match) return null;
-  let start = match.index + match[0].length;
-  let braces = 1;
-  let end = start;
-  while (end < content.length && braces > 0) {
-    if (content[end] === '{') braces++;
-    if (content[end] === '}') braces--;
-    end++;
-  }
-  return content.slice(start, end - 1);
-}
-
 function checkJsRegressions(filePath, content) {
   if (!filePath.endsWith('index.html')) return;
+  if (filePath.startsWith('dist/') || filePath.startsWith('dist\\')) return;
   // Checks
   if (content.includes('\x24\x24a(')) fail(filePath, 'Regressão JS global', 'Uso de $'+'$a(');
   if (content.includes('\x24(\x24(')) fail(filePath, 'Regressão JS global', 'Uso de $'+'($'+'(');
   if (/querySelector\([^)]+\)\.forEach/.test(content)) fail(filePath, 'Regressão JS global', 'querySelector().forEach');
+
+  const simpleSelectorForEach = /(?<!\$)\$\(\s*(['"`])[^'"`\n]+\1\s*\)\s*\.forEach\s*\(/;
+  if (simpleSelectorForEach.test(content)) {
+    fail(filePath, 'Regressão JS global', '$().forEach proibido (utilizar iterador seguro)');
+  }
 
   // Definitions
   const defRenderBookBuffer = content.match(/function\s+renderBookBuffer\b|const\s+renderBookBuffer\s*=|let\s+renderBookBuffer\s*=/g);
@@ -100,33 +83,46 @@ function checkJsRegressions(filePath, content) {
 
 function checkStationBoundary(filePath, content) {
   if (!filePath.endsWith('index.html')) return;
-  const fns = ['fetchStationLibrary', 'testStationConnection', 'openStationBook'];
+  if (filePath.startsWith('dist/') || filePath.startsWith('dist\\')) return;
+
+  const fns = ['fetchStationLibrary', 'testStationConnection', 'openStationBook', 'renderBookBuffer', 'showBookOpenError'];
   fns.forEach(fn => {
-    const body = extractFunctionBody(content, fn);
-    if (!body) return;
+    if (!content.includes(fn)) {
+      fail(filePath, 'Função Station obrigatória ausente', fn);
+    }
+  });
 
-    const rules = [
-      { p: /\b(POST|PUT|PATCH|DELETE)\b/i, msg: 'Method HTTP proibido' },
-      { p: /credentials\s*:\s*['"]include['"]/i, msg: 'credentials include' },
-      { p: /mode\s*:\s*['"]no-cors['"]/i, msg: 'mode no-cors' },
-      { p: /Authorization/i, msg: 'Authorization header' },
-      { p: /cookie/i, msg: 'cookies' },
-      { p: /\bputBook\b/, msg: 'putBook' },
-      { p: /\bdbPut\b/, msg: 'dbPut' },
-      { p: /\bcaches\.open\b/, msg: 'caches.open' },
-      { p: /\bcache\.put\b/, msg: 'cache.put' },
-      { p: /\bCacheStorage\b/, msg: 'CacheStorage' },
-      { p: /\bshowSaveFilePicker\b/, msg: 'showSaveFilePicker' },
-      { p: /\bserviceWorker\.postMessage\b/, msg: 'serviceWorker.postMessage' },
-      { p: /['"]book_files['"]/, msg: 'persistência em book_files' },
-      { p: /['"]books['"]/, msg: 'persistência no catálogo books' }
-    ];
+  const stationStartIdx = content.indexOf('function getStationFingerprint');
+  const readerStartIdx = content.indexOf('function renderBookBuffer');
 
-    rules.forEach(r => {
-      if (r.p.test(body)) {
-        fail(filePath, `Fronteira Station violada em ${fn}: ${r.msg}`, r.p.source);
-      }
-    });
+  if (stationStartIdx === -1 || readerStartIdx === -1 || stationStartIdx >= readerStartIdx) {
+    fail(filePath, 'Bloco Station não encontrado ou delimitação falhou', 'getStationFingerprint ... renderBookBuffer');
+    return;
+  }
+
+  const stationBlock = content.slice(stationStartIdx, readerStartIdx);
+
+  const rules = [
+    { p: /\b(POST|PUT|PATCH|DELETE)\b/i, msg: 'Method HTTP proibido' },
+    { p: /credentials\s*:\s*['"]include['"]/i, msg: 'credentials include' },
+    { p: /mode\s*:\s*['"]no-cors['"]/i, msg: 'mode no-cors' },
+    { p: /Authorization/i, msg: 'Authorization header' },
+    { p: /cookie/i, msg: 'cookies' },
+    { p: /\bputBook\b/, msg: 'putBook' },
+    { p: /\bdbPut\b/, msg: 'dbPut' },
+    { p: /\bcaches\.open\b/, msg: 'caches.open' },
+    { p: /\bcache\.put\b/, msg: 'cache.put' },
+    { p: /\bCacheStorage\b/, msg: 'CacheStorage' },
+    { p: /\bshowSaveFilePicker\b/, msg: 'showSaveFilePicker' },
+    { p: /\bserviceWorker\.postMessage\b/, msg: 'serviceWorker.postMessage' },
+    { p: /['"]book_files['"]/, msg: 'persistência em book_files' },
+    { p: /['"]books['"]/, msg: 'persistência no catálogo books' }
+  ];
+
+  rules.forEach(r => {
+    if (r.p.test(stationBlock)) {
+      fail(filePath, `Fronteira Station violada no bloco Station: ${r.msg}`, r.p.source);
+    }
   });
 }
 
@@ -150,6 +146,9 @@ function checkLegalAndFormats(filePath, content) {
     { p: /['"]\.?odt['"]/i, msg: 'Suporte a ODT proibido' },
     { p: /['"]\.?rtf['"]/i, msg: 'Suporte a RTF proibido' },
     { p: /application\/vnd\.openxmlformats-officedocument/i, msg: 'MIME de OpenXML proibido' },
+    { p: /accept\s*=\s*["'][^"']*\.(?:docx?|odt|rtf)\b[^"']*["']/i, msg: 'Suporte a formatos bloqueados via accept attribute' },
+    { p: /\[[^\]]*['"]\.?docx?['"][^\]]*\]/i, msg: 'Formato proibido em array de formatos' },
+    { p: /includes\s*\(\s*['"]\.?docx?['"]\s*\)/i, msg: 'includes(\'docx\') proibido' },
   ];
   formatRules.forEach(r => {
     if (r.p.test(content)) fail(filePath, `Formato proibido: ${r.msg}`, r.p.source);
