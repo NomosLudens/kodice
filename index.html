@@ -496,7 +496,10 @@
           <option value="author">Autor (A–Z)</option>
         </select>
       </div>
-      <div id="lib-count" style="color:var(--text-2);font-size:11px"></div>
+      <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+        <div id="lib-count" style="color:var(--text-2);font-size:11px"></div>
+        <button id="btn-station-refresh" style="display:none; padding:4px 8px; font-size:11px; background:var(--elev); border:1px solid var(--border); border-radius:4px; color:var(--text); cursor:pointer">Atualizar</button>
+      </div>
     </div>
     <div id="library-list"></div>
     <div style="margin-top:12px">
@@ -741,7 +744,7 @@ const state = {
   activeTab: 'local',
   station: {
     baseUrl: localStorage.getItem('codice.station.baseUrl') || '',
-    status: localStorage.getItem('codice.station.baseUrl') ? 'loading' : 'unconfigured',
+    status: localStorage.getItem('codice.station.baseUrl') ? 'configured' : 'unconfigured',
     books: [],
     health: null,
     generatedAt: null,
@@ -1416,6 +1419,16 @@ function renderLibrary(){
     }
   }
 
+  const btnRefresh = document.getElementById('btn-station-refresh');
+  if (btnRefresh) {
+    if (isLocal) {
+      btnRefresh.style.display = 'none';
+    } else {
+      btnRefresh.style.display = '';
+      btnRefresh.disabled = (state.station.status === 'unconfigured' || state.station.status === 'loading');
+    }
+  }
+
   const c = document.getElementById('lib-count');
   if(c) {
     let text = `${items.length} de ${sourceBooks.length} livro${sourceBooks.length===1?'':'s'}`;
@@ -1430,14 +1443,16 @@ function renderLibrary(){
 
   list.innerHTML = items.map(b=>{
     const typeStr = (isLocal ? b.type : b.format).toUpperCase();
+    const sizeStr = !isLocal ? ` · ${formatBytes(b.size)}` : '';
+    const authorStr = b.author ? `${escapeHtml(b.author)} · ` : (isLocal ? `${escapeHtml(b.author||'—')} · ` : '');
     return `
-    <div class="book-item" data-id="${b.id}">
-      <div class="cover">${(b.title||'?').slice(0,1).toUpperCase()}</div>
+    <div class="book-item" data-id="${escapeHtml(b.id)}">
+      <div class="cover">${escapeHtml((b.title||'?').slice(0,1).toUpperCase())}</div>
       <div class="meta">
         <div class="bt">${escapeHtml(b.title||'Sem título')}</div>
-        <div class="ba">${escapeHtml(b.author||'—')} · ${typeStr}</div>
+        <div class="ba">${authorStr}${typeStr}${sizeStr}</div>
       </div>
-      ${isLocal ? `<button class="del" data-del="${b.id}" aria-label="Remover">✕</button>` : ''}
+      ${isLocal ? `<button class="del" data-del="${escapeHtml(b.id)}" aria-label="Remover">✕</button>` : ''}
     </div>`
   }).join('');
 
@@ -1462,6 +1477,16 @@ function renderLibrary(){
     });
   });
 }
+
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes < 0) return '0 B';
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
 
 /* =========================================================
@@ -1588,7 +1613,7 @@ async function fetchStationLibrary() {
 
     const validBooks = [];
     for (const b of data.books) {
-      if (b && typeof b.id === 'string' && b.id !== '' && typeof b.title === 'string' && ['epub', 'pdf', 'txt'].includes(b.format) && typeof b.size === 'number' && b.size >= 0 && (b.author === null || typeof b.author === 'string') && (b.modifiedAt === null || (typeof b.modifiedAt === 'string' && Number.isFinite(Date.parse(b.modifiedAt))))) {
+      if (b && typeof b.id === 'string' && b.id.trim() !== '' && typeof b.title === 'string' && ['epub', 'pdf', 'txt'].includes(b.format) && Number.isFinite(b.size) && b.size >= 0 && (b.author === null || typeof b.author === 'string') && (b.modifiedAt === null || (typeof b.modifiedAt === 'string' && Number.isFinite(Date.parse(b.modifiedAt))))) {
         validBooks.push(b);
       }
     }
@@ -1615,8 +1640,12 @@ async function testStationConnection() {
     if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
       throw new Error('URL inválida (apenas HTTP/HTTPS)');
     }
-    if (parsed.protocol === 'http:' && parsed.hostname !== 'localhost' && parsed.hostname !== '127.0.0.1') {
-      throw new Error('HTTP é permitido apenas em localhost');
+    if (parsed.protocol === 'http:') {
+      const isLocalHost = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+      const isAppLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+      if (!isLocalHost || !isAppLocal) {
+        throw new Error('HTTP é permitido apenas em localhost para ambos Kódice e Estação');
+      }
     }
     if (parsed.username || parsed.password || parsed.search || parsed.hash || (parsed.pathname !== '/' && parsed.pathname !== '')) {
       throw new Error('URL deve conter apenas protocolo e host');
@@ -1635,6 +1664,7 @@ async function testStationConnection() {
 
     localStorage.setItem('codice.station.baseUrl', normalized);
     state.station.baseUrl = normalized;
+    state.station.status = 'configured';
     state.station.books = [];
     state.station.error = null;
     state.station.health = data;
@@ -1658,7 +1688,7 @@ function updateStationSettingsUI(overrideStatus) {
     lbl.textContent = overrideStatus;
   } else if(state.station.baseUrl) {
     inp.value = state.station.baseUrl;
-    lbl.textContent = state.station.status === 'online' ? 'Online' : (state.station.status === 'error' ? 'Indisponível' : 'Conectando...');
+    lbl.textContent = state.station.status === 'online' ? 'Online' : (state.station.status === 'error' ? 'Indisponível' : (state.station.status === 'configured' ? 'Configurada' : 'Conectando...'));
   } else {
     inp.value = '';
     lbl.textContent = 'Não configurada';
@@ -2936,6 +2966,7 @@ async function beforePwaReload(){
  * =======================================================*/
 function wire(){
   wirePwaUi();
+  updateStationSettingsUI();
   
   const tabLocal = document.getElementById('tab-lib-local');
   const tabStation = document.getElementById('tab-lib-station');
@@ -2967,13 +2998,15 @@ function wire(){
     tabLocal.style.boxShadow = 'none';
     if(state.station.status === 'unconfigured') {
       // do nothing, just render
-    } else if(state.station.baseUrl && state.station.status !== 'online') {
+    } else if(state.station.status === 'configured' || (state.station.baseUrl && state.station.status === 'error')) {
       fetchStationLibrary();
     }
     renderLibrary();
   });
   
   if (btnTest) btnTest.addEventListener('click', testStationConnection);
+  const btnRefresh = document.getElementById('btn-station-refresh');
+  if (btnRefresh) btnRefresh.addEventListener('click', fetchStationLibrary);
   
   if (btnRemove) btnRemove.addEventListener('click', () => {
     localStorage.removeItem('codice.station.baseUrl');
