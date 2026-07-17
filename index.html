@@ -3328,8 +3328,17 @@ function wire(){
   const progressAll = await dbAll('progress');
   if(progressAll.length){
     const last = progressAll.sort((a,b)=>b.updated_at-a.updated_at)[0];
-    if(last && state.books.find(b=>b.id===last.book_id)){
-      // don't auto-open on mobile — keep landing minimal
+    if(last && last.book_id && typeof last.book_id === 'string' && !last.book_id.startsWith('station:')){
+      if(state.books.find(b=>b.id===last.book_id)){
+        if(window.matchMedia('(min-width: 960px)').matches){
+          const file = await getBookFile(last.book_id);
+          if(file && file.data){
+            await openBook(last.book_id);
+          } else {
+            console.warn(`Bytes ausentes para ${last.book_id}. Permanecendo na landing.`);
+          }
+        }
+      }
     }
   }
 })();
