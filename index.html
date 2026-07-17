@@ -1070,7 +1070,7 @@ function toggleReaderChrome(){ setReaderChromeVisible(!state.readerChromeVisible
 function applyTheme(t){
   state.theme = t; document.documentElement.dataset.theme = t;
   localStorage.setItem('codice.theme', t); // fallback for first paint
-  $$a('#theme-seg button').forEach(b=>b.classList.toggle('active', b.dataset.theme===t));
+  $('#theme-seg button').forEach(b=>b.classList.toggle('active', b.dataset.theme===t));
   document.querySelector('meta[name=theme-color]').setAttribute('content', t==='night' ? '#0B0C0F' : '#F5F0E7');
   persistSettings();
   if(typeof updateRail==='function') updateRail();
@@ -1088,7 +1088,7 @@ function scheduleEpubLayoutResize(book, rendition){
 }
 
 function setReadingModeSelector(mode, disabled=false){
-  $$a('#reading-mode-seg button').forEach(b=>{
+  $('#reading-mode-seg button').forEach(b=>{
     b.classList.toggle('active', b.dataset.readingMode===mode);
     b.disabled = disabled;
   });
@@ -1150,7 +1150,7 @@ function applyCurrentEpubTypography(rendition){
 }
 
 function setEpubAlignmentSelector(){
-  $$a('#epub-alignment-seg button').forEach(b=>{
+  $('#epub-alignment-seg button').forEach(b=>{
     const active = b.dataset.epubAlignment === state.epubAlignment;
     b.classList.toggle('active', active);
     b.setAttribute('aria-pressed', active ? 'true' : 'false');
@@ -1441,7 +1441,7 @@ function renderLibrary(){
     </div>`
   }).join('');
 
-  $($('#library-list .book-item')).forEach(el=>{
+  $$('#library-list .book-item').forEach(el=>{
     el.addEventListener('click', async(e)=>{
       if(e.target.closest('[data-del]')) return;
       const id = el.dataset.id;
@@ -1449,12 +1449,12 @@ function renderLibrary(){
         const opened = await openBook(id);
         if(opened) closePanel('library-panel');
       } else {
-        await openStationBook(id);
-        closePanel('library-panel');
+        const opened = await openStationBook(id);
+        if(opened) closePanel('library-panel');
       }
     });
   });
-  $($('#library-list [data-del]')).forEach(btn=>{
+  $$('#library-list [data-del]').forEach(btn=>{
     btn.addEventListener('click', async(e)=>{
       e.stopPropagation();
       const id = btn.dataset.del;
@@ -1588,7 +1588,7 @@ async function fetchStationLibrary() {
 
     const validBooks = [];
     for (const b of data.books) {
-      if (b && typeof b.id === 'string' && b.id !== '' && typeof b.title === 'string' && ['epub', 'pdf', 'txt'].includes(b.format) && typeof b.size === 'number' && b.size >= 0 && (b.author === null || typeof b.author === 'string') && (b.modifiedAt === null || typeof b.modifiedAt === 'string')) {
+      if (b && typeof b.id === 'string' && b.id !== '' && typeof b.title === 'string' && ['epub', 'pdf', 'txt'].includes(b.format) && typeof b.size === 'number' && b.size >= 0 && (b.author === null || typeof b.author === 'string') && (b.modifiedAt === null || (typeof b.modifiedAt === 'string' && Number.isFinite(Date.parse(b.modifiedAt))))) {
         validBooks.push(b);
       }
     }
@@ -1752,7 +1752,7 @@ async function openBook(id){
   }
   let file = await getBookFile(id);
   if(!file?.data){
-    console.warn('[Kódice]', 'BOOK_FILE_MISSING', id);
+    console.warn('[Kódice]', BOOK_FILE_MISSING, id);
     toast('O arquivo deste livro não foi encontrado neste aparelho.', 5000);
     return false;
   }
@@ -2016,7 +2016,7 @@ function renderToc(){
   const toc = state.activeBook?.toc || [];
   if(!toc.length){ body.innerHTML = '<div class="empty">Este documento não possui sumário.</div>'; return; }
   body.innerHTML = toc.map((t,i)=>`<button class="toc-item depth-${Math.min(t.depth,2)}" data-i="${i}">${escapeHtml(t.label)}</button>`).join('');
-  $$a('#toc-body .toc-item').forEach(btn=>{
+  $('#toc-body .toc-item').forEach(btn=>{
     btn.addEventListener('click', async()=>{
       const idx = +btn.dataset.i;
       const item = state.activeBook.toc[idx];
@@ -3061,7 +3061,7 @@ function wire(){
   });
 
   // Sidebar nav
-  $$a('#sidebar .nav-btn').forEach(btn=>{
+  $('#sidebar .nav-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const k = btn.dataset.nav;
       if(k==='prev') nav('prev');
@@ -3088,20 +3088,20 @@ function wire(){
   $('#sidebar-scrim').addEventListener('click', ()=>document.getElementById('app').classList.remove('rail-open'));
 
   // Close panels
-  $$a('[data-close-panel]').forEach(b=>b.addEventListener('click',()=>closePanel(b.dataset.closePanel)));
+  $('[data-close-panel]').forEach(b=>b.addEventListener('click',()=>closePanel(b.dataset.closePanel)));
   $('#backdrop').addEventListener('click', closeAllPanels);
 
   setReadingModeSelector(state.readingMode === 'scrolled' ? 'scrolled' : 'paginated');
   setEpubAlignmentSelector();
 
   // Theme
-  $$a('#theme-seg button').forEach(b=>b.addEventListener('click',()=>{
+  $('#theme-seg button').forEach(b=>b.addEventListener('click',()=>{
     applyTheme(b.dataset.theme);
     if(state.activeBook?.rendition){ try{ state.activeBook.rendition.themes.select(state.theme); }catch(e){} }
   }));
 
-  $$a('#reading-mode-seg button').forEach(b=>b.addEventListener('click', async()=>{ await applyReadingMode(b.dataset.readingMode); }));
-  $$a('#epub-alignment-seg button').forEach(b=>b.addEventListener('click', async()=>{ await setEpubAlignment(b.dataset.epubAlignment); }));
+  $('#reading-mode-seg button').forEach(b=>b.addEventListener('click', async()=>{ await applyReadingMode(b.dataset.readingMode); }));
+  $('#epub-alignment-seg button').forEach(b=>b.addEventListener('click', async()=>{ await setEpubAlignment(b.dataset.epubAlignment); }));
 
   // Settings sliders
   $('#fs').addEventListener('input', e=>applySettings({fs:+e.target.value}));
@@ -3221,9 +3221,9 @@ function wire(){
   $('#auth-close').addEventListener('click', closeAuth);
   $('#auth-overlay').addEventListener('click', e=>{ if(e.target.id==='auth-overlay') closeAuth(); });
   let authMode = 'signin';
-  $$a('.auth-tabs button').forEach(b=>b.addEventListener('click',()=>{
+  $('.auth-tabs button').forEach(b=>b.addEventListener('click',()=>{
     authMode = b.dataset.tab;
-    $$a('.auth-tabs button').forEach(x=>x.classList.toggle('active', x===b));
+    $('.auth-tabs button').forEach(x=>x.classList.toggle('active', x===b));
     $('#auth-title').textContent = authMode==='signup' ? 'Criar conta' : 'Entrar';
     $('#auth-submit').textContent = authMode==='signup' ? 'Criar conta' : 'Entrar';
     $('#field-name').style.display = authMode==='signup' ? 'block' : 'none';
