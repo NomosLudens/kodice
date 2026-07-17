@@ -36,11 +36,13 @@ const TEXT_RULES = [
   { id: 'fetch-hestia-library',  pattern: 'fetchHestiaLibrary',      rule: 'Função fetchHestiaLibrary da integração Héstia removida' },
   { id: 'download-hestia-book',  pattern: 'downloadHestiaBook',      rule: 'Função downloadHestiaBook da integração Héstia removida' },
   { id: 'import-docx-to-hestia', pattern: 'importDocxToHestia',      rule: 'Função importDocxToHestia da integração Héstia removida' },
-  { id: 'state-hestia-books',    pattern: 'state.hestiaBooks',       rule: 'Campo state.hestiaBooks da integração Héstia removida' },
+  { id: 'hestia-books-regex',    pattern: /\bhestiaBooks\b/,         rule: 'Identificador hestiaBooks da integração Héstia removido' },
   { id: 'api-codice-import',     pattern: '/api/codice/import',      rule: 'Rota POST /api/codice/import da integração Héstia removida' },
   { id: 'hestia-server-author',  pattern: 'Héstia Server',           rule: 'Metadado inventado "Héstia Server" da integração Héstia removida' },
   // DOCX no file input
   { id: 'docx-file-input',       pattern: /accept=[^>]*\.docx/,      rule: 'Extensão .docx no accept do file input principal (suporte DOCX foi removido)' },
+  { id: 'docx-mime-type',        pattern: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', rule: 'Mime type DOCX detectado no produto' },
+  { id: 'docx-handlefiles',      pattern: /['"]docx['"]\s*\]\s*\.includes|\.includes\(\s*['"]docx['"]\)|\bdocx\b/, rule: 'DOCX listado como formato aceito no produto' },
   // Fallback jurídico específico cf88/cpc2015
   { id: 'legal-fallback-ids',    pattern: /id\s*===\s*['"]cf88['"]\s*\|\|\s*id\s*===\s*['"]cpc2015['"]/,
                                                                       rule: 'Fallback específico cf88/cpc2015 em openBook() — deve ser removido' },
@@ -59,6 +61,9 @@ const TEXT_EXTENSIONS = new Set([
 function checkTextFile(filePath, rules) {
   const ext = extname(filePath).toLowerCase();
   if (!TEXT_EXTENSIONS.has(ext)) return;
+
+  // Ignore checking verify-product-boundaries.mjs itself to avoid self-violations
+  if (filePath.endsWith('verify-product-boundaries.mjs')) return;
 
   let content;
   try {
@@ -90,7 +95,7 @@ function checkTextFile(filePath, rules) {
 }
 
 // Diretórios ignorados no walk
-const SKIP_DIRS = new Set(['.git', 'node_modules', 'legal', '.agents']);
+const SKIP_DIRS = new Set(['.git', 'node_modules', '.agents']);
 
 function walkDir(dir, rules) {
   let entries;
@@ -108,12 +113,15 @@ function walkDir(dir, rules) {
   }
 }
 
-// Arquivos físicos proibidos em public/
+// Arquivos físicos proibidos em public/ e dist/
 function checkForbiddenFiles() {
   const forbidden = [
     { path: 'public/legal/cf88.epub',         rule: 'EPUB amostral cf88.epub não deve existir em public/legal/' },
     { path: 'public/legal/cpc2015.epub',       rule: 'EPUB amostral cpc2015.epub não deve existir em public/legal/' },
     { path: 'public/legal/foundation-v1.json', rule: 'Pacote jurídico foundation-v1.json não deve existir em public/legal/' },
+    { path: 'dist/legal/cf88.epub',           rule: 'EPUB amostral cf88.epub não deve existir em dist/legal/' },
+    { path: 'dist/legal/cpc2015.epub',         rule: 'EPUB amostral cpc2015.epub não deve existir em dist/legal/' },
+    { path: 'dist/legal/foundation-v1.json',   rule: 'Pacote jurídico foundation-v1.json não deve existir em dist/legal/' },
   ];
   for (const { path, rule } of forbidden) {
     if (existsSync(path)) fail(path, rule, '(arquivo existe no disco)');
