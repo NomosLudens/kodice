@@ -3326,10 +3326,21 @@ function wire(){
   initPwa({ onUpdateAvailable: showPwaUpdate, beforeReload: beforePwaReload });
   // If library has books, auto-open the last read
   const progressAll = await dbAll('progress');
-  if(progressAll.length){
-    const last = progressAll.sort((a,b)=>b.updated_at-a.updated_at)[0];
-    if(last && state.books.find(b=>b.id===last.book_id)){
-      // don't auto-open on mobile — keep landing minimal
+  if(progressAll.length && window.matchMedia('(min-width: 960px)').matches){
+    const localBooks = new Set(state.books.map(b => b.id));
+    const candidates = progressAll.filter(p => {
+      const id = p.book_id;
+      return typeof id === 'string' && id.trim() !== '' && !id.startsWith('station:') && localBooks.has(id);
+    });
+    if(candidates.length){
+      candidates.sort((a,b) => (Number(b.updated_at) || 0) - (Number(a.updated_at) || 0));
+      const last = candidates[0];
+      const file = await getBookFile(last.book_id);
+      if(file && file.data){
+        await openBook(last.book_id);
+      } else {
+        console.warn(`Bytes ausentes para ${last.book_id}. Permanecendo na landing.`);
+      }
     }
   }
 })();
