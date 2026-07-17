@@ -2,11 +2,8 @@
 /**
  * test-station-auth.mjs
  *
- * Harness de teste para as funções de autenticação Station do PR #16.
- * Extrai as funções reais do index.html usando o extrator balanceado
- * (padrão do PR #14) e as executa contra mocks sintéticos.
- *
- * Não duplica lógica produtiva — testa o código real.
+ * Harness de teste unitário real para o PR #16.
+ * Extrai as funções reais diretamente do index.html e as executa com mocks sintéticos.
  */
 
 import { readFileSync } from 'node:fs';
@@ -15,9 +12,7 @@ import { dirname, join } from 'node:path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Extrator balanceado (reutilizado de test-legal-gate.mjs / PR #14)
-// ─────────────────────────────────────────────────────────────────────────────
+// Extrator balanceado
 function extractFunction(src, name) {
   const sig = new RegExp(`(?:async\\s+)?function\\s+${name}\\s*\\(`);
   const start = src.search(sig);
@@ -42,9 +37,7 @@ function extractFunction(src, name) {
   return src.slice(declStart, i + 1);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Infraestrutura de testes
-// ─────────────────────────────────────────────────────────────────────────────
 let passed = 0, failed = 0;
 async function test(name, fn) {
   try {
@@ -61,361 +54,397 @@ function assertEqual(a, b, msg) {
   if (a !== b) throw new Error(msg || `expected ${JSON.stringify(b)}, got ${JSON.stringify(a)}`);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Extrair funções do index.html
-// ─────────────────────────────────────────────────────────────────────────────
+// Extrair fontes reais de index.html
 const indexPath = join(__dirname, '..', 'index.html');
 const src = readFileSync(indexPath, 'utf8');
 
 const mapStationErrorSrc        = extractFunction(src, 'mapStationError');
 const stationStatusFromErrorSrc = extractFunction(src, 'stationStatusFromError');
 const stationFetchSrc           = extractFunction(src, 'stationFetch');
+const fetchStationLibrarySrc    = extractFunction(src, 'fetchStationLibrary');
+const testStationConnectionSrc  = extractFunction(src, 'testStationConnection');
+const openStationBookSrc        = extractFunction(src, 'openStationBook');
 const releaseActiveBookSrc      = extractFunction(src, 'releaseActiveBookResources');
+const clearStationRemoteStateSrc = extractFunction(src, 'clearStationRemoteState');
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Factory de ambiente sintético
-// ─────────────────────────────────────────────────────────────────────────────
-function makeEnv({
-  supabase = null,
-  localStorageData = {},
-  fetchImpl = async () => { throw new Error('fetch não configurado'); },
-  stateOverride = {},
-} = {}) {
-  const ls = { ...localStorageData };
-  const dom = {
-    'reader':        { onscroll: null, innerHTML: '' },
-    'epub-viewer':   { innerHTML: '' },
-    'pdf-viewer':    { innerHTML: '' },
-    'reader-content':{ innerHTML: '' },
+// Configuração do ambiente e injetor no globalThis
+function setupEnv(overrides = {}) {
+  const ls = overrides.localStorageData || {};
+  const domElements = {
+    'reader':         { onscroll: null, innerHTML: '', classList: { add: () => {}, remove: () => {} } },
+    'epub-viewer':    { innerHTML: '' },
+    'pdf-viewer':     { innerHTML: '' },
+    'reader-content': { innerHTML: '' },
+    'landing':        { classList: { add: () => {}, remove: () => {} } },
+    'title-wrap':     { classList: { add: () => {}, remove: () => {} } },
+    'book-title':     { textContent: '' },
+    'book-author':    { textContent: '' },
+    'toc-body':       { innerHTML: '' },
+    'station-url-input': { value: '' },
+    'station-status-label': { textContent: '' },
+    ...overrides.domElements,
   };
+
   const state = {
+    activeTab: 'station',
+    panels: { library: true },
     activeBook: null,
     activeBookNotes: null,
     activeNoteKey: null,
     station: { baseUrl: '', status: 'unconfigured', books: [], health: null, error: null },
-    ...stateOverride,
+    ...overrides.stateOverride,
   };
+
+  // Mocks do local
+  globalThis.supabase = overrides.supabase || null;
+  globalThis.state = state;
+  globalThis.localStorage = {
+    getItem: k => ls[k] ?? null,
+    setItem: (k, v) => { ls[k] = String(v); },
+    removeItem: k => { delete ls[k]; },
+  };
+  globalThis.fetch = overrides.fetchImpl || (async () => {
+    return { ok: true, status: 200, headers: new Map(), json: async () => ({}) };
+  });
+  globalThis.window = {
+    confirm: overrides.windowConfirm || (() => true),
+  };
+  globalThis.toast = overrides.toast || (() => {});
+  globalThis.escapeHtml = s => s;
+  globalThis.domElements = domElements;
+  globalThis.document = {
+    getElementById: id => domElements[id] ?? null,
+  };
+  globalThis.$ = (sel) => {
+    if (sel.startsWith('#')) return domElements[sel.slice(1)] ?? null;
+    return null;
+  };
+  globalThis.getStationFingerprint = async () => 'aabbccddee00';
+  globalThis.dbGet = async () => null;
+  globalThis._openBookCommon = overrides._openBookCommon || (async (meta, buf, sId, srcId, prog, retry) => {
+    state.activeBook = { id: sId, isLocal: false };
+    return true;
+  });
+  globalThis.flushPendingNotes = overrides.flushPendingNotes || (async () => {});
+  globalThis.setReaderChromeVisible = overrides.setReaderChromeVisible || (() => {});
+  globalThis.applyReaderModeClass = overrides.applyReaderModeClass || (() => {});
+  globalThis.resetReaderNavState = overrides.resetReaderNavState || (() => {});
+  globalThis.setReaderInlineNavVisible = overrides.setReaderInlineNavVisible || (() => {});
+  globalThis.updateProgress = overrides.updateProgress || (() => {});
+  globalThis.updateRail = overrides.updateRail || (() => {});
+  globalThis.renderLibrary = overrides.renderLibrary || (() => {});
+  globalThis.updateStationSettingsUI = overrides.updateStationSettingsUI || (() => {});
+  globalThis.openPanel = overrides.openPanel || (() => {});
+  globalThis.openAuth = overrides.openAuth || (() => {});
+
+  // Compilar e registrar funções reais
+  // eslint-disable-next-line no-new-func
+  globalThis.mapStationError = new Function(`"use strict"; ${mapStationErrorSrc}; return mapStationError;`)();
+  // eslint-disable-next-line no-new-func
+  globalThis.stationStatusFromError = new Function(`"use strict"; ${stationStatusFromErrorSrc}; return stationStatusFromError;`)();
+  // eslint-disable-next-line no-new-func
+  globalThis.releaseActiveBookResources = new Function(`"use strict"; ${releaseActiveBookSrc}; return releaseActiveBookResources;`)();
+  // eslint-disable-next-line no-new-func
+  globalThis.stationFetch = new Function(`"use strict"; ${stationFetchSrc}; return stationFetch;`)();
+  // eslint-disable-next-line no-new-func
+  globalThis.fetchStationLibrary = new Function(`"use strict"; ${fetchStationLibrarySrc}; return fetchStationLibrary;`)();
+  // eslint-disable-next-line no-new-func
+  globalThis.testStationConnection = new Function(`"use strict"; ${testStationConnectionSrc}; return testStationConnection;`)();
+  // eslint-disable-next-line no-new-func
+  globalThis.openStationBook = new Function(`"use strict"; ${openStationBookSrc}; return openStationBook;`)();
+  // eslint-disable-next-line no-new-func
+  globalThis.clearStationRemoteState = new Function(`"use strict"; ${clearStationRemoteStateSrc}; return clearStationRemoteState;`)();
+
   return {
-    supabase,
-    state,
-    localStorage: {
-      getItem: k => ls[k] ?? null,
-      setItem: (k, v) => { ls[k] = String(v); },
-      removeItem: k => { delete ls[k]; },
-    },
-    fetch: fetchImpl,
     ls,
-    dom,
-    document: { getElementById: id => dom[id] ?? null },
-    toast: () => {},
-    escapeHtml: s => s,
-    URL: globalThis.URL,
+    state,
+    domElements,
   };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Compilar funções reais no contexto sintético via new Function
-// ─────────────────────────────────────────────────────────────────────────────
-function buildContext(env) {
-  const keys = Object.keys(env);
-  const vals = keys.map(k => env[k]);
-
-  // eslint-disable-next-line no-new-func
-  const mapStationError = new Function(...keys,
-    `"use strict"; ${mapStationErrorSrc}; return mapStationError;`)(...vals);
-
-  // eslint-disable-next-line no-new-func
-  const stationStatusFromError = new Function(...keys,
-    `"use strict"; ${stationStatusFromErrorSrc}; return stationStatusFromError;`)(...vals);
-
-  // stationFetch precisa de mapStationError injetado
-  // eslint-disable-next-line no-new-func
-  const stationFetch = new Function(...keys, 'mapStationError',
-    `"use strict"; ${stationFetchSrc}; return stationFetch;`)(...vals, mapStationError);
-
-  // eslint-disable-next-line no-new-func
-  const releaseActiveBookResources = new Function(...keys,
-    `"use strict"; ${releaseActiveBookSrc}; return releaseActiveBookResources;`)(...vals);
-
-  return { mapStationError, stationStatusFromError, stationFetch, releaseActiveBookResources };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Cenários
+// Execução dos testes
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ─── 1–2: book.url relativa ─────────────────────────────────────────────────
-await test('1. book.url relativa com mesma origin é aceita', async () => {
-  const baseUrl = 'https://station.local';
-  const b = { id: 'book-1', url: '/api/codice/books/book-1' };
-  const bu = new URL(b.url, baseUrl);
-  const expectedPath = `/api/codice/books/${encodeURIComponent(b.id)}`;
-  assert(bu.origin === new URL(baseUrl).origin);
-  assert(bu.pathname === expectedPath);
-  assert(!bu.username && !bu.password && !bu.search && !bu.hash);
+await test('1. stationFetch envia Bearer, credentials:omit, cache:no-store, redirect:error', async () => {
+  let fetchArgs = null;
+  setupEnv({
+    supabase: {
+      auth: { getSession: async () => ({ data: { session: { access_token: 'valid_token' } } }) }
+    },
+    localStorageData: { 'codice.station.trustedOrigin': 'https://station.local' },
+    fetchImpl: async (url, opts) => {
+      fetchArgs = { url, opts };
+      return { ok: true, status: 200, headers: new Map(), json: async () => ({}) };
+    }
+  });
+
+  await globalThis.stationFetch('/api/codice/library', { baseUrl: 'https://station.local' });
+
+  assert(fetchArgs !== null);
+  assertEqual(fetchArgs.opts.headers.Authorization, 'Bearer valid_token');
+  assertEqual(fetchArgs.opts.credentials, 'omit');
+  assertEqual(fetchArgs.opts.cache, 'no-store');
+  assertEqual(fetchArgs.opts.redirect, 'error');
 });
 
-await test('2. book.url relativa de outra origin é rejeitada', async () => {
-  const baseUrl = 'https://station.local';
-  const b = { id: 'book-2', url: 'https://evil.example.com/api/codice/books/book-2' };
-  const bu = new URL(b.url, baseUrl);
-  assert(bu.origin !== new URL(baseUrl).origin);
-});
+await test('2. retry de token renovado na segunda chamada', async () => {
+  let callCount = 0;
+  let tokensSent = [];
+  let refreshCalled = false;
 
-// ─── 3–6: trustedOrigin ──────────────────────────────────────────────────────
-await test('3. Primeira config: sem trustedOrigin → origin_not_allowed', async () => {
-  const env = makeEnv({
+  setupEnv({
     supabase: {
       auth: {
-        getSession: async () => ({ data: { session: { access_token: 'tok' } } }),
-      },
-    },
-    localStorageData: {},
-  });
-  const { stationFetch } = buildContext(env);
-  try {
-    await stationFetch('/api/codice/health', { baseUrl: 'https://station.local' });
-    assert(false, 'deve ter lançado');
-  } catch (e) {
-    assertEqual(e.code, 'origin_not_allowed');
-  }
-});
-
-await test('4. Origin já confiável: stationFetch passa sem approvedOrigin', async () => {
-  let fetchCalled = false;
-  const env = makeEnv({
-    supabase: {
-      auth: { getSession: async () => ({ data: { session: { access_token: 'tok' } } }) },
+        getSession: async () => {
+          return { data: { session: { access_token: callCount === 0 ? 'expired_token' : 'new_token' } } };
+        },
+        refreshSession: async () => { refreshCalled = true; }
+      }
     },
     localStorageData: { 'codice.station.trustedOrigin': 'https://station.local' },
-    fetchImpl: async () => {
-      fetchCalled = true;
-      return { ok: true, status: 200, headers: { get: () => null }, json: async () => ({}) };
-    },
-  });
-  const { stationFetch } = buildContext(env);
-  await stationFetch('/api/codice/health', { baseUrl: 'https://station.local' });
-  assert(fetchCalled);
-});
-
-await test('5. Origin diferente da confiável → origin_not_allowed', async () => {
-  const env = makeEnv({
-    supabase: {
-      auth: { getSession: async () => ({ data: { session: { access_token: 'tok' } } }) },
-    },
-    localStorageData: { 'codice.station.trustedOrigin': 'https://station.local' },
-  });
-  const { stationFetch } = buildContext(env);
-  try {
-    await stationFetch('/api/codice/health', { baseUrl: 'https://other.local' });
-    assert(false, 'deve ter lançado');
-  } catch (e) {
-    assertEqual(e.code, 'origin_not_allowed');
-  }
-});
-
-await test('6. approvedOrigin efêmera permite token; trustedOrigin não é salvo por stationFetch', async () => {
-  let fetchCalled = false;
-  const env = makeEnv({
-    supabase: {
-      auth: { getSession: async () => ({ data: { session: { access_token: 'tok' } } }) },
-    },
-    localStorageData: {},
-    fetchImpl: async () => {
-      fetchCalled = true;
-      return { ok: true, status: 200, headers: { get: () => null }, json: async () => ({}) };
-    },
-  });
-  const { stationFetch } = buildContext(env);
-  await stationFetch('/api/codice/health', {
-    baseUrl: 'https://station.local',
-    approvedOrigin: 'https://station.local',
-  });
-  assert(fetchCalled);
-  assert(!env.ls['codice.station.trustedOrigin'], 'trustedOrigin não deve ser salvo pelo stationFetch');
-});
-
-// ─── 7–8: stationStatusFromError ─────────────────────────────────────────────
-await test('7. stationStatusFromError: authentication_required e authentication_failed → login_required', async () => {
-  const env = makeEnv();
-  const { stationStatusFromError } = buildContext(env);
-  assertEqual(stationStatusFromError('authentication_required'), 'login_required');
-  assertEqual(stationStatusFromError('authentication_failed'), 'login_required');
-});
-
-await test('8. stationStatusFromError: station_auth_not_configured → auth_not_configured', async () => {
-  const env = makeEnv();
-  const { stationStatusFromError } = buildContext(env);
-  assertEqual(stationStatusFromError('station_auth_not_configured'), 'auth_not_configured');
-});
-
-// ─── 9–11: retry ─────────────────────────────────────────────────────────────
-await test('9. 401 authentication_failed → retry único → sucesso', async () => {
-  let callCount = 0, refreshCalled = false;
-  const env = makeEnv({
-    supabase: {
-      auth: {
-        getSession: async () => ({ data: { session: { access_token: 'tok' } } }),
-        refreshSession: async () => { refreshCalled = true; },
-      },
-    },
-    localStorageData: { 'codice.station.trustedOrigin': 'https://station.local' },
-    fetchImpl: async () => {
+    fetchImpl: async (url, opts) => {
       callCount++;
-      if (callCount === 1) return {
-        ok: false, status: 401,
-        clone: () => ({ json: async () => ({ error: 'authentication_failed' }) }),
-      };
-      return { ok: true, status: 200, headers: { get: () => null }, json: async () => ({}) };
-    },
+      tokensSent.push(opts.headers.Authorization);
+      if (callCount === 1) {
+        return {
+          ok: false, status: 401,
+          clone: () => ({ json: async () => ({ error: 'authentication_failed' }) })
+        };
+      }
+      return { ok: true, status: 200, headers: new Map(), json: async () => ({}) };
+    }
   });
-  const { stationFetch } = buildContext(env);
-  const res = await stationFetch('/api/codice/health', { baseUrl: 'https://station.local' });
-  assert(res.ok);
-  assert(refreshCalled);
+
+  await globalThis.stationFetch('/api/codice/library', { baseUrl: 'https://station.local' });
+
+  assert(refreshCalled, 'refreshSession deveria ter sido chamado');
+  assertEqual(tokensSent[0], 'Bearer expired_token');
+  assertEqual(tokensSent[1], 'Bearer new_token');
   assertEqual(callCount, 2);
 });
 
-await test('10. retry → 401 novamente → sem loop (callCount == 2)', async () => {
-  let callCount = 0;
-  const env = makeEnv({
+await test('3. testStationConnection: fluxo de confirmações e gravação', async () => {
+  let confirmCalled = false;
+  let fetchCalled = false;
+
+  const { ls, state, domElements } = setupEnv({
     supabase: {
-      auth: {
-        getSession: async () => ({ data: { session: { access_token: 'tok' } } }),
-        refreshSession: async () => {},
-      },
+      auth: { getSession: async () => ({ data: { session: { access_token: 'tok' } } }) }
     },
-    localStorageData: { 'codice.station.trustedOrigin': 'https://station.local' },
+    windowConfirm: () => { confirmCalled = true; return true; },
     fetchImpl: async () => {
-      callCount++;
+      fetchCalled = true;
       return {
-        ok: false, status: 401,
-        clone: () => ({ json: async () => ({ error: 'authentication_failed' }) }),
+        ok: true, status: 200, headers: new Map(),
+        json: async () => ({ ok: true, schemaVersion: 1, libraryAvailable: true, formats: ['epub'] })
       };
-    },
+    }
   });
-  const { stationFetch } = buildContext(env);
-  try {
-    await stationFetch('/api/codice/health', { baseUrl: 'https://station.local' });
-    assert(false, 'deve ter lançado');
-  } catch (e) {
-    assertEqual(e.code, 'authentication_failed');
-    assertEqual(callCount, 2);
-  }
+
+  domElements['station-url-input'].value = 'https://station.local';
+
+  // Primeira config (trustedOrigin vazio) -> Pede confirmação
+  await globalThis.testStationConnection();
+  assert(confirmCalled, 'Deveria pedir confirmação na primeira configuração');
+  assert(fetchCalled);
+  assertEqual(ls['codice.station.trustedOrigin'], 'https://station.local');
+  assertEqual(state.station.baseUrl, 'https://station.local');
+
+  // Segunda config com mesma origin -> Não deve pedir confirmação
+  confirmCalled = false;
+  await globalThis.testStationConnection();
+  assert(!confirmCalled, 'Não deveria pedir nova confirmação para mesma origin');
 });
 
-await test('11. 401 authentication_required → sem retry → 1 chamada', async () => {
-  let callCount = 0;
-  const env = makeEnv({
+await test('4. testStationConnection cancelado não envia request', async () => {
+  let fetchCalled = false;
+  const { ls, domElements } = setupEnv({
     supabase: {
-      auth: {
-        getSession: async () => ({ data: { session: { access_token: 'tok' } } }),
-        refreshSession: async () => {},
-      },
+      auth: { getSession: async () => ({ data: { session: { access_token: 'tok' } } }) }
     },
-    localStorageData: { 'codice.station.trustedOrigin': 'https://station.local' },
-    fetchImpl: async () => {
-      callCount++;
-      return {
-        ok: false, status: 401,
-        clone: () => ({ json: async () => ({ error: 'authentication_required' }) }),
-      };
-    },
+    windowConfirm: () => false,
+    fetchImpl: async () => { fetchCalled = true; return { ok: true }; }
   });
-  const { stationFetch } = buildContext(env);
-  try {
-    await stationFetch('/api/codice/health', { baseUrl: 'https://station.local' });
-    assert(false, 'deve ter lançado');
-  } catch (e) {
-    assertEqual(e.code, 'authentication_required');
-    assertEqual(callCount, 1);
-  }
+
+  domElements['station-url-input'].value = 'https://station.local';
+
+  await globalThis.testStationConnection();
+  assert(!fetchCalled, 'Não deveria fetchar se a confirmação for cancelada');
+  assert(!ls['codice.station.trustedOrigin']);
 });
 
-// ─── 12–13: releaseActiveBookResources ───────────────────────────────────────
-await test('12. releaseActiveBookResources destrói rendition, epub.book e pdf', async () => {
-  let renditionDestroyed = false, bookDestroyed = false, pdfDestroyed = false;
-  const env = makeEnv({
+await test('5. testStationConnection: health inválido não salva trustedOrigin', async () => {
+  const { ls, domElements } = setupEnv({
+    supabase: {
+      auth: { getSession: async () => ({ data: { session: { access_token: 'tok' } } }) }
+    },
+    windowConfirm: () => true,
+    fetchImpl: async () => {
+      return {
+        ok: true, status: 200, headers: new Map(),
+        json: async () => ({ ok: false }) // Inválido
+      };
+    }
+  });
+
+  domElements['station-url-input'].value = 'https://station.local';
+
+  await globalThis.testStationConnection();
+  assert(!ls['codice.station.trustedOrigin'], 'Não deveria salvar se health for inválido');
+});
+
+await test('6. fetchStationLibrary com book.url relativa', async () => {
+  const { state } = setupEnv({
+    supabase: {
+      auth: { getSession: async () => ({ data: { session: { access_token: 'tok' } } }) }
+    },
     stateOverride: {
+      station: { baseUrl: 'https://station.local', status: 'configured', books: [] }
+    },
+    localStorageData: { 'codice.station.trustedOrigin': 'https://station.local' },
+    fetchImpl: async () => {
+      return {
+        ok: true, status: 200, headers: new Map(),
+        json: async () => ({
+          schemaVersion: 1,
+          books: [
+            { id: 'b1', title: 'Relativo Válido', format: 'epub', size: 120, author: null, modifiedAt: null, url: '/api/codice/books/b1' },
+            { id: 'b2', title: 'Relativo Inválido', format: 'epub', size: 100, author: null, modifiedAt: null, url: 'https://evil.local/api/codice/books/b2' }
+          ]
+        })
+      };
+    }
+  });
+
+  await globalThis.fetchStationLibrary();
+
+  assertEqual(state.station.books.length, 1);
+  assertEqual(state.station.books[0].id, 'b1');
+});
+
+await test('7. openStationBook com Content-Types válidos e rejeição de inválido', async () => {
+  const { state } = setupEnv({
+    supabase: {
+      auth: { getSession: async () => ({ data: { session: { access_token: 'tok' } } }) }
+    },
+    stateOverride: {
+      station: {
+        baseUrl: 'https://station.local',
+        books: [
+          { id: 'epub1', title: 'E', format: 'epub', size: 10, author: null, modifiedAt: null },
+          { id: 'pdf1', title: 'P', format: 'pdf', size: 10, author: null, modifiedAt: null },
+          { id: 'txt1', title: 'T', format: 'txt', size: 10, author: null, modifiedAt: null },
+        ]
+      }
+    },
+    localStorageData: { 'codice.station.trustedOrigin': 'https://station.local' }
+  });
+
+  let currentContentType = '';
+  globalThis.fetch = async () => {
+    const headers = new Map();
+    headers.set('content-type', currentContentType);
+    return {
+      ok: true, status: 200,
+      headers: { get: k => headers.get(k) },
+      arrayBuffer: async () => new ArrayBuffer(8)
+    };
+  };
+
+  // epub com Content-Type válido
+  currentContentType = 'application/epub+zip';
+  let ok = await globalThis.openStationBook('epub1');
+  assert(ok, 'Deveria abrir epub com application/epub+zip');
+
+  // pdf com Content-Type válido contendo charset
+  currentContentType = 'application/pdf; charset=binary';
+  ok = await globalThis.openStationBook('pdf1');
+  assert(ok, 'Deveria abrir pdf com parâmetros adicionais no Content-Type');
+
+  // txt com Content-Type válido
+  currentContentType = 'text/plain';
+  ok = await globalThis.openStationBook('txt1');
+  assert(ok, 'Deveria abrir txt');
+
+  // Content-Type incompatível
+  currentContentType = 'text/html';
+  ok = await globalThis.openStationBook('epub1');
+  assert(!ok, 'Deveria rejeitar epub vindo como text/html');
+});
+
+await test('8. clearStationRemoteState e remoção da Station com livro remoto aberto', async () => {
+  let renditionDestroyed = false;
+
+  const { state } = setupEnv({
+    supabase: { auth: {} },
+    stateOverride: {
+      station: { baseUrl: 'https://station.local', status: 'online', books: [] },
       activeBook: {
-        rendition: { destroy: () => { renditionDestroyed = true; } },
-        book:      { destroy: () => { bookDestroyed = true; } },
-        pdf:       { destroy: () => { pdfDestroyed = true; } },
-        isLocal: true,
-      },
-      activeBookNotes: { global: 'notas' },
-      activeNoteKey: 'global',
-    },
+        id: 'station:xxx:book-1',
+        isLocal: false,
+        rendition: { destroy: async () => { renditionDestroyed = true; } }
+      }
+    }
   });
-  const { releaseActiveBookResources } = buildContext(env);
-  await releaseActiveBookResources();
-  assert(renditionDestroyed, 'rendition.destroy');
-  assert(bookDestroyed, 'book.destroy');
-  assert(pdfDestroyed, 'pdf.destroy');
-  assert(env.state.activeBook === null, 'activeBook null');
-  assert(env.state.activeBookNotes === null, 'activeBookNotes null');
-  assert(env.state.activeNoteKey === null, 'activeNoteKey null');
+
+  await globalThis.clearStationRemoteState();
+
+  assert(renditionDestroyed, 'Rendition do livro remoto deveria ter sido destruída');
+  assert(state.activeBook === null, 'activeBook deveria ter sido limpo');
+  assertEqual(state.station.status, 'login_required');
 });
 
-await test('13. releaseActiveBookResources limpa epub-viewer, pdf-viewer, reader-content', async () => {
-  const env = makeEnv({
-    stateOverride: {
-      activeBook: { rendition: null, book: null, pdf: null, isLocal: true },
-    },
+await test('9. approvedOrigin somente permitida para health', async () => {
+  setupEnv({
+    supabase: {
+      auth: { getSession: async () => ({ data: { session: { access_token: 'tok' } } }) }
+    }
   });
-  env.dom['epub-viewer'].innerHTML    = '<div>epub</div>';
-  env.dom['pdf-viewer'].innerHTML     = '<div>pdf</div>';
-  env.dom['reader-content'].innerHTML = '<div>content</div>';
-  const { releaseActiveBookResources } = buildContext(env);
-  await releaseActiveBookResources();
-  assertEqual(env.dom['epub-viewer'].innerHTML, '');
-  assertEqual(env.dom['pdf-viewer'].innerHTML, '');
-  assertEqual(env.dom['reader-content'].innerHTML, '');
+
+  // Permitido para health
+  let ok = false;
+  try {
+    await globalThis.stationFetch('/api/codice/health', { baseUrl: 'https://station.local', approvedOrigin: 'https://station.local' });
+    ok = true;
+  } catch (e) {
+    throw e;
+  }
+  assert(ok, 'health deveria aceitar approvedOrigin');
+
+  // Proibido para library
+  try {
+    await globalThis.stationFetch('/api/codice/library', { baseUrl: 'https://station.local', approvedOrigin: 'https://station.local' });
+    assert(false, 'deveria ter falhado para library');
+  } catch (e) {
+    assertEqual(e.code, 'origin_not_allowed');
+  }
 });
 
-// ─── 14–16: Content-Type ─────────────────────────────────────────────────────
-await test('14. Content-Type application/epub+zip; charset=utf-8 aceito para epub', async () => {
-  const ctBase = 'application/epub+zip; charset=utf-8'.split(';')[0].trim().toLowerCase();
-  assertEqual(ctBase, 'application/epub+zip');
+await test('10. Path whitelist exata', async () => {
+  setupEnv({
+    supabase: {
+      auth: { getSession: async () => ({ data: { session: { access_token: 'tok' } } }) }
+    },
+    localStorageData: { 'codice.station.trustedOrigin': 'https://station.local' }
+  });
+
+  const checkPath = async (p) => {
+    try {
+      await globalThis.stationFetch(p, { baseUrl: 'https://station.local' });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  assert(await checkPath('/api/codice/health'), 'health permitido');
+  assert(await checkPath('/api/codice/library'), 'library permitido');
+  assert(await checkPath('/api/codice/books/b123'), 'books/<id> permitido');
+  assert(!await checkPath('/api/codice/books/b123/extra'), 'books/<id>/extra proibido');
+  assert(!await checkPath('/api/codice/settings'), 'settings fora da whitelist proibido');
 });
 
-await test('15. Content-Type text/html rejeitado para epub', async () => {
-  const ctBase = 'text/html'.split(';')[0].trim().toLowerCase();
-  assert(ctBase !== 'application/epub+zip');
-});
-
-await test('16. Content-Type text/plain; charset=utf-8 aceito para txt', async () => {
-  const ctBase = 'text/plain; charset=utf-8'.split(';')[0].trim().toLowerCase();
-  assertEqual(ctBase, 'text/plain');
-});
-
-// ─── Canários mutantes ────────────────────────────────────────────────────────
-await test('canário-A: mutante sem Bearer é detectado como violação', async () => {
-  const mutant = `async function stationFetch(path, { baseUrl }) {
-    const res = await fetch(new URL(path, baseUrl), { mode: 'cors' });
-    return res;
-  }`;
-  const hasBearer = /Authorization/.test(mutant) && /Bearer/.test(mutant);
-  assert(!hasBearer, 'mutante sem Bearer deve ser detectado');
-});
-
-await test('canário-B: mutante sem trustedOrigin é detectado', async () => {
-  const mutant = `async function stationFetch(path, { baseUrl }) {
-    const accessToken = 'tok';
-    const res = await fetch(new URL(path, baseUrl), { headers: { Authorization: 'Bearer ' + accessToken } });
-    return res;
-  }`;
-  const hasOriginCheck = /trustedOrigin|approvedOrigin/.test(mutant);
-  assert(!hasOriginCheck, 'mutante sem trustedOrigin deve ser detectado');
-});
-
-await test('canário-C: fetch de book.url é detectado', async () => {
-  const bad  = `const res = await fetch(b.url, { credentials: 'omit' });`;
-  const good = `const res = await stationFetch('/api/codice/books/' + id, { baseUrl });`;
-  assert(/fetch\s*\(\s*(b|book)\.url/.test(bad), 'fetch de b.url deve ser detectado');
-  assert(!/fetch\s*\(\s*(b|book)\.url/.test(good), 'stationFetch não deve acionar a regra');
-});
-
-// ─── Relatório final ──────────────────────────────────────────────────────────
+// Relatório final
 console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

@@ -1697,6 +1697,24 @@ async function stationFetch(path, { baseUrl, approvedOrigin = null }, retried = 
     throw err;
   }
 
+  // Whitelist exata do path relativo antes de construir a URL
+  const isHealth = path === '/api/codice/health';
+  const isLibrary = path === '/api/codice/library';
+  const isBook = path.startsWith('/api/codice/books/') && path.slice('/api/codice/books/'.length).trim() !== '' && !path.slice('/api/codice/books/'.length).includes('/');
+
+  if (!isHealth && !isLibrary && !isBook) {
+    const err = new Error(mapStationError('network_error'));
+    err.code = 'network_error';
+    throw err;
+  }
+
+  // Permitir approvedOrigin somente para /api/codice/health
+  if (approvedOrigin && path !== '/api/codice/health') {
+    const err = new Error(mapStationError('origin_not_allowed'));
+    err.code = 'origin_not_allowed';
+    throw err;
+  }
+
   // 3. Verificar origin confiável (approvedOrigin efêmera ou localStorage)
   const requestedOrigin = new URL(baseUrl).origin;
   const trusted = approvedOrigin || localStorage.getItem('codice.station.trustedOrigin');
@@ -2087,9 +2105,14 @@ function showBookOpenError(id, e, retryCallback){
  * Não faz flush de notas — quem chama deve resolver isso antes.
  */
 async function releaseActiveBookResources() {
-  try { state.activeBook?.rendition?.destroy(); } catch {}
-  try { state.activeBook?.book?.destroy();      } catch {}
-  try { state.activeBook?.pdf?.destroy();       } catch {}
+  const rendition = state.activeBook?.rendition;
+  const book = state.activeBook?.book;
+  const pdf = state.activeBook?.pdf;
+
+  state.activeBookNotes = null;
+  state.activeNoteKey   = null;
+  state.activeBook      = null;
+
   const r = document.getElementById('reader');
   if (r) r.onscroll = null;
   const epubV = document.getElementById('epub-viewer');
@@ -2098,9 +2121,10 @@ async function releaseActiveBookResources() {
   if (pdfV)  pdfV.innerHTML  = '';
   const rc    = document.getElementById('reader-content');
   if (rc)    rc.innerHTML    = '';
-  state.activeBookNotes = null;
-  state.activeNoteKey   = null;
-  state.activeBook      = null;
+
+  try { if (rendition) await Promise.resolve(rendition.destroy()); } catch {}
+  try { if (book)      await Promise.resolve(book.destroy()); } catch {}
+  try { if (pdf)       await Promise.resolve(pdf.destroy()); } catch {}
 }
 
 async function closeBook(){
@@ -3336,7 +3360,7 @@ function wire(){
   const btnRefresh = document.getElementById('btn-station-refresh');
   if (btnRefresh) btnRefresh.addEventListener('click', fetchStationLibrary);
   
-  if (btnRemove) btnRemove.addEventListener('click', () => {
+  if (btnRemove) btnRemove.addEventListener('click', async () => {
     localStorage.removeItem('codice.station.baseUrl');
     localStorage.removeItem('codice.station.trustedOrigin');
     state.station.baseUrl = '';
@@ -3346,6 +3370,22 @@ function wire(){
     state.station.generatedAt = null;
     state.station.truncated = false;
     state.station.error = null;
+    // Liberar recursos do livro remoto se aberto
+    if (state.activeBook && state.activeBook.isLocal === false) {
+      try { await flushPendingNotes(); } catch {}
+      await releaseActiveBookResources();
+      setReaderChromeVisible(true);
+      $('#landing').classList.remove('hidden');
+      $('#reader').classList.add('hidden');
+      applyReaderModeClass(null);
+      $('#title-wrap').classList.add('hidden');
+      resetReaderNavState();
+      setReaderInlineNavVisible(false);
+      $('#book-title').textContent = ''; $('#book-author').textContent = '';
+      updateProgress(0);
+      $('#toc-body').innerHTML = '<div class="empty">Abra um livro para ver o sumário.</div>';
+      updateRail();
+    }
     updateStationSettingsUI();
     if(state.activeTab === 'station') renderLibrary();
     toast('Estação removida');
@@ -3621,8 +3661,8 @@ function wire(){
     if(event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION'){
       await refreshUser();
       if(state.user){
-        // Se baseUrl configurada e status era login_required, voltar para configured sem carregar catálogo
-        if (state.station.baseUrl && state.station.status === 'login_required') {
+        // Se baseUrl configurada e status era login_required ou unauthorized, voltar para configured sem carregar catálogo
+        if (state.station.baseUrl && (state.station.status === 'login_required' || state.station.status === 'unauthorized')) {
           state.station.status = 'configured';
           updateStationSettingsUI();
           if (state.panels.library) renderLibrary();

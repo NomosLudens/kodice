@@ -241,33 +241,33 @@ if (indexSrc) {
     b => /trustedOrigin|approvedOrigin/.test(b),
     'stationFetch deve verificar trustedOrigin ou approvedOrigin antes de enviar token');
 
-  // 3. stationFetch deve validar pathname (/api/codice/)
+  // 3. stationFetch deve validar pathname (/api/codice/) e whitelist
   assertFunctionBody(indexSrc, 'stationFetch',
-    b => /\/api\/codice\//.test(b),
-    'stationFetch deve validar pathname contra /api/codice/');
+    b => /\/api\/codice\//.test(b) && /isHealth\s*=/.test(b) && /isLibrary\s*=/.test(b) && /isBook\s*=/.test(b),
+    'stationFetch deve validar pathname e aplicar whitelist (/api/codice/health, /api/codice/library, /api/codice/books/<id>)');
 
-  // 4. fetchStationLibrary deve chamar stationFetch (não fetch direto)
+  // 4. fetchStationLibrary deve chamar stationFetch, sem fetch direto nem approvedOrigin
   assertFunctionBody(indexSrc, 'fetchStationLibrary',
-    b => /stationFetch\s*\(/.test(b) && !/\bfetch\s*\((?!\s*resolvedUrl)/.test(b.replace(/stationFetch/g, '')),
-    'fetchStationLibrary deve chamar stationFetch, não fetch diretamente');
+    b => /stationFetch\s*\(/.test(b) && !/\bfetch\s*\(/.test(b.replace(/stationFetch/g, '')) && !/approvedOrigin/.test(b),
+    'fetchStationLibrary deve chamar stationFetch, não fetch diretamente, e não passar approvedOrigin');
 
   // 5. testStationConnection deve chamar stationFetch
   assertFunctionBody(indexSrc, 'testStationConnection',
-    b => /stationFetch\s*\(/.test(b),
-    'testStationConnection deve chamar stationFetch');
+    b => /stationFetch\s*\(/.test(b) && !/\bfetch\s*\(/.test(b.replace(/stationFetch/g, '')),
+    'testStationConnection deve chamar stationFetch e não fetch diretamente');
 
-  // 6. openStationBook deve chamar stationFetch (não fetch direto de book.url)
+  // 6. openStationBook deve chamar stationFetch, sem fetch direto nem approvedOrigin
   assertFunctionBody(indexSrc, 'openStationBook',
-    b => /stationFetch\s*\(/.test(b) && !/fetch\s*\(\s*(b|book)\.url/.test(b),
-    'openStationBook deve chamar stationFetch e não fetchar book.url diretamente');
+    b => /stationFetch\s*\(/.test(b) && !/\bfetch\s*\(/.test(b.replace(/stationFetch/g, '')) && !/approvedOrigin/.test(b),
+    'openStationBook deve chamar stationFetch, não fetch diretamente, e não passar approvedOrigin');
 
-  // 7. refreshSession limitado a 1 ponto de chamada (excluindo comentários JSDoc)
+  // 7. refreshSession exatamente 1 vez no arquivo inteiro
   const refreshCount = (indexSrc.match(/supabase\.auth\.refreshSession/g) || []).length;
-  if (refreshCount > 1) {
-    fail('index.html', `supabase.auth.refreshSession deve ocorrer no máximo 1 vez (encontrado: ${refreshCount})`, 'stationFetch');
+  if (refreshCount !== 1) {
+    fail('index.html', `supabase.auth.refreshSession deve ocorrer exatamente 1 vez (encontrado: ${refreshCount})`, 'stationFetch');
   }
 
-  // 8. Nenhum fetch de book.url em nenhuma função
+  // 8. Nenhum fetch de book.url em nenhuma parte do arquivo
   if (/fetch\s*\(\s*(b|book)\.url/.test(indexSrc)) {
     fail('index.html', 'Fetch direto de book.url detectado no arquivo', '(global)');
   }
@@ -318,6 +318,41 @@ function selfAssert(cond, msg) {
   const body = extractFunctionBody(src, 'outer');
   selfAssert(body.includes('inner'), 'Extrator deve capturar função aninhada');
   selfAssert(!extractFunctionBody(src, 'nonexistent'), 'Extrator deve retornar string vazia para função inexistente');
+}
+
+// Canário 6: approvedOrigin em consumidor não autorizado é detectado
+{
+  const badBody = `async function fetchStationLibrary() {
+    const res = await stationFetch('/api/codice/library', { baseUrl, approvedOrigin: 'http://foo' });
+  }`;
+  const body = extractFunctionBody(badBody, 'fetchStationLibrary');
+  selfAssert(/approvedOrigin/.test(body), 'approvedOrigin no fetchStationLibrary deve ser detectado');
+}
+
+// Canário 7: fetch direto misturado com stationFetch é detectado
+{
+  const badBody = `async function fetchStationLibrary() {
+    const r1 = await stationFetch('/api/codice/library', { baseUrl });
+    const r2 = await fetch('/some/other/url');
+  }`;
+  const body = extractFunctionBody(badBody, 'fetchStationLibrary');
+  const hasFetchWithoutStationFetch = /\bfetch\s*\(/.test(body.replace(/stationFetch/g, ''));
+  selfAssert(hasFetchWithoutStationFetch, 'fetch direto misturado com stationFetch deve ser detectado');
+}
+
+// Canário 8: whitelist no stationFetch é detectada
+{
+  const goodFetchBody = `
+    const isHealth = path === '/api/codice/health';
+    const isLibrary = path === '/api/codice/library';
+    const isBook = path.startsWith('/api/codice/books/') && !path.slice(18).includes('/');
+  `;
+  const badFetchBody = `
+    // sem whitelist
+  `;
+  const check = b => /isHealth\s*=/.test(b) && /isLibrary\s*=/.test(b) && /isBook\s*=/.test(b);
+  selfAssert(check(goodFetchBody), 'Whitelist deve ser aceita');
+  selfAssert(!check(badFetchBody), 'Ausência de whitelist deve falhar');
 }
 
 if (violations > 0) {
