@@ -30,6 +30,15 @@ function fail(file, rule, excerpt) {
 // Regras textuais
 // ──────────────────────────────────────────────────────────────────────────────
 const TEXT_RULES = [
+  { id: 'ip-127', pattern: /127\.0\.0\.1:4519/g, rule: 'Endereço 127.0.0.1:4519 é proibido' },
+  { id: 'localhost-4519', pattern: /localhost:4519/g, rule: 'Endereço localhost:4519 é proibido' },
+  { id: 'ip-tailscale', pattern: /100\.\d+\.\d+\.\d+/g, rule: 'Endereço Tailscale (100.x) hardcoded proibido' },
+  { id: 'ts-net', pattern: /\.ts\.net/g, rule: 'Hostname .ts.net hardcoded proibido' },
+  { id: 'vite-station-url', pattern: /VITE_STATION_URL/g, rule: 'VITE_STATION_URL proibido (usar configuração via UI)' },
+  { id: 'include-credentials', pattern: /credentials\s*:\s*['"]include['"]/g, rule: 'credentials include proibido na integração Héstia' },
+  { id: 'no-cors-mode', pattern: /mode\s*:\s*['"]no-cors['"]/g, rule: 'mode no-cors proibido na integração Héstia' },
+  { id: 'import-route', pattern: /\/api\/codice\/import/g, rule: 'Rota de importação proibida na integração Héstia' },
+  { id: 'service-worker-cache-station', pattern: /codice\.station\.baseUrl.*serviceWorker/g, rule: 'Service Worker caching de station proibido' },
   // Integração Héstia
   { id: 'hestia-api-base',       pattern: 'HESTIA_API_BASE',         rule: 'Constante HESTIA_API_BASE da integração Héstia removida' },
   { id: 'hestia-localhost',      pattern: '127.0.0.1:4517',          rule: 'Endereço local hardcoded da API Héstia (127.0.0.1:4517)' },

@@ -476,6 +476,10 @@
     <button class="panel-close" data-close-panel="library-panel" aria-label="Fechar">✕</button>
   </div>
   <div class="panel-body">
+        <div style="display:flex;gap:8px;margin-bottom:12px;background:var(--elev);padding:4px;border-radius:10px">
+      <button id="tab-lib-local" class="active" style="flex:1;min-height:36px;border-radius:8px;border:none;font-weight:600;font-size:13px;cursor:pointer;background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.2)">Local</button>
+      <button id="tab-lib-station" style="flex:1;min-height:36px;border-radius:8px;border:none;font-weight:600;font-size:13px;cursor:pointer;background:transparent;color:var(--text-2)">Estação</button>
+    </div>
     <div id="library-filters" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
       <div style="position:relative">
         <input id="lib-search" type="search" placeholder="Buscar por título ou autor…" style="width:100%;min-height:40px;padding:8px 34px 8px 12px;border-radius:10px;background:var(--elev);border:1px solid var(--border);color:var(--text);font-size:14px;outline:none" />
@@ -492,7 +496,10 @@
           <option value="author">Autor (A–Z)</option>
         </select>
       </div>
-      <div id="lib-count" style="color:var(--text-2);font-size:11px"></div>
+      <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+        <div id="lib-count" style="color:var(--text-2);font-size:11px"></div>
+        <button id="btn-station-refresh" style="display:none; padding:4px 8px; font-size:11px; background:var(--elev); border:1px solid var(--border); border-radius:4px; color:var(--text); cursor:pointer">Atualizar</button>
+      </div>
     </div>
     <div id="library-list"></div>
     <div style="margin-top:12px">
@@ -592,6 +599,19 @@
       <div class="setting-label"><b>Conta</b></div>
       <div id="account-box"></div>
       <div id="sync-status-box" style="margin-top:12px"></div>
+    </div>
+        <div class="setting">
+      <div class="setting-label"><b>Estação Privada</b><span id="station-status-label" style="color:var(--text-2);font-size:12px">Não configurada</span></div>
+      <div style="color:var(--text-2);font-size:13px;line-height:1.5;margin-bottom:10px">
+        Conecte a biblioteca read-only de uma Estação.
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <input type="url" id="station-url-input" placeholder="https://..." style="width:100%;min-height:44px;border-radius:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);padding:0 12px;font-size:14px;outline:none" />
+        <div style="display:flex;gap:8px">
+          <button id="btn-station-test" class="primary" style="flex:1;min-height:44px;border-radius:10px;background:var(--orange);color:#fff;font-weight:600;border:none;cursor:pointer">Testar e Salvar</button>
+          <button id="btn-station-remove" style="min-height:44px;padding:0 14px;border-radius:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);font-weight:600;cursor:pointer">Remover</button>
+        </div>
+      </div>
     </div>
     <div class="setting" id="install-setting" style="display:none">
       <div class="setting-label"><b>Instalação</b></div>
@@ -721,6 +741,16 @@ const state = {
   readerChromeVisible: true,
   online: navigator.onLine,
   panels: { library:false, toc:false, notebook:false, settings:false },
+  activeTab: 'local',
+  station: {
+    baseUrl: localStorage.getItem('codice.station.baseUrl') || '',
+    status: localStorage.getItem('codice.station.baseUrl') ? 'configured' : 'unconfigured',
+    books: [],
+    health: null,
+    generatedAt: null,
+    truncated: false,
+    error: null
+  },
   pdfPage: 1,
   user: null,          // {id,email,display_name}
   sync: { pending:0, lastSync:0, lastError:null, syncing:false },
@@ -873,7 +903,7 @@ async function enforceLRUCache(db, bytesNeeded) {
     const tx = db.transaction(['books', 'book_files'], 'readonly');
     const booksReq = tx.objectStore('books').getAll();
     const filesReq = tx.objectStore('book_files').getAllKeys();
-    
+
     tx.oncomplete = () => {
       resolve({
         books: booksReq.result || [],
@@ -1342,42 +1372,100 @@ async function loadLibrary(){
 }
 function renderLibrary(){
   const list = $('#library-list');
-  if(!state.books.length){
-    list.innerHTML = '<div class="empty">Sua biblioteca está vazia.</div>';
+  const isLocal = state.activeTab !== 'station';
+  const sourceBooks = isLocal ? state.books : state.station.books;
+
+  const btnRefresh = document.getElementById('btn-station-refresh');
+  if (btnRefresh) {
+    btnRefresh.style.display = isLocal ? 'none' : '';
+    btnRefresh.disabled =
+      isLocal ||
+      state.station.status === 'unconfigured' ||
+      state.station.status === 'loading';
+  }
+
+  if (!isLocal) {
+    if (state.station.status === 'unconfigured') {
+      list.innerHTML = `<div class="empty">A Estação não está configurada.<br><br><button id="btn-station-goto-settings" style="padding:8px 16px;background:var(--elev);border:1px solid var(--border);border-radius:8px;color:var(--text);cursor:pointer;margin-top:8px">Abrir Ajustes</button></div>`;
+      const c = document.getElementById('lib-count'); if(c) c.textContent='';
+      document.getElementById('btn-station-goto-settings').addEventListener('click', () => openPanel('settings-panel'));
+      return;
+    }
+    if (state.station.status === 'loading') {
+      list.innerHTML = `<div class="empty">Carregando catálogo remoto...</div>`;
+      const c = document.getElementById('lib-count'); if(c) c.textContent='';
+      return;
+    }
+    if (state.station.status === 'error') {
+      list.innerHTML = `<div class="empty">Estação indisponível.<br>${escapeHtml(state.station.error)}<br><br><button id="btn-station-retry" style="padding:8px 16px;background:var(--elev);border:1px solid var(--border);border-radius:8px;color:var(--text);cursor:pointer;margin-top:8px">Tentar novamente</button></div>`;
+      const c = document.getElementById('lib-count'); if(c) c.textContent='';
+      document.getElementById('btn-station-retry').addEventListener('click', fetchStationLibrary);
+      return;
+    }
+  }
+
+  if(!sourceBooks.length){
+    list.innerHTML = '<div class="empty">Nenhum livro encontrado.</div>';
     const c = document.getElementById('lib-count'); if(c) c.textContent='';
     return;
   }
+
   const f = state.libFilter || (state.libFilter = { q:'', type:'all', sort:'recent' });
   const q = f.q.trim().toLowerCase();
-  let items = state.books.filter(b=>{
-    if(f.type!=='all' && (b.type||'').toLowerCase()!==f.type) return false;
+  let items = sourceBooks.filter(b=>{
+    const t = isLocal ? (b.type||'').toLowerCase() : (b.format||'').toLowerCase();
+    if(f.type!=='all' && t!==f.type) return false;
     if(!q) return true;
     return (b.title||'').toLowerCase().includes(q) || (b.author||'').toLowerCase().includes(q);
   });
   if(f.sort==='title') items.sort((a,b)=>(a.title||'').localeCompare(b.title||'','pt',{sensitivity:'base'}));
   else if(f.sort==='author') items.sort((a,b)=>(a.author||'').localeCompare(b.author||'','pt',{sensitivity:'base'}));
-  else items = items.slice().sort((a,b)=>b.addedAt-a.addedAt);
+  else {
+    if(isLocal) {
+      items = items.slice().sort((a,b)=>b.addedAt-a.addedAt);
+    } else {
+      items = items.slice().sort((a,b)=>(new Date(b.modifiedAt).getTime()||0)-(new Date(a.modifiedAt).getTime()||0));
+    }
+  }
+
   const c = document.getElementById('lib-count');
-  if(c) c.textContent = `${items.length} de ${state.books.length} livro${state.books.length===1?'':'s'}`;
+  if(c) {
+    let text = `${items.length} de ${sourceBooks.length} livro${sourceBooks.length===1?'':'s'}`;
+    if(!isLocal && state.station.truncated) text += ' (limite atingido)';
+    c.textContent = text;
+  }
+
   if(!items.length){
     list.innerHTML = '<div class="empty">Nenhum livro encontrado.</div>';
     return;
   }
-  list.innerHTML = items.map(b=>`
-    <div class="book-item" data-id="${b.id}">
-      <div class="cover">${(b.title||'?').slice(0,1).toUpperCase()}</div>
+
+  list.innerHTML = items.map(b=>{
+    const typeStr = (isLocal ? b.type : b.format).toUpperCase();
+    const sizeStr = !isLocal ? ` · ${formatBytes(b.size)}` : '';
+    const authorStr = b.author ? `${escapeHtml(b.author)} · ` : (isLocal ? `${escapeHtml(b.author||'—')} · ` : '');
+    return `
+    <div class="book-item" data-id="${escapeHtml(b.id)}">
+      <div class="cover">${escapeHtml((b.title||'?').slice(0,1).toUpperCase())}</div>
       <div class="meta">
         <div class="bt">${escapeHtml(b.title||'Sem título')}</div>
-        <div class="ba">${escapeHtml(b.author||'—')} · ${b.type.toUpperCase()}</div>
+        <div class="ba">${authorStr}${typeStr}${sizeStr}</div>
       </div>
-      <button class="del" data-del="${b.id}" aria-label="Remover">✕</button>
-    </div>`).join('');
+      ${isLocal ? `<button class="del" data-del="${escapeHtml(b.id)}" aria-label="Remover">✕</button>` : ''}
+    </div>`
+  }).join('');
+
   $$('#library-list .book-item').forEach(el=>{
     el.addEventListener('click', async(e)=>{
       if(e.target.closest('[data-del]')) return;
       const id = el.dataset.id;
-      const opened = await openBook(id);
-      if(opened) closePanel('library-panel');
+      if (isLocal) {
+        const opened = await openBook(id);
+        if(opened) closePanel('library-panel');
+      } else {
+        const opened = await openStationBook(id);
+        if(opened) closePanel('library-panel');
+      }
     });
   });
   $$('#library-list [data-del]').forEach(btn=>{
@@ -1388,6 +1476,16 @@ function renderLibrary(){
     });
   });
 }
+
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes < 0) return '0 B';
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
 
 /* =========================================================
@@ -1454,7 +1552,7 @@ function updateNoteKeySelectorOptions() {
   } else {
     container.classList.add('hidden');
   }
-  
+
   state.activeNoteKey = 'global';
   selector.value = 'global';
 }
@@ -1488,11 +1586,191 @@ function autoSelectNoteKeyFromLocation(loc) {
   }
 }
 
+
+async function getStationFingerprint(url) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(url);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashHex.substring(0, 12);
+}
+
+async function fetchStationLibrary() {
+  if (!state.station.baseUrl) return;
+  state.station.status = 'loading';
+  updateStationSettingsUI();
+  if(state.panels.library) renderLibrary();
+  try {
+    const url = new URL('/api/codice/library', state.station.baseUrl);
+    const res = await fetch(url, { mode: 'cors', credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer' });
+    if (!res.ok) throw new Error('Status ' + res.status);
+    const data = await res.json();
+    if (!data || typeof data !== 'object' || data.schemaVersion !== 1 || !Array.isArray(data.books)) {
+      throw new Error('Contrato (library) incompatível');
+    }
+
+    const validBooks = [];
+    for (const b of data.books) {
+      if (b && typeof b.id === 'string' && b.id.trim() !== '' && typeof b.title === 'string' && ['epub', 'pdf', 'txt'].includes(b.format) && Number.isFinite(b.size) && b.size >= 0 && (b.author === null || typeof b.author === 'string') && (b.modifiedAt === null || (typeof b.modifiedAt === 'string' && Number.isFinite(Date.parse(b.modifiedAt))))) {
+        validBooks.push(b);
+      }
+    }
+
+    state.station.books = validBooks;
+    state.station.truncated = typeof data.truncated === 'boolean' ? data.truncated : false;
+    state.station.generatedAt = data.generatedAt || null;
+    state.station.status = 'online';
+    state.station.error = null;
+  } catch (err) {
+    state.station.status = 'error';
+    state.station.error = err.message || 'Inacessível';
+  }
+  updateStationSettingsUI();
+  if(state.panels.library) renderLibrary();
+}
+
+async function testStationConnection() {
+  const rawUrl = $('#station-url-input').value.trim();
+  if(!rawUrl) return;
+  updateStationSettingsUI('Conectando...');
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      throw new Error('URL inválida (apenas HTTP/HTTPS)');
+    }
+    if (parsed.protocol === 'http:') {
+      const isLocalHost = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+      const isAppLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+      if (!isLocalHost || !isAppLocal) {
+        throw new Error('HTTP é permitido apenas em localhost para ambos Kódice e Estação');
+      }
+    }
+    if (parsed.username || parsed.password || parsed.search || parsed.hash || (parsed.pathname !== '/' && parsed.pathname !== '')) {
+      throw new Error('URL deve conter apenas protocolo e host');
+    }
+
+    parsed.pathname = '/';
+    const normalized = parsed.href.replace(/\/$/, '');
+
+    const healthUrl = new URL('/api/codice/health', normalized);
+    const res = await fetch(healthUrl, { mode: 'cors', credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer' });
+    if (!res.ok) throw new Error('Falha de conexão');
+    const data = await res.json();
+    if (!data || typeof data !== 'object' || data.ok !== true || data.schemaVersion !== 1 || data.libraryAvailable !== true || !Array.isArray(data.formats) || data.formats.some(f => !['epub', 'pdf', 'txt'].includes(f))) {
+      throw new Error('Contrato (health) incompatível');
+    }
+
+    localStorage.setItem('codice.station.baseUrl', normalized);
+    state.station.baseUrl = normalized;
+    state.station.status = 'configured';
+    state.station.books = [];
+    state.station.error = null;
+    state.station.health = data;
+
+    toast('Estação configurada');
+    updateStationSettingsUI();
+    fetchStationLibrary();
+  } catch(e) {
+    toast('Erro: ' + escapeHtml(e.message));
+    state.station.status = 'error';
+    state.station.error = e.message;
+    updateStationSettingsUI();
+  }
+}
+
+function updateStationSettingsUI(overrideStatus) {
+  const lbl = document.getElementById('station-status-label');
+  const inp = document.getElementById('station-url-input');
+  if(!lbl || !inp) return;
+  if(overrideStatus) {
+    lbl.textContent = overrideStatus;
+  } else if(state.station.baseUrl) {
+    inp.value = state.station.baseUrl;
+    lbl.textContent = state.station.status === 'online' ? 'Online' : (state.station.status === 'error' ? 'Indisponível' : (state.station.status === 'configured' ? 'Configurada' : 'Conectando...'));
+  } else {
+    inp.value = '';
+    lbl.textContent = 'Não configurada';
+  }
+}
+
+async function openStationBook(bookId) {
+  try {
+    const book = state.station.books.find(b => b.id === bookId);
+    if (!book) throw new Error('Livro remoto não encontrado');
+
+    toast('Baixando da Estação...');
+    const url = new URL(`/api/codice/books/${encodeURIComponent(book.id)}`, state.station.baseUrl);
+    const res = await fetch(url, { mode: 'cors', credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer' });
+    if (!res.ok) throw new Error('Falha ao baixar livro');
+    const buffer = await res.arrayBuffer();
+
+    const metadata = {
+      id: book.id,
+      title: book.title || 'Sem título',
+      author: book.author || '',
+      type: book.format || 'epub',
+      addedAt: new Date(book.modifiedAt).getTime() || Date.now(),
+      size: book.size || buffer.byteLength
+    };
+
+    const fingerprint = await getStationFingerprint(state.station.baseUrl);
+    const storageId = `station:${fingerprint}:${metadata.id}`;
+    const savedProgress = await dbGet('progress', storageId);
+
+    return await _openBookCommon(metadata, buffer, storageId, metadata.id, savedProgress, () => openStationBook(bookId));
+  } catch(e) {
+    toast('Erro: ' + escapeHtml(e.message));
+    return false;
+  }
+}
+
+
 /* =========================================================
  * Reader — EPUB / PDF / TXT
  * =======================================================*/
-async function openBook(id){
+async function _openBookCommon(metadata, buffer, storageId, sourceId, savedProgress, retryCallback) {
   try{ await flushPendingNotes(); }catch(e){ console.error('[Kódice] Falha ao salvar anotação pendente antes de abrir livro', e); toast('Não foi possível salvar a anotação neste aparelho.'); return false; }
+
+  if(state.activeBook?.rendition){ try{ state.activeBook.rendition.destroy(); }catch(e){} }
+  setReaderChromeVisible(true);
+  const notebook = $('#notebook');
+  if(notebook) notebook.value = '';
+
+  const typeStr = (metadata.type || metadata.format || 'epub').toLowerCase();
+  const isLocal = sourceId === storageId;
+  state.activeBook = { id: storageId, type: typeStr, title: metadata.title, author: metadata.author, toc: [], progress: 0, readerLocation: null, locationsGenerated: false, sourceId, isLocal };
+
+  $('#landing').classList.add('hidden');
+  $('#reader').classList.remove('hidden');
+  applyReaderModeClass(null);
+  $('#title-wrap').classList.remove('hidden');
+  updateRail();
+  resetReaderNavState();
+  $('#book-title').textContent = metadata.title || 'Sem título';
+  $('#book-author').textContent = metadata.author || '';
+  $('#reader-content').classList.add('hidden');
+  $('#epub-viewer').classList.add('hidden');
+  $('#pdf-viewer').classList.add('hidden');
+  applyReaderModeClass(typeStr === 'epub' ? `reader-mode-epub-${state.readingMode}` : `reader-mode-${typeStr}`);
+
+  const notes = await dbGet('notes', storageId);
+  state.activeBookNotes = parseStructuredNotes(notes?.content || '');
+  state.activeNoteKey = 'global';
+  if(notebook) notebook.value = state.activeBookNotes['global'] || '';
+  updateNoteKeySelectorOptions();
+
+  try{
+    await renderBookBuffer(metadata, buffer, savedProgress);
+  }catch(e){
+    console.warn('[Kódice] Falha ao abrir livro', e?.code || e);
+    showBookOpenError(storageId, e, retryCallback);
+  }
+  applySettings(state.settings);
+  return true;
+}
+
+async function openBook(id){
   const b = await getBookMetadata(id);
   if(!b) return false;
   try {
@@ -1507,49 +1785,17 @@ async function openBook(id){
     toast('O arquivo deste livro não foi encontrado neste aparelho.', 5000);
     return false;
   }
-  // cleanup previous
-  if(state.activeBook?.rendition){ try{ state.activeBook.rendition.destroy(); }catch(e){} }
-  setReaderChromeVisible(true);
-  const notebook = $('#notebook');
-  if(notebook) notebook.value = '';
-  state.activeBook = { id, type:b.type, title:b.title, author:b.author, toc:[], progress:0, readerLocation:null, locationsGenerated:false };
-  // UI
-  $('#landing').classList.add('hidden');
-  $('#reader').classList.remove('hidden');
-  applyReaderModeClass(null);
-  $('#title-wrap').classList.remove('hidden');
-  updateRail();
-  resetReaderNavState();
-  $('#book-title').textContent = b.title || 'Sem título';
-  $('#book-author').textContent = b.author || '';
-  $('#reader-content').classList.add('hidden');
-  $('#epub-viewer').classList.add('hidden');
-  $('#pdf-viewer').classList.add('hidden');
-  applyReaderModeClass(b.type === 'epub' ? `reader-mode-epub-${state.readingMode}` : `reader-mode-${b.type}`);
-
-  // load progress + notes
   const saved = await dbGet('progress', id);
-  const notes = await dbGet('notes', id);
-  state.activeBookNotes = parseStructuredNotes(notes?.content || '');
-  state.activeNoteKey = 'global';
-  $('#notebook').value = state.activeBookNotes['global'] || '';
-  updateNoteKeySelectorOptions();
-
-  try{
-    await renderBookBuffer(b, file.data, saved);
-  }catch(e){
-    console.warn('[Kódice] Falha ao abrir livro', e?.code || e);
-    showBookOpenError(id, e);
-  }
-  applySettings(state.settings);
-  return true;
+  return await _openBookCommon(b, file.data, id, id, saved, () => openBook(id));
 }
+
 async function renderBookBuffer(metadata, buffer, saved){
-  if(metadata.type==='epub') {
+  const typeStr = (metadata.type || metadata.format || 'epub').toLowerCase();
+  if(typeStr==='epub') {
     toast('Carregando motor EPUB...', 1500);
     await ensureEpubLibs();
     await renderEpub(buffer, saved);
-  } else if(metadata.type==='pdf') {
+  } else if(typeStr==='pdf') {
     toast('Carregando motor PDF...', 1500);
     await ensurePdfLib();
     await renderPdf(buffer, saved);
@@ -1557,7 +1803,8 @@ async function renderBookBuffer(metadata, buffer, saved){
     await renderTxt(buffer, saved);
   }
 }
-function showBookOpenError(id, e){
+
+function showBookOpenError(id, e, retryCallback){
   $('#landing').classList.add('hidden');
   $('#reader').classList.remove('hidden');
   $('#title-wrap').classList.remove('hidden');
@@ -1568,8 +1815,9 @@ function showBookOpenError(id, e){
   $('#pdf-viewer').classList.add('hidden');
   const msg = /ENGINE|WORKER/.test(e?.code||'') ? 'Não foi possível carregar o motor de leitura. Tente novamente.' : 'Não foi possível abrir este livro. O arquivo pode estar danificado ou o motor de leitura não pôde ser carregado.';
   $('#reader-content').innerHTML = `<div class="empty"><p>${msg}</p><button id="retry-open" style="margin-top:12px;min-height:44px;border-radius:10px;background:var(--orange);color:#fff;padding:0 16px">Tentar novamente</button></div>`;
-  $('#retry-open').onclick = ()=>openBook(id);
+  $('#retry-open').onclick = retryCallback || (()=>openBook(id));
 }
+
 async function closeBook(){
   try{ await flushPendingNotes(); }catch(e){ console.error('[Kódice] Falha ao salvar anotação pendente antes de fechar livro', e); toast('Não foi possível salvar a anotação neste aparelho.'); return; }
   if(state.activeBook?.rendition){ try{ state.activeBook.rendition.destroy(); }catch(e){} }
@@ -2358,7 +2606,7 @@ function exportMarkdown(){
   const b = state.activeBook;
   const title = b?.title || 'Notas Kódice';
   let content = '';
-  
+
   if (state.activeBookNotes) {
     if (state.activeBookNotes.global) {
       content += `## Nota Geral\n\n${state.activeBookNotes.global}\n\n`;
@@ -2717,6 +2965,61 @@ async function beforePwaReload(){
  * =======================================================*/
 function wire(){
   wirePwaUi();
+  updateStationSettingsUI();
+  
+  const tabLocal = document.getElementById('tab-lib-local');
+  const tabStation = document.getElementById('tab-lib-station');
+  const btnTest = document.getElementById('btn-station-test');
+  const btnRemove = document.getElementById('btn-station-remove');
+  
+  if (tabLocal) tabLocal.addEventListener('click', () => {
+    state.activeTab = 'local';
+    tabLocal.classList.add('active');
+    tabLocal.style.background = 'var(--surface)';
+    tabLocal.style.color = 'var(--text)';
+    tabLocal.style.boxShadow = '0 1px 3px rgba(0,0,0,.2)';
+    tabStation.classList.remove('active');
+    tabStation.style.background = 'transparent';
+    tabStation.style.color = 'var(--text-2)';
+    tabStation.style.boxShadow = 'none';
+    renderLibrary();
+  });
+  
+  if (tabStation) tabStation.addEventListener('click', () => {
+    state.activeTab = 'station';
+    tabStation.classList.add('active');
+    tabStation.style.background = 'var(--surface)';
+    tabStation.style.color = 'var(--text)';
+    tabStation.style.boxShadow = '0 1px 3px rgba(0,0,0,.2)';
+    tabLocal.classList.remove('active');
+    tabLocal.style.background = 'transparent';
+    tabLocal.style.color = 'var(--text-2)';
+    tabLocal.style.boxShadow = 'none';
+    if(state.station.status === 'unconfigured') {
+      // do nothing, just render
+    } else if(state.station.status === 'configured' || (state.station.baseUrl && state.station.status === 'error')) {
+      fetchStationLibrary();
+    }
+    renderLibrary();
+  });
+  
+  if (btnTest) btnTest.addEventListener('click', testStationConnection);
+  const btnRefresh = document.getElementById('btn-station-refresh');
+  if (btnRefresh) btnRefresh.addEventListener('click', fetchStationLibrary);
+  
+  if (btnRemove) btnRemove.addEventListener('click', () => {
+    localStorage.removeItem('codice.station.baseUrl');
+    state.station.baseUrl = '';
+    state.station.status = 'unconfigured';
+    state.station.books = [];
+    state.station.health = null;
+    state.station.generatedAt = null;
+    state.station.truncated = false;
+    state.station.error = null;
+    updateStationSettingsUI();
+    if(state.activeTab === 'station') renderLibrary();
+    toast('Estação removida');
+  });
   // (importNotesMarkdown defined above)
   // Auto-backup select
   const abSel = document.getElementById('auto-backup-freq');
