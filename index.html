@@ -1375,6 +1375,15 @@ function renderLibrary(){
   const isLocal = state.activeTab !== 'station';
   const sourceBooks = isLocal ? state.books : state.station.books;
 
+  const btnRefresh = document.getElementById('btn-station-refresh');
+  if (btnRefresh) {
+    btnRefresh.style.display = isLocal ? 'none' : '';
+    btnRefresh.disabled =
+      isLocal ||
+      state.station.status === 'unconfigured' ||
+      state.station.status === 'loading';
+  }
+
   if (!isLocal) {
     if (state.station.status === 'unconfigured') {
       list.innerHTML = `<div class="empty">A Estação não está configurada.<br><br><button id="btn-station-goto-settings" style="padding:8px 16px;background:var(--elev);border:1px solid var(--border);border-radius:8px;color:var(--text);cursor:pointer;margin-top:8px">Abrir Ajustes</button></div>`;
@@ -1416,16 +1425,6 @@ function renderLibrary(){
       items = items.slice().sort((a,b)=>b.addedAt-a.addedAt);
     } else {
       items = items.slice().sort((a,b)=>(new Date(b.modifiedAt).getTime()||0)-(new Date(a.modifiedAt).getTime()||0));
-    }
-  }
-
-  const btnRefresh = document.getElementById('btn-station-refresh');
-  if (btnRefresh) {
-    if (isLocal) {
-      btnRefresh.style.display = 'none';
-    } else {
-      btnRefresh.style.display = '';
-      btnRefresh.disabled = (state.station.status === 'unconfigured' || state.station.status === 'loading');
     }
   }
 
