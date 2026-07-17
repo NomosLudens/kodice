@@ -1070,7 +1070,7 @@ function toggleReaderChrome(){ setReaderChromeVisible(!state.readerChromeVisible
 function applyTheme(t){
   state.theme = t; document.documentElement.dataset.theme = t;
   localStorage.setItem('codice.theme', t); // fallback for first paint
-  $$('#theme-seg button').forEach(b=>b.classList.toggle('active', b.dataset.theme===t));
+  $$a('#theme-seg button').forEach(b=>b.classList.toggle('active', b.dataset.theme===t));
   document.querySelector('meta[name=theme-color]').setAttribute('content', t==='night' ? '#0B0C0F' : '#F5F0E7');
   persistSettings();
   if(typeof updateRail==='function') updateRail();
@@ -1088,7 +1088,7 @@ function scheduleEpubLayoutResize(book, rendition){
 }
 
 function setReadingModeSelector(mode, disabled=false){
-  $$('#reading-mode-seg button').forEach(b=>{
+  $$a('#reading-mode-seg button').forEach(b=>{
     b.classList.toggle('active', b.dataset.readingMode===mode);
     b.disabled = disabled;
   });
@@ -1150,7 +1150,7 @@ function applyCurrentEpubTypography(rendition){
 }
 
 function setEpubAlignmentSelector(){
-  $$('#epub-alignment-seg button').forEach(b=>{
+  $$a('#epub-alignment-seg button').forEach(b=>{
     const active = b.dataset.epubAlignment === state.epubAlignment;
     b.classList.toggle('active', active);
     b.setAttribute('aria-pressed', active ? 'true' : 'false');
@@ -1374,8 +1374,9 @@ function renderLibrary(){
 
   if (!isLocal) {
     if (state.station.status === 'unconfigured') {
-      list.innerHTML = `<div class="empty">A Estação não está configurada.<br><br><button onclick="openPanel('settings-panel')" style="padding:8px 16px;background:var(--elev);border:1px solid var(--border);border-radius:8px;color:var(--text);cursor:pointer;margin-top:8px">Abrir Ajustes</button></div>`;
+      list.innerHTML = `<div class="empty">A Estação não está configurada.<br><br><button id="btn-station-goto-settings" style="padding:8px 16px;background:var(--elev);border:1px solid var(--border);border-radius:8px;color:var(--text);cursor:pointer;margin-top:8px">Abrir Ajustes</button></div>`;
       const c = document.getElementById('lib-count'); if(c) c.textContent='';
+      document.getElementById('btn-station-goto-settings').addEventListener('click', () => openPanel('settings-panel'));
       return;
     }
     if (state.station.status === 'loading') {
@@ -1384,8 +1385,9 @@ function renderLibrary(){
       return;
     }
     if (state.station.status === 'error') {
-      list.innerHTML = `<div class="empty">Estação indisponível.<br>${escapeHtml(state.station.error)}<br><br><button onclick="fetchStationLibrary()" style="padding:8px 16px;background:var(--elev);border:1px solid var(--border);border-radius:8px;color:var(--text);cursor:pointer;margin-top:8px">Tentar novamente</button></div>`;
+      list.innerHTML = `<div class="empty">Estação indisponível.<br>${escapeHtml(state.station.error)}<br><br><button id="btn-station-retry" style="padding:8px 16px;background:var(--elev);border:1px solid var(--border);border-radius:8px;color:var(--text);cursor:pointer;margin-top:8px">Tentar novamente</button></div>`;
       const c = document.getElementById('lib-count'); if(c) c.textContent='';
+      document.getElementById('btn-station-retry').addEventListener('click', fetchStationLibrary);
       return;
     }
   }
@@ -1439,7 +1441,7 @@ function renderLibrary(){
     </div>`
   }).join('');
 
-  $('#library-list .book-item').forEach(el=>{
+  $($('#library-list .book-item')).forEach(el=>{
     el.addEventListener('click', async(e)=>{
       if(e.target.closest('[data-del]')) return;
       const id = el.dataset.id;
@@ -1452,7 +1454,7 @@ function renderLibrary(){
       }
     });
   });
-  $('#library-list [data-del]').forEach(btn=>{
+  $($('#library-list [data-del]')).forEach(btn=>{
     btn.addEventListener('click', async(e)=>{
       e.stopPropagation();
       const id = btn.dataset.del;
@@ -1573,15 +1575,26 @@ async function getStationFingerprint(url) {
 async function fetchStationLibrary() {
   if (!state.station.baseUrl) return;
   state.station.status = 'loading';
+  updateStationSettingsUI();
   if(state.panels.library) renderLibrary();
   try {
     const url = new URL('/api/codice/library', state.station.baseUrl);
     const res = await fetch(url, { mode: 'cors', credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer' });
     if (!res.ok) throw new Error('Status ' + res.status);
     const data = await res.json();
-    if (data.schemaVersion !== 1) throw new Error('Contrato incompatível (schemaVersion !== 1)');
-    state.station.books = data.books || [];
-    state.station.truncated = data.truncated || false;
+    if (!data || typeof data !== 'object' || data.schemaVersion !== 1 || !Array.isArray(data.books)) {
+      throw new Error('Contrato (library) incompatível');
+    }
+
+    const validBooks = [];
+    for (const b of data.books) {
+      if (b && typeof b.id === 'string' && b.id !== '' && typeof b.title === 'string' && ['epub', 'pdf', 'txt'].includes(b.format) && typeof b.size === 'number' && b.size >= 0 && (b.author === null || typeof b.author === 'string') && (b.modifiedAt === null || typeof b.modifiedAt === 'string')) {
+        validBooks.push(b);
+      }
+    }
+
+    state.station.books = validBooks;
+    state.station.truncated = typeof data.truncated === 'boolean' ? data.truncated : false;
     state.station.generatedAt = data.generatedAt || null;
     state.station.status = 'online';
     state.station.error = null;
@@ -1589,49 +1602,61 @@ async function fetchStationLibrary() {
     state.station.status = 'error';
     state.station.error = err.message || 'Inacessível';
   }
+  updateStationSettingsUI();
   if(state.panels.library) renderLibrary();
 }
 
 async function testStationConnection() {
   const rawUrl = $('#station-url-input').value.trim();
   if(!rawUrl) return;
+  updateStationSettingsUI('Conectando...');
   try {
     const parsed = new URL(rawUrl);
-    if (parsed.protocol !== 'https:' && parsed.hostname !== 'localhost' && parsed.hostname !== '127.0.0.1' && !parsed.protocol.startsWith('http')) {
-      throw new Error('URL inválida');
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      throw new Error('URL inválida (apenas HTTP/HTTPS)');
     }
-    parsed.hash = '';
-    parsed.search = '';
-    parsed.username = '';
-    parsed.password = '';
+    if (parsed.protocol === 'http:' && parsed.hostname !== 'localhost' && parsed.hostname !== '127.0.0.1') {
+      throw new Error('HTTP é permitido apenas em localhost');
+    }
+    if (parsed.username || parsed.password || parsed.search || parsed.hash || (parsed.pathname !== '/' && parsed.pathname !== '')) {
+      throw new Error('URL deve conter apenas protocolo e host');
+    }
+
     parsed.pathname = '/';
     const normalized = parsed.href.replace(/\/$/, '');
 
-    // Test health
     const healthUrl = new URL('/api/codice/health', normalized);
     const res = await fetch(healthUrl, { mode: 'cors', credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer' });
     if (!res.ok) throw new Error('Falha de conexão');
     const data = await res.json();
-    if (data.schemaVersion !== 1) throw new Error('Schema versão incompatível');
+    if (!data || typeof data !== 'object' || data.ok !== true || data.schemaVersion !== 1 || data.libraryAvailable !== true || !Array.isArray(data.formats) || data.formats.some(f => !['epub', 'pdf', 'txt'].includes(f))) {
+      throw new Error('Contrato (health) incompatível');
+    }
 
     localStorage.setItem('codice.station.baseUrl', normalized);
     state.station.baseUrl = normalized;
     state.station.books = [];
     state.station.error = null;
-    state.station.status = 'loading';
+    state.station.health = data;
 
     toast('Estação configurada');
     updateStationSettingsUI();
     fetchStationLibrary();
   } catch(e) {
-    toast('Erro: ' + e.message);
+    toast('Erro: ' + escapeHtml(e.message));
+    state.station.status = 'error';
+    state.station.error = e.message;
+    updateStationSettingsUI();
   }
 }
 
-function updateStationSettingsUI() {
-  const lbl = $('#station-status-label');
-  const inp = $('#station-url-input');
-  if(state.station.baseUrl) {
+function updateStationSettingsUI(overrideStatus) {
+  const lbl = document.getElementById('station-status-label');
+  const inp = document.getElementById('station-url-input');
+  if(!lbl || !inp) return;
+  if(overrideStatus) {
+    lbl.textContent = overrideStatus;
+  } else if(state.station.baseUrl) {
     inp.value = state.station.baseUrl;
     lbl.textContent = state.station.status === 'online' ? 'Online' : (state.station.status === 'error' ? 'Indisponível' : 'Conectando...');
   } else {
@@ -1645,7 +1670,6 @@ async function openStationBook(bookId) {
     const book = state.station.books.find(b => b.id === bookId);
     if (!book) throw new Error('Livro remoto não encontrado');
 
-    // Mostra status visual de loading se houver (o app original usa toast ou só espera)
     toast('Baixando da Estação...');
     const url = new URL(`/api/codice/books/${encodeURIComponent(book.id)}`, state.station.baseUrl);
     const res = await fetch(url, { mode: 'cors', credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer' });
@@ -1662,71 +1686,107 @@ async function openStationBook(bookId) {
     };
 
     const fingerprint = await getStationFingerprint(state.station.baseUrl);
-    await openBookFromBuffer(metadata, buffer, false, fingerprint);
+    const storageId = `station:${fingerprint}:${metadata.id}`;
+    const savedProgress = await dbGet('progress', storageId);
+
+    return await _openBookCommon(metadata, buffer, storageId, metadata.id, savedProgress, () => openStationBook(bookId));
   } catch(e) {
     toast('Erro: ' + escapeHtml(e.message));
+    return false;
   }
 }
+
 
 /* =========================================================
  * Reader — EPUB / PDF / TXT
  * =======================================================*/
-async function openBookFromBuffer(metadata, buffer, isLocal, stationFingerprint) {
-  if (state.activeBook) {
-    await flushPendingNotes();
-    if(state.activeBook.rendition) {
-      try { state.activeBook.rendition.destroy(); } catch(e){}
-    }
-  }
+async function _openBookCommon(metadata, buffer, storageId, sourceId, savedProgress, retryCallback) {
+  try{ await flushPendingNotes(); }catch(e){ console.error('[Kódice] Falha ao salvar anotação pendente antes de abrir livro', e); toast('Não foi possível salvar a anotação neste aparelho.'); return false; }
 
-  $('#book-title').textContent = metadata.title;
-  $('#book-author').textContent = metadata.author || '';
+  if(state.activeBook?.rendition){ try{ state.activeBook.rendition.destroy(); }catch(e){} }
+  setReaderChromeVisible(true);
+  const notebook = $('#notebook');
+  if(notebook) notebook.value = '';
 
-  const actualId = isLocal ? metadata.id : `station:${stationFingerprint}:${metadata.id}`;
-
-  state.activeBook = { ...metadata, data: buffer, rendition: null, pdf: null, toc: [], progress: null, isLocal, resolvedId: actualId };
+  const typeStr = (metadata.type || metadata.format || 'epub').toLowerCase();
+  const isLocal = sourceId === storageId;
+  state.activeBook = { id: storageId, type: typeStr, title: metadata.title, author: metadata.author, toc: [], progress: 0, readerLocation: null, locationsGenerated: false, sourceId, isLocal };
 
   $('#landing').classList.add('hidden');
   $('#reader').classList.remove('hidden');
-  $('#topbar .icon').classList.add('hidden');
-  $('#btn-rail-mobile').classList.remove('hidden');
+  applyReaderModeClass(null);
   $('#title-wrap').classList.remove('hidden');
+  updateRail();
+  resetReaderNavState();
+  $('#book-title').textContent = metadata.title || 'Sem título';
+  $('#book-author').textContent = metadata.author || '';
+  $('#reader-content').classList.add('hidden');
+  $('#epub-viewer').classList.add('hidden');
+  $('#pdf-viewer').classList.add('hidden');
+  applyReaderModeClass(typeStr === 'epub' ? `reader-mode-epub-${state.readingMode}` : `reader-mode-${typeStr}`);
 
-  const b = document.body;
-  b.classList.remove('reader-has-chrome');
-  updateReaderChromeClasses();
+  const notes = await dbGet('notes', storageId);
+  state.activeBookNotes = parseStructuredNotes(notes?.content || '');
+  state.activeNoteKey = 'global';
+  if(notebook) notebook.value = state.activeBookNotes['global'] || '';
+  updateNoteKeySelectorOptions();
 
-  await renderBookBuffer(metadata, buffer, true);
+  try{
+    await renderBookBuffer(metadata, buffer, savedProgress);
+  }catch(e){
+    console.warn('[Kódice] Falha ao abrir livro', e?.code || e);
+    showBookOpenError(storageId, e, retryCallback);
+  }
+  applySettings(state.settings);
   return true;
 }
 
 async function openBook(id){
-  try{
-    const db = await openDB();
-    const tx = db.transaction(['books','book_files'], 'readonly');
-    const store = tx.objectStore('books');
-    const record = await requestToPromise(store.get(id));
-    if(!record) throw new Error('Livro não encontrado no catálogo');
-    const metadata = bookMetadataFromRecord(record);
-    const fStore = tx.objectStore('book_files');
-    const file = await requestToPromise(fStore.get(id));
-    if(!file || !file.data) throw new Error(BOOK_FILE_MISSING);
-
-    await openBookFromBuffer(metadata, file.data, true, null);
-
-    record.accessedAt = Date.now();
-    const txw = db.transaction('books','readwrite');
-    txw.objectStore('books').put(record);
-    return true;
-  }catch(e){
-    console.error(e);
-    if(e.message === BOOK_FILE_MISSING){
-      showBookOpenError(id, true);
-    }else{
-      showBookOpenError(id, false);
-    }
+  const b = await getBookMetadata(id);
+  if(!b) return false;
+  try {
+    b.accessedAt = Date.now();
+    await dbPut('books', b);
+  } catch (e) {
+    console.warn('[Kódice] Falha ao atualizar timestamp de acesso do livro.', e);
+  }
+  let file = await getBookFile(id);
+  if(!file?.data){
+    console.warn('[Kódice]', 'BOOK_FILE_MISSING', id);
+    toast('O arquivo deste livro não foi encontrado neste aparelho.', 5000);
     return false;
   }
+  const saved = await dbGet('progress', id);
+  return await _openBookCommon(b, file.data, id, id, saved, () => openBook(id));
+}
+
+async function renderBookBuffer(metadata, buffer, saved){
+  const typeStr = (metadata.type || metadata.format || 'epub').toLowerCase();
+  if(typeStr==='epub') {
+    toast('Carregando motor EPUB...', 1500);
+    await ensureEpubLibs();
+    await renderEpub(buffer, saved);
+  } else if(typeStr==='pdf') {
+    toast('Carregando motor PDF...', 1500);
+    await ensurePdfLib();
+    await renderPdf(buffer, saved);
+  } else {
+    await renderTxt(buffer, saved);
+  }
+}
+
+function showBookOpenError(id, e, retryCallback){
+  $('#landing').classList.add('hidden');
+  $('#reader').classList.remove('hidden');
+  $('#title-wrap').classList.remove('hidden');
+  resetReaderNavState();
+  setReaderInlineNavVisible(false);
+  $('#reader-content').classList.remove('hidden');
+  $('#epub-viewer').classList.add('hidden');
+  $('#pdf-viewer').classList.add('hidden');
+  const msg = /ENGINE|WORKER/.test(e?.code||'') ? 'Não foi possível carregar o motor de leitura. Tente novamente.' : 'Não foi possível abrir este livro. O arquivo pode estar danificado ou o motor de leitura não pôde ser carregado.';
+  $('#reader-content').innerHTML = `<div class="empty"><p>${msg}</p><button id="retry-open" style="margin-top:12px;min-height:44px;border-radius:10px;background:var(--orange);color:#fff;padding:0 16px">Tentar novamente</button></div>`;
+  $('#retry-open').onclick = retryCallback || (()=>openBook(id));
 }
 
 async function closeBook(){
@@ -1956,7 +2016,7 @@ function renderToc(){
   const toc = state.activeBook?.toc || [];
   if(!toc.length){ body.innerHTML = '<div class="empty">Este documento não possui sumário.</div>'; return; }
   body.innerHTML = toc.map((t,i)=>`<button class="toc-item depth-${Math.min(t.depth,2)}" data-i="${i}">${escapeHtml(t.label)}</button>`).join('');
-  $$('#toc-body .toc-item').forEach(btn=>{
+  $$a('#toc-body .toc-item').forEach(btn=>{
     btn.addEventListener('click', async()=>{
       const idx = +btn.dataset.i;
       const item = state.activeBook.toc[idx];
@@ -2347,7 +2407,7 @@ async function pullRemoteData(){
     }
     // If viewing a book with fresh notes, reload textarea
     if(state.activeBook){
-      const n = await dbGet('notes', state.activeBook.resolvedId);
+      const n = await dbGet('notes', state.activeBook.id);
       if(n){
         state.activeBookNotes = parseStructuredNotes(n.content || '');
         const currentVal = state.activeBookNotes[state.activeNoteKey || 'global'] || '';
@@ -2747,7 +2807,7 @@ async function importBackup(file){
     if(sAdded){ await loadLocalSettings(); }
     // Se o livro aberto teve notas atualizadas, refletir
     if(state.activeBook){
-      const n = await dbGet('notes', state.activeBook.resolvedId);
+      const n = await dbGet('notes', state.activeBook.id);
       if(n){
         state.activeBookNotes = parseStructuredNotes(n.content || '');
         const currentVal = state.activeBookNotes[state.activeNoteKey || 'global'] || '';
@@ -2829,7 +2889,7 @@ async function importNotesMarkdown(file){
       if(supabase && state.user){
         queueSync('notes', { book_id: bookId, content, updated_at: new Date(ts).toISOString() });
       }
-      if(state.activeBook && state.activeBook.resolvedId === bookId){
+      if(state.activeBook && state.activeBook.id === bookId){
         state.activeBookNotes = parseStructuredNotes(content);
         const currentVal = state.activeBookNotes[state.activeNoteKey || 'global'] || '';
         const ta = $('#notebook'); if(ta) ta.value = currentVal;
@@ -2876,6 +2936,58 @@ async function beforePwaReload(){
  * =======================================================*/
 function wire(){
   wirePwaUi();
+  
+  const tabLocal = document.getElementById('tab-lib-local');
+  const tabStation = document.getElementById('tab-lib-station');
+  const btnTest = document.getElementById('btn-station-test');
+  const btnRemove = document.getElementById('btn-station-remove');
+  
+  if (tabLocal) tabLocal.addEventListener('click', () => {
+    state.activeTab = 'local';
+    tabLocal.classList.add('active');
+    tabLocal.style.background = 'var(--surface)';
+    tabLocal.style.color = 'var(--text)';
+    tabLocal.style.boxShadow = '0 1px 3px rgba(0,0,0,.2)';
+    tabStation.classList.remove('active');
+    tabStation.style.background = 'transparent';
+    tabStation.style.color = 'var(--text-2)';
+    tabStation.style.boxShadow = 'none';
+    renderLibrary();
+  });
+  
+  if (tabStation) tabStation.addEventListener('click', () => {
+    state.activeTab = 'station';
+    tabStation.classList.add('active');
+    tabStation.style.background = 'var(--surface)';
+    tabStation.style.color = 'var(--text)';
+    tabStation.style.boxShadow = '0 1px 3px rgba(0,0,0,.2)';
+    tabLocal.classList.remove('active');
+    tabLocal.style.background = 'transparent';
+    tabLocal.style.color = 'var(--text-2)';
+    tabLocal.style.boxShadow = 'none';
+    if(state.station.status === 'unconfigured') {
+      // do nothing, just render
+    } else if(state.station.baseUrl && state.station.status !== 'online') {
+      fetchStationLibrary();
+    }
+    renderLibrary();
+  });
+  
+  if (btnTest) btnTest.addEventListener('click', testStationConnection);
+  
+  if (btnRemove) btnRemove.addEventListener('click', () => {
+    localStorage.removeItem('codice.station.baseUrl');
+    state.station.baseUrl = '';
+    state.station.status = 'unconfigured';
+    state.station.books = [];
+    state.station.health = null;
+    state.station.generatedAt = null;
+    state.station.truncated = false;
+    state.station.error = null;
+    updateStationSettingsUI();
+    if(state.activeTab === 'station') renderLibrary();
+    toast('Estação removida');
+  });
   // (importNotesMarkdown defined above)
   // Auto-backup select
   const abSel = document.getElementById('auto-backup-freq');
@@ -2949,7 +3061,7 @@ function wire(){
   });
 
   // Sidebar nav
-  $$('#sidebar .nav-btn').forEach(btn=>{
+  $$a('#sidebar .nav-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const k = btn.dataset.nav;
       if(k==='prev') nav('prev');
@@ -2976,20 +3088,20 @@ function wire(){
   $('#sidebar-scrim').addEventListener('click', ()=>document.getElementById('app').classList.remove('rail-open'));
 
   // Close panels
-  $$('[data-close-panel]').forEach(b=>b.addEventListener('click',()=>closePanel(b.dataset.closePanel)));
+  $$a('[data-close-panel]').forEach(b=>b.addEventListener('click',()=>closePanel(b.dataset.closePanel)));
   $('#backdrop').addEventListener('click', closeAllPanels);
 
   setReadingModeSelector(state.readingMode === 'scrolled' ? 'scrolled' : 'paginated');
   setEpubAlignmentSelector();
 
   // Theme
-  $$('#theme-seg button').forEach(b=>b.addEventListener('click',()=>{
+  $$a('#theme-seg button').forEach(b=>b.addEventListener('click',()=>{
     applyTheme(b.dataset.theme);
     if(state.activeBook?.rendition){ try{ state.activeBook.rendition.themes.select(state.theme); }catch(e){} }
   }));
 
-  $$('#reading-mode-seg button').forEach(b=>b.addEventListener('click', async()=>{ await applyReadingMode(b.dataset.readingMode); }));
-  $$('#epub-alignment-seg button').forEach(b=>b.addEventListener('click', async()=>{ await setEpubAlignment(b.dataset.epubAlignment); }));
+  $$a('#reading-mode-seg button').forEach(b=>b.addEventListener('click', async()=>{ await applyReadingMode(b.dataset.readingMode); }));
+  $$a('#epub-alignment-seg button').forEach(b=>b.addEventListener('click', async()=>{ await setEpubAlignment(b.dataset.epubAlignment); }));
 
   // Settings sliders
   $('#fs').addEventListener('input', e=>applySettings({fs:+e.target.value}));
@@ -3005,7 +3117,7 @@ function wire(){
     state.activeBookNotes[state.activeNoteKey || 'global'] = $('#notebook').value || '';
     const content = serializeStructuredNotes(state.activeBookNotes);
     await saveNotesNow({
-      bookId: state.activeBook.resolvedId,
+      bookId: state.activeBook.id,
       content,
       updatedAt: Date.now(),
       notify: false
@@ -3109,9 +3221,9 @@ function wire(){
   $('#auth-close').addEventListener('click', closeAuth);
   $('#auth-overlay').addEventListener('click', e=>{ if(e.target.id==='auth-overlay') closeAuth(); });
   let authMode = 'signin';
-  $$('.auth-tabs button').forEach(b=>b.addEventListener('click',()=>{
+  $$a('.auth-tabs button').forEach(b=>b.addEventListener('click',()=>{
     authMode = b.dataset.tab;
-    $$('.auth-tabs button').forEach(x=>x.classList.toggle('active', x===b));
+    $$a('.auth-tabs button').forEach(x=>x.classList.toggle('active', x===b));
     $('#auth-title').textContent = authMode==='signup' ? 'Criar conta' : 'Entrar';
     $('#auth-submit').textContent = authMode==='signup' ? 'Criar conta' : 'Entrar';
     $('#field-name').style.display = authMode==='signup' ? 'block' : 'none';
