@@ -81,49 +81,102 @@ function checkJsRegressions(filePath, content) {
   });
 }
 
+function extractFunctionBody(content, fnName) {
+  const re = new RegExp(`(?:async\\s+)?function\\s+${fnName}\\s*\\([^)]*\\)\\s*\\{`);
+  const match = re.exec(content);
+  if (!match) return null;
+
+  let braceCount = 0;
+  let started = false;
+  let startIdx = match.index + match[0].length - 1;
+
+  for (let i = startIdx; i < content.length; i++) {
+    if (content[i] === '{') {
+      braceCount++;
+      started = true;
+    } else if (content[i] === '}') {
+      braceCount--;
+    }
+
+    if (started && braceCount === 0) {
+      return content.slice(startIdx, i + 1);
+    }
+  }
+  return null;
+}
+
+function countFunctionDefinitions(content, fnName) {
+  const re = new RegExp(`(?:async\\s+)?function\\s+${fnName}\\s*\\(`, 'g');
+  const matches = content.match(re);
+  return matches ? matches.length : 0;
+}
+
 function checkStationBoundary(filePath, content) {
   if (!filePath.endsWith('index.html')) return;
   if (filePath.startsWith('dist/') || filePath.startsWith('dist\\')) return;
 
-  const fns = ['fetchStationLibrary', 'testStationConnection', 'openStationBook', 'renderBookBuffer', 'showBookOpenError'];
-  fns.forEach(fn => {
-    if (!content.includes(fn)) {
-      fail(filePath, 'Função Station obrigatória ausente', fn);
+  const requiredFns = [
+    'fetchStationLibrary', 'testStationConnection', 'openStationBook',
+    '_openBookCommon', 'renderBookBuffer', 'showBookOpenError',
+    'renderEpub', 'renderPdf', 'renderTxt'
+  ];
+
+  requiredFns.forEach(fn => {
+    const count = countFunctionDefinitions(content, fn);
+    if (count === 0) {
+      fail(filePath, 'Função obrigatória ausente', fn);
+    } else if (count > 1) {
+      fail(filePath, 'Função definida mais de uma vez', fn);
     }
   });
 
-  const stationStartIdx = content.indexOf('function getStationFingerprint');
-  const readerStartIdx = content.indexOf('function renderBookBuffer');
-
-  if (stationStartIdx === -1 || readerStartIdx === -1 || stationStartIdx >= readerStartIdx) {
-    fail(filePath, 'Bloco Station não encontrado ou delimitação falhou', 'getStationFingerprint ... renderBookBuffer');
-    return;
-  }
-
-  const stationBlock = content.slice(stationStartIdx, readerStartIdx);
-
-  const rules = [
-    { p: /\b(POST|PUT|PATCH|DELETE)\b/i, msg: 'Method HTTP proibido' },
-    { p: /credentials\s*:\s*['"]include['"]/i, msg: 'credentials include' },
-    { p: /mode\s*:\s*['"]no-cors['"]/i, msg: 'mode no-cors' },
+  const fullRules = [
+    { p: /\\b(POST|PUT|PATCH|DELETE)\\b/i, msg: 'Method HTTP proibido' },
+    { p: /credentials\\s*:\\s*['"]include['"]/i, msg: 'credentials include' },
+    { p: /mode\\s*:\\s*['"]no-cors['"]/i, msg: 'mode no-cors' },
     { p: /Authorization/i, msg: 'Authorization header' },
     { p: /cookie/i, msg: 'cookies' },
-    { p: /\bputBook\b/, msg: 'putBook' },
-    { p: /\bdbPut\b/, msg: 'dbPut' },
-    { p: /\bcaches\.open\b/, msg: 'caches.open' },
-    { p: /\bcache\.put\b/, msg: 'cache.put' },
-    { p: /\bCacheStorage\b/, msg: 'CacheStorage' },
-    { p: /\bshowSaveFilePicker\b/, msg: 'showSaveFilePicker' },
-    { p: /\bserviceWorker\.postMessage\b/, msg: 'serviceWorker.postMessage' },
+    { p: /\\bputBook\\b/, msg: 'putBook' },
+    { p: /\\bdbPut\\b/, msg: 'dbPut' },
+    { p: /\\bcaches\\.open\\b/, msg: 'caches.open' },
+    { p: /\\bcache\\.put\\b/, msg: 'cache.put' },
+    { p: /\\bCacheStorage\\b/, msg: 'CacheStorage' },
+    { p: /\\bshowSaveFilePicker\\b/, msg: 'showSaveFilePicker' },
+    { p: /\\bserviceWorker\\.postMessage\\b/, msg: 'serviceWorker.postMessage' },
     { p: /['"]book_files['"]/, msg: 'persistência em book_files' },
     { p: /['"]books['"]/, msg: 'persistência no catálogo books' }
   ];
 
-  rules.forEach(r => {
-    if (r.p.test(stationBlock)) {
-      fail(filePath, `Fronteira Station violada no bloco Station: ${r.msg}`, r.p.source);
+  ['fetchStationLibrary', 'testStationConnection', 'openStationBook'].forEach(fn => {
+    const body = extractFunctionBody(content, fn);
+    if (body) {
+      fullRules.forEach(r => {
+        if (r.p.test(body)) {
+          fail(filePath, `Fronteira Station violada na função ${fn}: ${r.msg}`, r.p.source);
+        }
+      });
     }
   });
+
+  const openBookCommonRules = [
+    { p: /\\bputBook\\b/, msg: 'putBook' },
+    { p: /\\bdbPut\\b/, msg: 'dbPut' },
+    { p: /\\bcaches\\.open\\b/, msg: 'caches.open' },
+    { p: /\\bcache\\.put\\b/, msg: 'cache.put' },
+    { p: /\\bCacheStorage\\b/, msg: 'CacheStorage' },
+    { p: /\\bshowSaveFilePicker\\b/, msg: 'showSaveFilePicker' },
+    { p: /\\bserviceWorker\\.postMessage\\b/, msg: 'serviceWorker.postMessage' },
+    { p: /['"]book_files['"]/, msg: 'persistência em book_files' }
+  ];
+
+  const openBookBody = extractFunctionBody(content, '_openBookCommon');
+  if (openBookBody) {
+    openBookCommonRules.forEach(r => {
+      if (r.p.test(openBookBody)) {
+        fail(filePath, `Fronteira violada em _openBookCommon: ${r.msg}`, r.p.source);
+      }
+    });
+  }
 }
 
 function checkLegalAndFormats(filePath, content) {

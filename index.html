@@ -1587,66 +1587,6 @@ function autoSelectNoteKeyFromLocation(loc) {
 }
 
 
-async function _openBookCommon(metadata, buffer, storageId, sourceId, savedProgress, retryCallback) {
-  try{ await flushPendingNotes(); }catch(e){ console.error('[Kódice] Falha ao salvar anotação pendente antes de abrir livro', e); toast('Não foi possível salvar a anotação neste aparelho.'); return false; }
-
-  if(state.activeBook?.rendition){ try{ state.activeBook.rendition.destroy(); }catch(e){} }
-  setReaderChromeVisible(true);
-  const notebook = $('#notebook');
-  if(notebook) notebook.value = '';
-
-  const typeStr = (metadata.type || metadata.format || 'epub').toLowerCase();
-  const isLocal = sourceId === storageId;
-  state.activeBook = { id: storageId, type: typeStr, title: metadata.title, author: metadata.author, toc: [], progress: 0, readerLocation: null, locationsGenerated: false, sourceId, isLocal };
-
-  $('#landing').classList.add('hidden');
-  $('#reader').classList.remove('hidden');
-  applyReaderModeClass(null);
-  $('#title-wrap').classList.remove('hidden');
-  updateRail();
-  resetReaderNavState();
-  $('#book-title').textContent = metadata.title || 'Sem título';
-  $('#book-author').textContent = metadata.author || '';
-  $('#reader-content').classList.add('hidden');
-  $('#epub-viewer').classList.add('hidden');
-  $('#pdf-viewer').classList.add('hidden');
-  applyReaderModeClass(typeStr === 'epub' ? `reader-mode-epub-${state.readingMode}` : `reader-mode-${typeStr}`);
-
-  const notes = await dbGet('notes', storageId);
-  state.activeBookNotes = parseStructuredNotes(notes?.content || '');
-  state.activeNoteKey = 'global';
-  if(notebook) notebook.value = state.activeBookNotes['global'] || '';
-  updateNoteKeySelectorOptions();
-
-  try{
-    await renderBookBuffer(metadata, buffer, savedProgress);
-  }catch(e){
-    console.warn('[Kódice] Falha ao abrir livro', e?.code || e);
-    showBookOpenError(storageId, e, retryCallback);
-  }
-  applySettings(state.settings);
-  return true;
-}
-
-async function openBook(id){
-  const b = await getBookMetadata(id);
-  if(!b) return false;
-  try {
-    b.accessedAt = Date.now();
-    await dbPut('books', b);
-  } catch (e) {
-    console.warn('[Kódice] Falha ao atualizar timestamp de acesso do livro.', e);
-  }
-  let file = await getBookFile(id);
-  if(!file?.data){
-    console.warn('[Kódice]', BOOK_FILE_MISSING, id);
-    toast('O arquivo deste livro não foi encontrado neste aparelho.', 5000);
-    return false;
-  }
-  const saved = await dbGet('progress', id);
-  return await _openBookCommon(b, file.data, id, id, saved, () => openBook(id));
-}
-
 async function getStationFingerprint(url) {
   const encoder = new TextEncoder();
   const data = encoder.encode(url);
@@ -1789,6 +1729,66 @@ async function openStationBook(bookId) {
 /* =========================================================
  * Reader — EPUB / PDF / TXT
  * =======================================================*/
+async function _openBookCommon(metadata, buffer, storageId, sourceId, savedProgress, retryCallback) {
+  try{ await flushPendingNotes(); }catch(e){ console.error('[Kódice] Falha ao salvar anotação pendente antes de abrir livro', e); toast('Não foi possível salvar a anotação neste aparelho.'); return false; }
+
+  if(state.activeBook?.rendition){ try{ state.activeBook.rendition.destroy(); }catch(e){} }
+  setReaderChromeVisible(true);
+  const notebook = $('#notebook');
+  if(notebook) notebook.value = '';
+
+  const typeStr = (metadata.type || metadata.format || 'epub').toLowerCase();
+  const isLocal = sourceId === storageId;
+  state.activeBook = { id: storageId, type: typeStr, title: metadata.title, author: metadata.author, toc: [], progress: 0, readerLocation: null, locationsGenerated: false, sourceId, isLocal };
+
+  $('#landing').classList.add('hidden');
+  $('#reader').classList.remove('hidden');
+  applyReaderModeClass(null);
+  $('#title-wrap').classList.remove('hidden');
+  updateRail();
+  resetReaderNavState();
+  $('#book-title').textContent = metadata.title || 'Sem título';
+  $('#book-author').textContent = metadata.author || '';
+  $('#reader-content').classList.add('hidden');
+  $('#epub-viewer').classList.add('hidden');
+  $('#pdf-viewer').classList.add('hidden');
+  applyReaderModeClass(typeStr === 'epub' ? `reader-mode-epub-${state.readingMode}` : `reader-mode-${typeStr}`);
+
+  const notes = await dbGet('notes', storageId);
+  state.activeBookNotes = parseStructuredNotes(notes?.content || '');
+  state.activeNoteKey = 'global';
+  if(notebook) notebook.value = state.activeBookNotes['global'] || '';
+  updateNoteKeySelectorOptions();
+
+  try{
+    await renderBookBuffer(metadata, buffer, savedProgress);
+  }catch(e){
+    console.warn('[Kódice] Falha ao abrir livro', e?.code || e);
+    showBookOpenError(storageId, e, retryCallback);
+  }
+  applySettings(state.settings);
+  return true;
+}
+
+async function openBook(id){
+  const b = await getBookMetadata(id);
+  if(!b) return false;
+  try {
+    b.accessedAt = Date.now();
+    await dbPut('books', b);
+  } catch (e) {
+    console.warn('[Kódice] Falha ao atualizar timestamp de acesso do livro.', e);
+  }
+  let file = await getBookFile(id);
+  if(!file?.data){
+    console.warn('[Kódice]', BOOK_FILE_MISSING, id);
+    toast('O arquivo deste livro não foi encontrado neste aparelho.', 5000);
+    return false;
+  }
+  const saved = await dbGet('progress', id);
+  return await _openBookCommon(b, file.data, id, id, saved, () => openBook(id));
+}
+
 async function renderBookBuffer(metadata, buffer, saved){
   const typeStr = (metadata.type || metadata.format || 'epub').toLowerCase();
   if(typeStr==='epub') {

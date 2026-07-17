@@ -25,7 +25,7 @@ O Kódice é um web app/PWA publicado no Cloudflare com arquitetura local-first.
 | B03 | Navegar na aba Estação | Exibição correta da estação configurada | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 | B04 | Testar importação por seletor | Livro importado sem erros | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 | B05 | Testar drag and drop | Arquivo solto abre corretamente | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
-| B06 | Testar painéis UI | Painéis abrem e fecham perfeitamente | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| B06 | Testar painéis UI | Cada painel abre após um clique e fecha após um clique, sem erro no console | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 | B07 | Testar teclado | Atalhos e navegação funcionais | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 
 ## C. Mobile
@@ -33,7 +33,7 @@ O Kódice é um web app/PWA publicado no Cloudflare com arquitetura local-first.
 | ID | Verificação | Resultado esperado | Obtido | Status | Evidência | Incidente |
 |---|---|---|---|---|---|---|
 | C01 | Viewport móvel | Interface responsiva carrega corretamente | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
-| C02 | Interação por toque | Toques reconhecidos sem lentidão | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| C02 | Interação por toque | Cada controle responde a um único toque e não dispara ação duplicada | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 | C03 | Sidebar e painéis | Abrem e fecham com animação suave | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 | C04 | Teclado virtual | Layout adapta-se sem sobreposições | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 | C05 | Mudança de orientação | UI refaz layout corretamente | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
@@ -62,7 +62,7 @@ O Kódice é um web app/PWA publicado no Cloudflare com arquitetura local-first.
 | ID | Verificação | Resultado esperado | Obtido | Status | Evidência | Incidente |
 |---|---|---|---|---|---|---|
 | F01 | Importar arquivo válido | PDF carrega com sucesso | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
-| F02 | Navegar páginas | Renderização fluida | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| F02 | Navegar páginas | Página anterior e próxima são exibidas sem tela vazia ou erro no console | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 | F03 | Criar nota | Nota vinculada à página correta | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 | F04 | Realizar reload | PDF reabre na mesma página com nota | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 
@@ -79,21 +79,28 @@ O Kódice é um web app/PWA publicado no Cloudflare com arquitetura local-first.
 
 | ID | Verificação | Resultado esperado | Obtido | Status | Evidência | Incidente |
 |---|---|---|---|---|---|---|
+| H00 | abrir sem variáveis Supabase | app local funciona | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 | H01 | Testar login com Supabase | Login bem-sucedido | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
-| H02 | Sincronizar dados online | Sincronização sem falhas de integridade | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
-| H03 | Monitorar pacotes HTTP | Nenhuma URL Station é trafegada | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
-| H04 | Sincronizar catálogo | Nenhum arquivo da Station é enviado à nuvem | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
-| H05 | Falha de rede provocada | Recuperação limpa ao voltar online | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| H02 | logout remove sessão visual | sessão visual removida | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| H03 | Sincronizar dados online | Sincronização sem falhas de integridade | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| H04 | Monitorar pacotes HTTP | Nenhuma URL Station é trafegada | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| H05 | Sincronizar catálogo | Nenhum arquivo da Station é enviado à nuvem | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| H06 | Falha de rede provocada | Recuperação limpa ao voltar online | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 
 ## I. Station via web app
 
 | ID | Verificação | Resultado esperado | Obtido | Status | Evidência | Incidente |
 |---|---|---|---|---|---|---|
+| I00 | Station não configurada | mensagem correta e Atualizar desativado | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 | I01 | Informar URL HTTPS real | Health check (HTTP 200 e schema válido) | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 | I02 | Acionar "Atualizar" | Catálogo obtido com sucesso | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 | I03 | Abrir EPUB, PDF, TXT remoto | Download direto no Reader sem gravação local persistente | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 | I04 | Testar CORS em domínio diferente | Requisição CORS aprovada | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 | I05 | Station indisponível abruptamente | App relata erro de rede isolado, biblioteca local mantida | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| I06 | remover Station | baseUrl e catálogo são limpos, biblioteca local permanece | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| I07 | criar nota e progresso em livro remoto | nota e progresso criados | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| I08 | recarregar página e reabrir livro remoto | livro remoto reaberto com sucesso | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| I09 | bytes remotos são baixados novamente | bytes remotos são baixados novamente; nota e progresso permanecem | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 
 ## J. Privacidade no navegador
 
