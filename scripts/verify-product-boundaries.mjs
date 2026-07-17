@@ -355,6 +355,29 @@ function selfAssert(cond, msg) {
   selfAssert(!check(badFetchBody), 'Ausência de whitelist deve falhar');
 }
 
+// Canário 9: assertFunctionBody e extractFunctionBody detectam mutações estruturais
+{
+  let failed = false;
+  const originalFail = fail;
+  // eslint-disable-next-line no-global-assign
+  fail = () => { failed = true; };
+  try {
+    const mutantSrc = `
+      function fetchStationLibrary() {
+        // fetch direto mutante
+        fetch('/some/path');
+      }
+    `;
+    assertFunctionBody(mutantSrc, 'fetchStationLibrary',
+      b => /stationFetch\s*\(/.test(b) && !/\bfetch\s*\(/.test(b.replace(/stationFetch/g, '')),
+      'Erro esperado no mutante');
+    selfAssert(failed, 'Canário 9: assertFunctionBody deveria ter detectado o mutante');
+  } finally {
+    // eslint-disable-next-line no-global-assign
+    fail = originalFail;
+  }
+}
+
 if (violations > 0) {
   console.error(`\nProduct boundary verification FAILED: ${violations} violation(s) found.`);
   process.exit(1);

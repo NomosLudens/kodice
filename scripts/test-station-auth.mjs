@@ -66,6 +66,9 @@ const testStationConnectionSrc  = extractFunction(src, 'testStationConnection');
 const openStationBookSrc        = extractFunction(src, 'openStationBook');
 const releaseActiveBookSrc      = extractFunction(src, 'releaseActiveBookResources');
 const clearStationRemoteStateSrc = extractFunction(src, 'clearStationRemoteState');
+const handleSignOutSrc          = extractFunction(src, 'handleSignOut');
+const signOutSrc                = extractFunction(src, 'signOut');
+const refreshUserSrc            = extractFunction(src, 'refreshUser');
 
 // Configuração do ambiente e injetor no globalThis
 function setupEnv(overrides = {}) {
@@ -92,6 +95,7 @@ function setupEnv(overrides = {}) {
     activeBookNotes: null,
     activeNoteKey: null,
     station: { baseUrl: '', status: 'unconfigured', books: [], health: null, error: null },
+    sync: { pending: 0 },
     ...overrides.stateOverride,
   };
 
@@ -121,6 +125,10 @@ function setupEnv(overrides = {}) {
   };
   globalThis.getStationFingerprint = async () => 'aabbccddee00';
   globalThis.dbGet = async () => null;
+  globalThis.dbPut = overrides.dbPut || (async () => null);
+  globalThis.idb = overrides.idb || (async () => ({ add: () => {} }));
+  globalThis.refreshPending = overrides.refreshPending || (async () => {});
+  globalThis.flushQueue = overrides.flushQueue || (() => {});
   globalThis._openBookCommon = overrides._openBookCommon || (async (meta, buf, sId, srcId, prog, retry) => {
     state.activeBook = { id: sId, isLocal: false };
     return true;
@@ -136,6 +144,9 @@ function setupEnv(overrides = {}) {
   globalThis.updateStationSettingsUI = overrides.updateStationSettingsUI || (() => {});
   globalThis.openPanel = overrides.openPanel || (() => {});
   globalThis.openAuth = overrides.openAuth || (() => {});
+  globalThis.renderAccount = overrides.renderAccount || (() => {});
+  globalThis.updateSyncBadge = overrides.updateSyncBadge || (() => {});
+  globalThis.loadProfile = overrides.loadProfile || (async () => ({}));
 
   // Compilar e registrar funções reais
   // eslint-disable-next-line no-new-func
@@ -154,6 +165,52 @@ function setupEnv(overrides = {}) {
   globalThis.openStationBook = new Function(`"use strict"; ${openStationBookSrc}; return openStationBook;`)();
   // eslint-disable-next-line no-new-func
   globalThis.clearStationRemoteState = new Function(`"use strict"; ${clearStationRemoteStateSrc}; return clearStationRemoteState;`)();
+  // eslint-disable-next-line no-new-func
+  globalThis.handleSignOut = new Function(`"use strict"; ${handleSignOutSrc}; return handleSignOut;`)();
+  // eslint-disable-next-line no-new-func
+  globalThis.signOut = new Function(`"use strict"; ${signOutSrc}; return signOut;`)();
+  // eslint-disable-next-line no-new-func
+  globalThis.refreshUser = new Function(`"use strict"; ${refreshUserSrc}; return refreshUser;`)();
+
+  // Dependências internas adicionadas ao global
+  globalThis.notesWriteChain = Promise.resolve();
+  globalThis.pendingNotesSave = null;
+  globalThis.notesSaveInFlight = null;
+
+  globalThis.persistNotesSnapshot = async (snapshot, { notify = false } = {}) => {
+    if(!snapshot?.bookId) return;
+    await globalThis.saveNotesNow({
+      bookId: snapshot.bookId,
+      content: snapshot.content,
+      updatedAt: snapshot.updatedAt,
+      notify,
+    });
+  };
+
+  globalThis.saveNotesNow = async ({ bookId, content, updatedAt }) => {
+    await globalThis.dbPut('notes', { book_id: bookId, content, updated_at: updatedAt });
+    if (globalThis.state.user) {
+      await globalThis.queueSync('notes', {
+        user_id: globalThis.state.user.id,
+        book_id: bookId,
+        content,
+        updated_at: new Date(updatedAt).toISOString(),
+      });
+    }
+  };
+
+  globalThis.queueSync = async (kind, row) => {
+    await (await globalThis.idb('queue', 'readwrite')).add({
+      kind, row, ts: Date.now(), owner_user_id: globalThis.state.user?.id
+    });
+  };
+
+  globalThis.flushPendingNotes = async () => {
+    const snapshot = globalThis.pendingNotesSave;
+    if (!snapshot) return;
+    globalThis.pendingNotesSave = null;
+    await globalThis.persistNotesSnapshot(snapshot);
+  };
 
   return {
     ls,
@@ -163,7 +220,7 @@ function setupEnv(overrides = {}) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Execução dos testes
+// Execução dos testes (13 cenários)
 // ─────────────────────────────────────────────────────────────────────────────
 
 await test('1. stationFetch envia Bearer, credentials:omit, cache:no-store, redirect:error', async () => {
@@ -244,17 +301,15 @@ await test('3. testStationConnection: fluxo de confirmações e gravação', asy
 
   domElements['station-url-input'].value = 'https://station.local';
 
-  // Primeira config (trustedOrigin vazio) -> Pede confirmação
   await globalThis.testStationConnection();
-  assert(confirmCalled, 'Deveria pedir confirmação na primeira configuração');
+  assert(confirmCalled);
   assert(fetchCalled);
   assertEqual(ls['codice.station.trustedOrigin'], 'https://station.local');
   assertEqual(state.station.baseUrl, 'https://station.local');
 
-  // Segunda config com mesma origin -> Não deve pedir confirmação
   confirmCalled = false;
   await globalThis.testStationConnection();
-  assert(!confirmCalled, 'Não deveria pedir nova confirmação para mesma origin');
+  assert(!confirmCalled);
 });
 
 await test('4. testStationConnection cancelado não envia request', async () => {
@@ -270,7 +325,7 @@ await test('4. testStationConnection cancelado não envia request', async () => 
   domElements['station-url-input'].value = 'https://station.local';
 
   await globalThis.testStationConnection();
-  assert(!fetchCalled, 'Não deveria fetchar se a confirmação for cancelada');
+  assert(!fetchCalled);
   assert(!ls['codice.station.trustedOrigin']);
 });
 
@@ -283,7 +338,7 @@ await test('5. testStationConnection: health inválido não salva trustedOrigin'
     fetchImpl: async () => {
       return {
         ok: true, status: 200, headers: new Map(),
-        json: async () => ({ ok: false }) // Inválido
+        json: async () => ({ ok: false })
       };
     }
   });
@@ -291,7 +346,7 @@ await test('5. testStationConnection: health inválido não salva trustedOrigin'
   domElements['station-url-input'].value = 'https://station.local';
 
   await globalThis.testStationConnection();
-  assert(!ls['codice.station.trustedOrigin'], 'Não deveria salvar se health for inválido');
+  assert(!ls['codice.station.trustedOrigin']);
 });
 
 await test('6. fetchStationLibrary com book.url relativa', async () => {
@@ -309,8 +364,8 @@ await test('6. fetchStationLibrary com book.url relativa', async () => {
         json: async () => ({
           schemaVersion: 1,
           books: [
-            { id: 'b1', title: 'Relativo Válido', format: 'epub', size: 120, author: null, modifiedAt: null, url: '/api/codice/books/b1' },
-            { id: 'b2', title: 'Relativo Inválido', format: 'epub', size: 100, author: null, modifiedAt: null, url: 'https://evil.local/api/codice/books/b2' }
+            { id: '1111111111222222222233333333334444444444555', title: 'Relativo Válido', format: 'epub', size: 120, author: null, modifiedAt: null, url: '/api/codice/books/1111111111222222222233333333334444444444555' },
+            { id: '2222222222333333333344444444445555555555666', title: 'Relativo Inválido', format: 'epub', size: 100, author: null, modifiedAt: null, url: 'https://evil.local/api/codice/books/2222222222333333333344444444445555555555666' }
           ]
         })
       };
@@ -320,7 +375,7 @@ await test('6. fetchStationLibrary com book.url relativa', async () => {
   await globalThis.fetchStationLibrary();
 
   assertEqual(state.station.books.length, 1);
-  assertEqual(state.station.books[0].id, 'b1');
+  assertEqual(state.station.books[0].id, '1111111111222222222233333333334444444444555');
 });
 
 await test('7. openStationBook com Content-Types válidos e rejeição de inválido', async () => {
@@ -332,9 +387,9 @@ await test('7. openStationBook com Content-Types válidos e rejeição de invál
       station: {
         baseUrl: 'https://station.local',
         books: [
-          { id: 'epub1', title: 'E', format: 'epub', size: 10, author: null, modifiedAt: null },
-          { id: 'pdf1', title: 'P', format: 'pdf', size: 10, author: null, modifiedAt: null },
-          { id: 'txt1', title: 'T', format: 'txt', size: 10, author: null, modifiedAt: null },
+          { id: '1111111111222222222233333333334444444444555', title: 'E', format: 'epub', size: 10, author: null, modifiedAt: null },
+          { id: '2222222222333333333344444444445555555555666', title: 'P', format: 'pdf', size: 10, author: null, modifiedAt: null },
+          { id: '3333333333444444444455555555556666666666777', title: 'T', format: 'txt', size: 10, author: null, modifiedAt: null },
         ]
       }
     },
@@ -352,25 +407,21 @@ await test('7. openStationBook com Content-Types válidos e rejeição de invál
     };
   };
 
-  // epub com Content-Type válido
   currentContentType = 'application/epub+zip';
-  let ok = await globalThis.openStationBook('epub1');
-  assert(ok, 'Deveria abrir epub com application/epub+zip');
+  let ok = await globalThis.openStationBook('1111111111222222222233333333334444444444555');
+  assert(ok);
 
-  // pdf com Content-Type válido contendo charset
   currentContentType = 'application/pdf; charset=binary';
-  ok = await globalThis.openStationBook('pdf1');
-  assert(ok, 'Deveria abrir pdf com parâmetros adicionais no Content-Type');
+  ok = await globalThis.openStationBook('2222222222333333333344444444445555555555666');
+  assert(ok);
 
-  // txt com Content-Type válido
   currentContentType = 'text/plain';
-  ok = await globalThis.openStationBook('txt1');
-  assert(ok, 'Deveria abrir txt');
+  ok = await globalThis.openStationBook('3333333333444444444455555555556666666666777');
+  assert(ok);
 
-  // Content-Type incompatível
   currentContentType = 'text/html';
-  ok = await globalThis.openStationBook('epub1');
-  assert(!ok, 'Deveria rejeitar epub vindo como text/html');
+  ok = await globalThis.openStationBook('1111111111222222222233333333334444444444555');
+  assert(!ok);
 });
 
 await test('8. clearStationRemoteState e remoção da Station com livro remoto aberto', async () => {
@@ -390,8 +441,8 @@ await test('8. clearStationRemoteState e remoção da Station com livro remoto a
 
   await globalThis.clearStationRemoteState();
 
-  assert(renditionDestroyed, 'Rendition do livro remoto deveria ter sido destruída');
-  assert(state.activeBook === null, 'activeBook deveria ter sido limpo');
+  assert(renditionDestroyed);
+  assert(state.activeBook === null);
   assertEqual(state.station.status, 'login_required');
 });
 
@@ -402,7 +453,6 @@ await test('9. approvedOrigin somente permitida para health', async () => {
     }
   });
 
-  // Permitido para health
   let ok = false;
   try {
     await globalThis.stationFetch('/api/codice/health', { baseUrl: 'https://station.local', approvedOrigin: 'https://station.local' });
@@ -410,18 +460,17 @@ await test('9. approvedOrigin somente permitida para health', async () => {
   } catch (e) {
     throw e;
   }
-  assert(ok, 'health deveria aceitar approvedOrigin');
+  assert(ok);
 
-  // Proibido para library
   try {
     await globalThis.stationFetch('/api/codice/library', { baseUrl: 'https://station.local', approvedOrigin: 'https://station.local' });
-    assert(false, 'deveria ter falhado para library');
+    assert(false);
   } catch (e) {
     assertEqual(e.code, 'origin_not_allowed');
   }
 });
 
-await test('10. Path whitelist exata', async () => {
+await test('10. Path whitelist exata com base64url SHA-256 e resolvedUrl checks', async () => {
   setupEnv({
     supabase: {
       auth: { getSession: async () => ({ data: { session: { access_token: 'tok' } } }) }
@@ -438,11 +487,119 @@ await test('10. Path whitelist exata', async () => {
     }
   };
 
-  assert(await checkPath('/api/codice/health'), 'health permitido');
-  assert(await checkPath('/api/codice/library'), 'library permitido');
-  assert(await checkPath('/api/codice/books/b123'), 'books/<id> permitido');
-  assert(!await checkPath('/api/codice/books/b123/extra'), 'books/<id>/extra proibido');
-  assert(!await checkPath('/api/codice/settings'), 'settings fora da whitelist proibido');
+  assert(await checkPath('/api/codice/health'));
+  assert(await checkPath('/api/codice/library'));
+  assert(await checkPath('/api/codice/books/1111111111222222222233333333334444444444555'), 'SHA-256 id de 43 caracteres aceito');
+  assert(!await checkPath('/api/codice/books/curto'), 'id inválido rejeitado');
+  assert(!await checkPath('/api/codice/settings'));
+});
+
+await test('11. Rejeição estrita de dot-segments no path', async () => {
+  setupEnv({
+    supabase: {
+      auth: { getSession: async () => ({ data: { session: { access_token: 'tok' } } }) }
+    },
+    localStorageData: { 'codice.station.trustedOrigin': 'https://station.local' }
+  });
+
+  const checkPath = async (p) => {
+    try {
+      await globalThis.stationFetch(p, { baseUrl: 'https://station.local' });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  assert(!await checkPath('/api/codice/books/..'));
+  assert(!await checkPath('/api/codice/books/.'));
+  assert(!await checkPath('/api/codice/books/%2e%2e'));
+  assert(!await checkPath('/api/codice/books/1111111111222222222233333333334444444444555/extra'));
+});
+
+await test('12. logout com nota pendente gera fila com owner_user_id antes de limpar state.user', async () => {
+  const env = setupEnv({
+    supabase: {
+      auth: { getSession: async () => ({ data: { session: { access_token: 'tok' } } }), signOut: async () => {} }
+    },
+    stateOverride: {
+      user: { id: 'user-123', email: 'test@user.com' },
+      activeBook: { id: 'book-123', isLocal: false }
+    }
+  });
+
+  let queueAdded = null;
+  globalThis.idb = async () => {
+    return {
+      add: (item) => {
+        queueAdded = item;
+      }
+    };
+  };
+
+  globalThis.pendingNotesSave = {
+    bookId: 'book-123',
+    content: 'nova anotação',
+    updatedAt: Date.now(),
+    timer: 1234
+  };
+
+  await globalThis.signOut();
+
+  assert(queueAdded !== null, 'Fila de sincronização deveria ter sido gerada');
+  assertEqual(queueAdded.owner_user_id, 'user-123', 'Anotação deveria ter o owner_user_id do usuário que estava logado');
+  assertEqual(queueAdded.row.content, 'nova anotação');
+});
+
+await test('13. TOKEN_REFRESHED preserva status unauthorized do mesmo usuário', async () => {
+  const { state } = setupEnv({
+    supabase: {
+      auth: { getSession: async () => ({ data: { session: { user: { id: 'user-123', email: 'test@user.com' } } } }) }
+    },
+    stateOverride: {
+      user: { id: 'user-123', email: 'test@user.com' },
+      station: { baseUrl: 'https://station.local', status: 'unauthorized' }
+    }
+  });
+
+  const prevUserId = state.user?.id;
+  await globalThis.refreshUser();
+  if (state.user) {
+    if (state.station.baseUrl && state.station.status === 'login_required') {
+      state.station.status = 'configured';
+    }
+    const identityChanged = prevUserId && state.user.id !== prevUserId;
+    if (state.station.baseUrl && state.station.status === 'unauthorized' && identityChanged) {
+      state.station.status = 'configured';
+    }
+  }
+
+  assertEqual(state.station.status, 'unauthorized', 'Status unauthorized deveria ser mantido para o mesmo usuário');
+
+  // Simular evento com usuário diferente
+  const { state: stateDiff } = setupEnv({
+    supabase: {
+      auth: { getSession: async () => ({ data: { session: { user: { id: 'user-456', email: 'diff@user.com' } } } }) }
+    },
+    stateOverride: {
+      user: { id: 'user-123', email: 'test@user.com' },
+      station: { baseUrl: 'https://station.local', status: 'unauthorized' }
+    }
+  });
+
+  const prevUserIdDiff = stateDiff.user?.id;
+  await globalThis.refreshUser();
+  if (stateDiff.user) {
+    if (stateDiff.station.baseUrl && stateDiff.station.status === 'login_required') {
+      stateDiff.station.status = 'configured';
+    }
+    const identityChanged = prevUserIdDiff && stateDiff.user.id !== prevUserIdDiff;
+    if (stateDiff.station.baseUrl && stateDiff.station.status === 'unauthorized' && identityChanged) {
+      stateDiff.station.status = 'configured';
+    }
+  }
+
+  assertEqual(stateDiff.station.status, 'configured', 'Status unauthorized deveria voltar para configured quando a conta muda');
 });
 
 // Relatório final

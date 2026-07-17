@@ -1700,9 +1700,18 @@ async function stationFetch(path, { baseUrl, approvedOrigin = null }, retried = 
   // Whitelist exata do path relativo antes de construir a URL
   const isHealth = path === '/api/codice/health';
   const isLibrary = path === '/api/codice/library';
-  const isBook = path.startsWith('/api/codice/books/') && path.slice('/api/codice/books/'.length).trim() !== '' && !path.slice('/api/codice/books/'.length).includes('/');
+  const bookPrefix = '/api/codice/books/';
+  const bookId = path.startsWith(bookPrefix) ? path.slice(bookPrefix.length) : '';
+  const isBook = /^[A-Za-z0-9_-]{43}$/.test(bookId);
 
   if (!isHealth && !isLibrary && !isBook) {
+    const err = new Error(mapStationError('network_error'));
+    err.code = 'network_error';
+    throw err;
+  }
+
+  // Adicionalmente, rejeitar qualquer tentativa de dot-segments ou escapes no path bruto
+  if (path.includes('.') || path.includes('%2e') || path.includes('%2E') || path.includes('%2f') || path.includes('%2F')) {
     const err = new Error(mapStationError('network_error'));
     err.code = 'network_error';
     throw err;
@@ -1727,7 +1736,7 @@ async function stationFetch(path, { baseUrl, approvedOrigin = null }, retried = 
   // 4. Construir URL resolvida e validar
   const resolvedUrl = new URL(path, baseUrl);
   if (resolvedUrl.origin !== requestedOrigin || resolvedUrl.username || resolvedUrl.password ||
-      resolvedUrl.search || resolvedUrl.hash || !resolvedUrl.pathname.startsWith('/api/codice/')) {
+      resolvedUrl.search || resolvedUrl.hash || resolvedUrl.pathname !== path) {
     const err = new Error(mapStationError('network_error'));
     err.code = 'network_error';
     throw err;
@@ -2841,6 +2850,11 @@ async function clearStationRemoteState() {
  * Chamado tanto por signOut() quanto por onAuthStateChange('SIGNED_OUT').
  */
 async function handleSignOut() {
+  try {
+    await flushPendingNotes();
+  } catch (e) {
+    console.warn('[Kódice] Falha ao descarregar notas pendentes no handleSignOut:', e);
+  }
   state.user = null;
   await clearStationRemoteState();
   renderAccount();
@@ -2848,6 +2862,12 @@ async function handleSignOut() {
 }
 
 async function signOut(){
+  try {
+    await flushPendingNotes();
+  } catch (e) {
+    toast('Não foi possível salvar a anotação antes de sair.');
+    return;
+  }
   if(supabase) await supabase.auth.signOut();
   await handleSignOut();
   toast('Você saiu da conta');
@@ -3659,10 +3679,18 @@ function wire(){
   // React to auth state
   if(supabase) supabase.auth.onAuthStateChange(async (event)=>{
     if(event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION'){
+      const prevUserId = state.user?.id;
       await refreshUser();
       if(state.user){
-        // Se baseUrl configurada e status era login_required ou unauthorized, voltar para configured sem carregar catálogo
-        if (state.station.baseUrl && (state.station.status === 'login_required' || state.station.status === 'unauthorized')) {
+        // Se baseUrl configurada e status era login_required, voltar para configured
+        if (state.station.baseUrl && state.station.status === 'login_required') {
+          state.station.status = 'configured';
+          updateStationSettingsUI();
+          if (state.panels.library) renderLibrary();
+        }
+        // unauthorized só volta para configured se a identidade realmente mudar
+        const identityChanged = prevUserId && state.user.id !== prevUserId;
+        if (state.station.baseUrl && state.station.status === 'unauthorized' && identityChanged) {
           state.station.status = 'configured';
           updateStationSettingsUI();
           if (state.panels.library) renderLibrary();
@@ -3671,6 +3699,11 @@ function wire(){
         flushQueue();
       }
     } else if(event === 'SIGNED_OUT'){
+      try {
+        await flushPendingNotes();
+      } catch (e) {
+        console.warn('[Kódice] Falha ao descarregar notas pendentes no SIGNED_OUT espontâneo:', e);
+      }
       await handleSignOut();
     }
   });
