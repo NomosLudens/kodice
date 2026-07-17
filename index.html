@@ -1503,25 +1503,9 @@ async function openBook(id){
   }
   let file = await getBookFile(id);
   if(!file?.data){
-    const isLegal = id === 'cf88' || id === 'cpc2015';
-    if (isLegal) {
-      toast('Baixando documento da base jurídica...', 3000);
-      try {
-        const res = await fetch(`/legal/${id}.epub`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const buffer = await res.arrayBuffer();
-        await putBook(b, buffer);
-        file = { id, data: buffer };
-      } catch (e) {
-        console.error('[Kódice] Falha ao baixar EPUB da base jurídica', e);
-        toast('Erro de rede: não foi possível obter o documento offline.', 5000);
-        return false;
-      }
-    } else {
-      console.warn('[Kódice]', BOOK_FILE_MISSING, id);
-      toast('O arquivo deste livro não foi encontrado neste aparelho.', 5000);
-      return false;
-    }
+    console.warn('[Kódice]', BOOK_FILE_MISSING, id);
+    toast('O arquivo deste livro não foi encontrado neste aparelho.', 5000);
+    return false;
   }
   // cleanup previous
   if(state.activeBook?.rendition){ try{ state.activeBook.rendition.destroy(); }catch(e){} }
