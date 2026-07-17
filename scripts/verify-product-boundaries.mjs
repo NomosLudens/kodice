@@ -47,6 +47,7 @@ const TEXT_RULES = [
   { id: 'station-token-localstorage',    pattern: /localStorage\.[^;]*access.?token/i,           rule: 'Token de acesso da Station em localStorage proibido' },
   { id: 'station-token-sessionstorage',  pattern: /sessionStorage\.[^;]*access.?token/i,         rule: 'Token de acesso da Station em sessionStorage proibido' },
   { id: 'station-token-indexeddb',       pattern: /dbPut[^;]*access.?token/i,                    rule: 'Token de acesso da Station em IndexedDB proibido' },
+  { id: 'station-book-url-fetch',        pattern: /fetch\s*\(\s*b\.url|fetch\s*\(\s*book\.url/,   rule: 'Fetch direto de book.url proibido — usar stationFetch com path construído' },
   // Integração Héstia
   { id: 'hestia-api-base',       pattern: 'HESTIA_API_BASE',         rule: 'Constante HESTIA_API_BASE da integração Héstia removida' },
   { id: 'hestia-localhost',      pattern: '127.0.0.1:4517',          rule: 'Endereço local hardcoded da API Héstia (127.0.0.1:4517)' },
@@ -184,6 +185,140 @@ if (existsSync('dist')) walkDir('dist', TEXT_RULES);
 
 checkForbiddenFiles();
 checkLegalCorpusRoot();
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Verificações estruturais do código fonte: corpos de função
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * extractFunctionBody — extrator balanceado de função por nome.
+ * Encontra o { do corpo após equilibrar os parênteses da assinatura.
+ * Evita capturar object-destructuring nos parâmetros como corpo.
+ * Reutiliza o padrão do PR #14.
+ */
+function extractFunctionBody(src, name) {
+  const sig = new RegExp(`(?:async\\s+)?function\\s+${name}\\s*\\(`);
+  const start = src.search(sig);
+  if (start === -1) return '';
+  // Equilibrar parênteses da lista de parâmetros
+  const parenOpen = src.indexOf('(', start);
+  if (parenOpen === -1) return '';
+  let parenDepth = 0, j = parenOpen;
+  while (j < src.length) {
+    if (src[j] === '(') parenDepth++;
+    else if (src[j] === ')') { parenDepth--; if (parenDepth === 0) break; }
+    j++;
+  }
+  // O corpo começa no { após o )
+  const bodyStart = src.indexOf('{', j);
+  if (bodyStart === -1) return '';
+  let depth = 0, i = bodyStart;
+  while (i < src.length) {
+    if (src[i] === '{') depth++;
+    else if (src[i] === '}') { depth--; if (depth === 0) break; }
+    i++;
+  }
+  return src.slice(bodyStart, i + 1);
+}
+
+function assertFunctionBody(src, funcName, check, rule) {
+  const body = extractFunctionBody(src, funcName);
+  if (!body) { fail('index.html', `Função ${funcName} não encontrada`, rule); return; }
+  if (!check(body)) fail('index.html', rule, `(no corpo de ${funcName})`);
+}
+
+let indexSrc = '';
+try { indexSrc = readFileSync('index.html', 'utf8'); } catch {}
+
+if (indexSrc) {
+  // 1. Bearer obrigatório dentro de stationFetch
+  assertFunctionBody(indexSrc, 'stationFetch',
+    b => /Authorization/.test(b) && /Bearer/.test(b),
+    'stationFetch deve conter Authorization: Bearer');
+
+  // 2. stationFetch deve verificar trustedOrigin (via approvedOrigin || localStorage)
+  assertFunctionBody(indexSrc, 'stationFetch',
+    b => /trustedOrigin|approvedOrigin/.test(b),
+    'stationFetch deve verificar trustedOrigin ou approvedOrigin antes de enviar token');
+
+  // 3. stationFetch deve validar pathname (/api/codice/)
+  assertFunctionBody(indexSrc, 'stationFetch',
+    b => /\/api\/codice\//.test(b),
+    'stationFetch deve validar pathname contra /api/codice/');
+
+  // 4. fetchStationLibrary deve chamar stationFetch (não fetch direto)
+  assertFunctionBody(indexSrc, 'fetchStationLibrary',
+    b => /stationFetch\s*\(/.test(b) && !/\bfetch\s*\((?!\s*resolvedUrl)/.test(b.replace(/stationFetch/g, '')),
+    'fetchStationLibrary deve chamar stationFetch, não fetch diretamente');
+
+  // 5. testStationConnection deve chamar stationFetch
+  assertFunctionBody(indexSrc, 'testStationConnection',
+    b => /stationFetch\s*\(/.test(b),
+    'testStationConnection deve chamar stationFetch');
+
+  // 6. openStationBook deve chamar stationFetch (não fetch direto de book.url)
+  assertFunctionBody(indexSrc, 'openStationBook',
+    b => /stationFetch\s*\(/.test(b) && !/fetch\s*\(\s*(b|book)\.url/.test(b),
+    'openStationBook deve chamar stationFetch e não fetchar book.url diretamente');
+
+  // 7. refreshSession limitado a 1 ponto de chamada (excluindo comentários JSDoc)
+  const refreshCount = (indexSrc.match(/supabase\.auth\.refreshSession/g) || []).length;
+  if (refreshCount > 1) {
+    fail('index.html', `supabase.auth.refreshSession deve ocorrer no máximo 1 vez (encontrado: ${refreshCount})`, 'stationFetch');
+  }
+
+  // 8. Nenhum fetch de book.url em nenhuma função
+  if (/fetch\s*\(\s*(b|book)\.url/.test(indexSrc)) {
+    fail('index.html', 'Fetch direto de book.url detectado no arquivo', '(global)');
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Canários — comprovam que as regras acima detectam implementações mutantes
+// ──────────────────────────────────────────────────────────────────────────────
+function selfAssert(cond, msg) {
+  if (!cond) { console.error(`CANARY FAIL: ${msg}`); process.exit(2); }
+}
+
+// Canário 1: Bearer pattern realmente detecta sua ausência
+{
+  const goodBody = `{ headers: { Authorization: 'Bearer ' + token } }`;
+  const badBody  = `{ headers: { 'X-Token': token } }`;
+  selfAssert(/Authorization/.test(goodBody) && /Bearer/.test(goodBody), 'Bearer pattern deve passar em corpo bom');
+  selfAssert(!(/Authorization/.test(badBody) && /Bearer/.test(badBody)), 'Bearer pattern deve falhar em corpo mau');
+}
+
+// Canário 2: trustedOrigin pattern
+{
+  const goodBody = `const trusted = approvedOrigin || localStorage.getItem('codice.station.trustedOrigin');`;
+  const badBody  = `// sem verificação de origin`;
+  selfAssert(/trustedOrigin|approvedOrigin/.test(goodBody), 'trustedOrigin pattern deve passar em corpo bom');
+  selfAssert(!/trustedOrigin|approvedOrigin/.test(badBody), 'trustedOrigin pattern deve falhar em corpo mau');
+}
+
+// Canário 3: fetch direto em fetchStationLibrary é detectado
+{
+  const badConsumer = `async function fetchStationLibrary() { const res = await fetch(url, {}); }`;
+  const body = extractFunctionBody(badConsumer, 'fetchStationLibrary');
+  const hasDirect = !/stationFetch\s*\(/.test(body);
+  selfAssert(hasDirect, 'Corpo sem stationFetch deve ser detectado como violacão');
+}
+
+// Canário 4: fetch de book.url é detectado
+{
+  const bad = `const res = await fetch(b.url, { credentials: 'omit' });`;
+  selfAssert(/fetch\s*\(\s*(b|book)\.url/.test(bad), 'fetch de b.url deve ser detectado');
+  const good = `const res = await stationFetch('/api/codice/books/' + id, { baseUrl });`;
+  selfAssert(!/fetch\s*\(\s*(b|book)\.url/.test(good), 'stationFetch não deve ser detectado como b.url');
+}
+
+// Canário 5: extrator balanceado funciona com funções aninhadas
+{
+  const src = `function outer() { function inner() { return {}; } return inner(); }`;
+  const body = extractFunctionBody(src, 'outer');
+  selfAssert(body.includes('inner'), 'Extrator deve capturar função aninhada');
+  selfAssert(!extractFunctionBody(src, 'nonexistent'), 'Extrator deve retornar string vazia para função inexistente');
+}
 
 if (violations > 0) {
   console.error(`\nProduct boundary verification FAILED: ${violations} violation(s) found.`);
