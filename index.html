@@ -1391,6 +1391,28 @@ function renderLibrary(){
       document.getElementById('btn-station-goto-settings').addEventListener('click', () => openPanel('settings-panel'));
       return;
     }
+    if (state.station.status === 'auth_not_configured') {
+      list.innerHTML = `<div class="empty">Configure o Supabase para usar a Estação.</div>`;
+      const c = document.getElementById('lib-count'); if(c) c.textContent='';
+      return;
+    }
+    if (state.station.status === 'login_required') {
+      list.innerHTML = `<div class="empty">Faça login para acessar a Estação.<br><br><button id="btn-station-login" style="padding:8px 16px;background:var(--orange);color:#fff;border:none;border-radius:8px;cursor:pointer;margin-top:8px;font-weight:600">Entrar</button></div>`;
+      const c = document.getElementById('lib-count'); if(c) c.textContent='';
+      document.getElementById('btn-station-login')?.addEventListener('click', () => openAuth());
+      return;
+    }
+    if (state.station.status === 'unauthorized') {
+      list.innerHTML = `<div class="empty">Esta conta não possui acesso à Estação.</div>`;
+      const c = document.getElementById('lib-count'); if(c) c.textContent='';
+      return;
+    }
+    if (state.station.status === 'auth_unavailable') {
+      list.innerHTML = `<div class="empty">Autenticação da Estação temporariamente indisponível.<br><br><button id="btn-station-retry" style="padding:8px 16px;background:var(--elev);border:1px solid var(--border);border-radius:8px;color:var(--text);cursor:pointer;margin-top:8px">Tentar novamente</button></div>`;
+      const c = document.getElementById('lib-count'); if(c) c.textContent='';
+      document.getElementById('btn-station-retry')?.addEventListener('click', fetchStationLibrary);
+      return;
+    }
     if (state.station.status === 'loading') {
       list.innerHTML = `<div class="empty">Carregando catálogo remoto...</div>`;
       const c = document.getElementById('lib-count'); if(c) c.textContent='';
@@ -1596,23 +1618,161 @@ async function getStationFingerprint(url) {
   return hashHex.substring(0, 12);
 }
 
+/* =========================================================
+ * Station auth helpers
+ * =======================================================*/
+
+/**
+ * mapStationError — converte código de erro da Héstia para mensagem segura.
+ * Não expõe token, HTML remoto, stack ou URL completa.
+ */
+function mapStationError(code) {
+  const map = {
+    station_auth_not_configured: 'Configure o Supabase para acessar a Estação.',
+    authentication_required:     'Entre no Kódice para acessar a Estação.',
+    authentication_failed:       'Sua sessão expirou. Entre novamente.',
+    authorization_failed:        'Esta conta não possui acesso à biblioteca da Estação.',
+    authentication_unavailable:  'A autenticação da Estação está temporariamente indisponível.',
+    origin_not_allowed:          'A origem deste Kódice não está autorizada na Estação.',
+    host_not_allowed:            'A configuração da Estação ou da Tailnet é inválida.',
+    network_error:               'Estação indisponível.',
+  };
+  return map[code] || 'Erro desconhecido na Estação.';
+}
+
+/**
+ * stationFetch — helper central autenticado para todas as requisições à Station.
+ *
+ * Segurança:
+ *  - access_token obtido somente em variável local; nunca em state/storage/log/DOM.
+ *  - credentials: 'omit' — cookies nunca enviados.
+ *  - URL construída a partir do baseUrl confirmado, nunca do catálogo.
+ *  - Retry único em authentication_failed (401) com refreshSession().
+ *  - Não renova em: authentication_required, authorization_failed,
+ *    authentication_unavailable, origin_not_allowed, host_not_allowed, erros de rede.
+ */
+async function stationFetch(path, { baseUrl }, retried = false) {
+  // 1. Supabase configurado?
+  if (!supabase) {
+    const err = new Error(mapStationError('station_auth_not_configured'));
+    err.code = 'station_auth_not_configured';
+    throw err;
+  }
+
+  // 2. Sessão ativa?
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) {
+    const err = new Error(mapStationError('authentication_required'));
+    err.code = 'authentication_required';
+    throw err;
+  }
+
+  // 3. access_token somente em variável local
+  const accessToken = session.access_token;
+
+  // 4. Validar baseUrl
+  if (!baseUrl) {
+    const err = new Error('Estação não configurada.');
+    err.code = 'network_error';
+    throw err;
+  }
+
+  // 5. Construir URL a partir da base confirmada
+  const url = new URL(path, baseUrl);
+
+  // 6. Fetch com Bearer — credentials:omit, cache:no-store, redirect:error
+  let res;
+  try {
+    res = await fetch(url, {
+      mode: 'cors',
+      credentials: 'omit',
+      cache: 'no-store',
+      redirect: 'error',
+      referrerPolicy: 'no-referrer',
+      headers: { Authorization: 'Bearer ' + accessToken },
+    });
+  } catch {
+    const err = new Error(mapStationError('network_error'));
+    err.code = 'network_error';
+    throw err;
+  }
+
+  // 7. Mapear 421 para host_not_allowed
+  if (res.status === 421) {
+    const err = new Error(mapStationError('host_not_allowed'));
+    err.code = 'host_not_allowed';
+    err.status = 421;
+    throw err;
+  }
+
+  // 8. Tratar erros HTTP
+  if (!res.ok) {
+    let errorCode = null;
+    try {
+      const body = await res.clone().json();
+      if (typeof body?.error === 'string') errorCode = body.error;
+    } catch { /* resposta não é JSON — ignorar */ }
+
+    // Retry único em authentication_failed
+    if (res.status === 401 && errorCode === 'authentication_failed' && !retried) {
+      try { await supabase.auth.refreshSession(); } catch { /* falha silenciosa */ }
+      return stationFetch(path, { baseUrl }, true);
+    }
+
+    const code = errorCode || (res.status === 503 ? 'authentication_unavailable' : 'network_error');
+    const err = new Error(mapStationError(code));
+    err.code = code;
+    err.status = res.status;
+    throw err;
+  }
+
+  return res;
+}
+
+/* =========================================================
+ * Station — fetch library, test connection, open book
+ * =======================================================*/
+
 async function fetchStationLibrary() {
   if (!state.station.baseUrl) return;
   state.station.status = 'loading';
   updateStationSettingsUI();
   if(state.panels.library) renderLibrary();
   try {
-    const url = new URL('/api/codice/library', state.station.baseUrl);
-    const res = await fetch(url, { mode: 'cors', credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer' });
-    if (!res.ok) throw new Error('Status ' + res.status);
+    const res = await stationFetch('/api/codice/library', { baseUrl: state.station.baseUrl });
     const data = await res.json();
     if (!data || typeof data !== 'object' || data.schemaVersion !== 1 || !Array.isArray(data.books)) {
       throw new Error('Contrato (library) incompatível');
     }
 
+    // Validate and filter books
     const validBooks = [];
+    const baseOrigin = new URL(state.station.baseUrl).origin;
     for (const b of data.books) {
-      if (b && typeof b.id === 'string' && b.id.trim() !== '' && typeof b.title === 'string' && ['epub', 'pdf', 'txt'].includes(b.format) && Number.isFinite(b.size) && b.size >= 0 && (b.author === null || typeof b.author === 'string') && (b.modifiedAt === null || (typeof b.modifiedAt === 'string' && Number.isFinite(Date.parse(b.modifiedAt))))) {
+      if (
+        b && typeof b.id === 'string' && b.id.trim() !== '' &&
+        typeof b.title === 'string' &&
+        ['epub', 'pdf', 'txt'].includes(b.format) &&
+        Number.isFinite(b.size) && b.size >= 0 &&
+        (b.author === null || typeof b.author === 'string') &&
+        (b.modifiedAt === null || (typeof b.modifiedAt === 'string' && Number.isFinite(Date.parse(b.modifiedAt))))
+      ) {
+        // Validate book.url when present — must match confirmed origin and exact path
+        if (b.url !== undefined && b.url !== null) {
+          try {
+            const bu = new URL(b.url);
+            const expectedPath = `/api/codice/books/${encodeURIComponent(b.id)}`;
+            if (
+              bu.origin !== baseOrigin ||
+              bu.pathname !== expectedPath ||
+              bu.username || bu.password || bu.search || bu.hash
+            ) {
+              continue; // reject book with invalid url
+            }
+          } catch {
+            continue; // reject book with unparseable url
+          }
+        }
         validBooks.push(b);
       }
     }
@@ -1623,7 +1783,19 @@ async function fetchStationLibrary() {
     state.station.status = 'online';
     state.station.error = null;
   } catch (err) {
-    state.station.status = 'error';
+    // Map auth errors to specific visual states
+    const code = err.code || '';
+    if (code === 'station_auth_not_configured') {
+      state.station.status = 'auth_not_configured';
+    } else if (code === 'authentication_required') {
+      state.station.status = 'login_required';
+    } else if (code === 'authorization_failed') {
+      state.station.status = 'unauthorized';
+    } else if (code === 'authentication_unavailable') {
+      state.station.status = 'auth_unavailable';
+    } else {
+      state.station.status = 'error';
+    }
     state.station.error = err.message || 'Inacessível';
   }
   updateStationSettingsUI();
@@ -1633,6 +1805,19 @@ async function fetchStationLibrary() {
 async function testStationConnection() {
   const rawUrl = $('#station-url-input').value.trim();
   if(!rawUrl) return;
+
+  // Require Supabase configured
+  if (!supabase) {
+    toast('Configure o Supabase para acessar a Estação.');
+    return;
+  }
+  // Require active session
+  const { data: { session: testSession } } = await supabase.auth.getSession();
+  if (!testSession?.access_token) {
+    toast('Entre no Kódice para acessar a Estação.');
+    return;
+  }
+
   updateStationSettingsUI('Conectando...');
   try {
     const parsed = new URL(rawUrl);
@@ -1652,10 +1837,21 @@ async function testStationConnection() {
 
     parsed.pathname = '/';
     const normalized = parsed.href.replace(/\/$/, '');
+    const candidateOrigin = new URL(normalized).origin;
 
-    const healthUrl = new URL('/api/codice/health', normalized);
-    const res = await fetch(healthUrl, { mode: 'cors', credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer' });
-    if (!res.ok) throw new Error('Falha de conexão');
+    // Warn user if origin differs from what is already saved
+    if (state.station.baseUrl && candidateOrigin !== new URL(state.station.baseUrl).origin) {
+      const confirmed = window.confirm(
+        `A origem "${candidateOrigin}" receberá o token da sua sessão.\nDeseja continuar?`
+      );
+      if (!confirmed) {
+        updateStationSettingsUI();
+        return;
+      }
+    }
+
+    // stationFetch uses the candidate baseUrl (not state.station.baseUrl)
+    const res = await stationFetch('/api/codice/health', { baseUrl: normalized });
     const data = await res.json();
     if (!data || typeof data !== 'object' || data.ok !== true || data.schemaVersion !== 1 || data.libraryAvailable !== true || !Array.isArray(data.formats) || data.formats.some(f => !['epub', 'pdf', 'txt'].includes(f))) {
       throw new Error('Contrato (health) incompatível');
@@ -1687,7 +1883,16 @@ function updateStationSettingsUI(overrideStatus) {
     lbl.textContent = overrideStatus;
   } else if(state.station.baseUrl) {
     inp.value = state.station.baseUrl;
-    lbl.textContent = state.station.status === 'online' ? 'Online' : (state.station.status === 'error' ? 'Indisponível' : (state.station.status === 'configured' ? 'Configurada' : 'Conectando...'));
+    const labelMap = {
+      online:              'Online',
+      error:               'Indisponível',
+      configured:          'Configurada',
+      login_required:      'Login necessário',
+      unauthorized:        'Sem autorização',
+      auth_unavailable:    'Autenticação indisponível',
+      auth_not_configured: 'Supabase não configurado',
+    };
+    lbl.textContent = labelMap[state.station.status] || 'Conectando...';
   } else {
     inp.value = '';
     lbl.textContent = 'Não configurada';
@@ -1700,9 +1905,21 @@ async function openStationBook(bookId) {
     if (!book) throw new Error('Livro remoto não encontrado');
 
     toast('Baixando da Estação...');
-    const url = new URL(`/api/codice/books/${encodeURIComponent(book.id)}`, state.station.baseUrl);
-    const res = await fetch(url, { mode: 'cors', credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer' });
-    if (!res.ok) throw new Error('Falha ao baixar livro');
+
+    // Always construct URL from confirmed baseUrl + book.id — never follow book.url directly
+    const res = await stationFetch(
+      `/api/codice/books/${encodeURIComponent(book.id)}`,
+      { baseUrl: state.station.baseUrl }
+    );
+
+    // Validate Content-Type before reading bytes
+    const ct = res.headers.get('content-type') || '';
+    const expectedCT = { epub: 'application/epub+zip', pdf: 'application/pdf', txt: 'text/plain' };
+    const expected = expectedCT[book.format];
+    if (!expected || !ct.startsWith(expected)) {
+      throw new Error(`Content-Type incompatível: esperado ${expected}, recebido ${ct.split(';')[0].trim()}`);
+    }
+
     const buffer = await res.arrayBuffer();
 
     const metadata = {
@@ -1818,11 +2035,25 @@ function showBookOpenError(id, e, retryCallback){
   $('#retry-open').onclick = retryCallback || (()=>openBook(id));
 }
 
+/**
+ * releaseActiveBookResources — destrói rendition/epub/pdf e limpa o DOM do leitor.
+ * Reutilizado por closeBook() e pelo handler de logout.
+ * Não faz flush de notas — quem chama deve resolver isso antes.
+ */
+function releaseActiveBookResources() {
+  if (!state.activeBook) return;
+  try { state.activeBook.rendition?.destroy(); } catch {}
+  try { state.activeBook.book?.destroy();     } catch {}
+  try { state.activeBook.pdf?.destroy();      } catch {}
+  $('#reader').onscroll = null;
+  const rc = document.getElementById('reader-content');
+  if (rc) rc.innerHTML = '';
+  state.activeBook = null;
+}
+
 async function closeBook(){
   try{ await flushPendingNotes(); }catch(e){ console.error('[Kódice] Falha ao salvar anotação pendente antes de fechar livro', e); toast('Não foi possível salvar a anotação neste aparelho.'); return; }
-  if(state.activeBook?.rendition){ try{ state.activeBook.rendition.destroy(); }catch(e){} }
-  $('#reader').onscroll = null; // Cleanup scroll listener
-  state.activeBook = null;
+  releaseActiveBookResources();
   setReaderChromeVisible(true);
   $('#landing').classList.remove('hidden');
   $('#reader').classList.add('hidden');
@@ -2493,10 +2724,54 @@ async function signIn(email, password){
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if(error) throw error;
 }
+/**
+ * clearStationRemoteState — limpa todo estado remoto da Station da memória.
+ * Fecha livro remoto se aberto (isLocal === false), mesmo que flush de notas falhe.
+ * Preserva baseUrl configurada.
+ */
+async function clearStationRemoteState() {
+  state.station.books       = [];
+  state.station.health      = null;
+  state.station.generatedAt = null;
+  state.station.truncated   = false;
+  state.station.error       = null;
+  if (state.station.status !== 'unconfigured') {
+    state.station.status = 'configured'; // baseUrl mantida, mas deslogado
+  }
+  // Fechar livro remoto e liberar recursos — limpeza ocorre mesmo se flush falhar
+  if (state.activeBook && state.activeBook.isLocal === false) {
+    try { await flushPendingNotes(); } catch { /* falha não bloqueia limpeza */ }
+    releaseActiveBookResources();
+    setReaderChromeVisible(true);
+    $('#landing').classList.remove('hidden');
+    $('#reader').classList.add('hidden');
+    applyReaderModeClass(null);
+    $('#title-wrap').classList.add('hidden');
+    resetReaderNavState();
+    setReaderInlineNavVisible(false);
+    $('#book-title').textContent = ''; $('#book-author').textContent = '';
+    updateProgress(0);
+    $('#toc-body').innerHTML = '<div class="empty">Abra um livro para ver o sumário.</div>';
+    updateRail();
+  }
+  updateStationSettingsUI();
+  if (state.panels.library) renderLibrary();
+}
+
+/**
+ * handleSignOut — handler idempotente de logout.
+ * Chamado tanto por signOut() quanto por onAuthStateChange('SIGNED_OUT').
+ */
+async function handleSignOut() {
+  state.user = null;
+  await clearStationRemoteState();
+  renderAccount();
+  updateSyncBadge();
+}
+
 async function signOut(){
   if(supabase) await supabase.auth.signOut();
-  state.user = null;
-  renderAccount(); updateSyncBadge();
+  await handleSignOut();
   toast('Você saiu da conta');
 }
 function openAuth(){
@@ -3291,8 +3566,9 @@ function wire(){
     if(event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION'){
       await refreshUser();
       if(state.user){ await pullRemoteData(); flushQueue(); }
+      // Station stays on-demand — do NOT auto-fetch catalog on login
     } else if(event === 'SIGNED_OUT'){
-      state.user = null; renderAccount(); updateSyncBadge();
+      await handleSignOut();
     }
   });
 }

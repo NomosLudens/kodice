@@ -39,6 +39,14 @@ const TEXT_RULES = [
   { id: 'no-cors-mode', pattern: /mode\s*:\s*['"]no-cors['"]/g, rule: 'mode no-cors proibido na integração Héstia' },
   { id: 'import-route', pattern: /\/api\/codice\/import/g, rule: 'Rota de importação proibida na integração Héstia' },
   { id: 'service-worker-cache-station', pattern: /codice\.station\.baseUrl.*serviceWorker/g, rule: 'Service Worker caching de station proibido' },
+  // PR #16 — Autenticação Station
+  { id: 'station-fetch-direct-health',   pattern: /fetch\s*\(\s*[^,)]*\/api\/codice\/health/,    rule: 'Fetch direto a /api/codice/health fora de stationFetch proibido' },
+  { id: 'station-fetch-direct-library',  pattern: /fetch\s*\(\s*[^,)]*\/api\/codice\/library/,   rule: 'Fetch direto a /api/codice/library fora de stationFetch proibido' },
+  { id: 'station-fetch-direct-books',    pattern: /fetch\s*\(\s*[^,)]*\/api\/codice\/books/,     rule: 'Fetch direto a /api/codice/books fora de stationFetch proibido' },
+  { id: 'station-token-log',             pattern: /console\.(log|warn|error|info)[^;]*access.?token/i, rule: 'Token de acesso da Station em console proibido' },
+  { id: 'station-token-localstorage',    pattern: /localStorage\.[^;]*access.?token/i,           rule: 'Token de acesso da Station em localStorage proibido' },
+  { id: 'station-token-sessionstorage',  pattern: /sessionStorage\.[^;]*access.?token/i,         rule: 'Token de acesso da Station em sessionStorage proibido' },
+  { id: 'station-token-indexeddb',       pattern: /dbPut[^;]*access.?token/i,                    rule: 'Token de acesso da Station em IndexedDB proibido' },
   // Integração Héstia
   { id: 'hestia-api-base',       pattern: 'HESTIA_API_BASE',         rule: 'Constante HESTIA_API_BASE da integração Héstia removida' },
   { id: 'hestia-localhost',      pattern: '127.0.0.1:4517',          rule: 'Endereço local hardcoded da API Héstia (127.0.0.1:4517)' },
