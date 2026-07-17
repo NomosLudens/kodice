@@ -1823,7 +1823,7 @@ async function fetchStationLibrary() {
     const baseOrigin = new URL(state.station.baseUrl).origin;
     for (const b of data.books) {
       if (
-        b && typeof b.id === 'string' && b.id.trim() !== '' &&
+        b && typeof b.id === 'string' && /^[A-Za-z0-9_-]{43}$/.test(b.id) &&
         typeof b.title === 'string' &&
         ['epub', 'pdf', 'txt'].includes(b.format) &&
         Number.isFinite(b.size) && b.size >= 0 &&
