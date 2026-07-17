@@ -111,6 +111,86 @@ function countFunctionDefinitions(content, fnName) {
   return matches ? matches.length : 0;
 }
 
+
+const STATION_FULL_RULES = [
+  { p: /\b(POST|PUT|PATCH|DELETE)\b/i, msg: 'Method HTTP proibido' },
+  { p: /credentials\s*:\s*['"]include['"]/i, msg: 'credentials include' },
+  { p: /mode\s*:\s*['"]no-cors['"]/i, msg: 'mode no-cors' },
+  { p: /Authorization/i, msg: 'Authorization header' },
+  { p: /cookie/i, msg: 'cookies' },
+  { p: /\bputBook\b/, msg: 'putBook' },
+  { p: /\bdbPut\b/, msg: 'dbPut' },
+  { p: /\bcaches\.open\b/, msg: 'caches.open' },
+  { p: /\bcache\.put\b/, msg: 'cache.put' },
+  { p: /\bCacheStorage\b/, msg: 'CacheStorage' },
+  { p: /\bshowSaveFilePicker\b/, msg: 'showSaveFilePicker' },
+  { p: /\bserviceWorker\.postMessage\b/, msg: 'serviceWorker.postMessage' },
+  { p: /['"]book_files['"]/, msg: 'persistência em book_files' },
+  { p: /['"]books['"]/, msg: 'persistência no catálogo books' }
+];
+
+const OPEN_BOOK_COMMON_RULES = [
+  { p: /\bputBook\b/, msg: 'putBook' },
+  { p: /\bdbPut\b/, msg: 'dbPut' },
+  { p: /\bcaches\.open\b/, msg: 'caches.open' },
+  { p: /\bcache\.put\b/, msg: 'cache.put' },
+  { p: /\bCacheStorage\b/, msg: 'CacheStorage' },
+  { p: /\bshowSaveFilePicker\b/, msg: 'showSaveFilePicker' },
+  { p: /\bserviceWorker\.postMessage\b/, msg: 'serviceWorker.postMessage' },
+  { p: /['"]book_files['"]/, msg: 'persistência em book_files' }
+];
+
+function assertRuleMatches(rule, sample, label) {
+  rule.lastIndex = 0;
+  if (!rule.test(sample)) {
+    throw new Error(`Boundary rule self-test failed: ${label}`);
+  }
+}
+
+// Autoteste das regras da fronteira
+assertRuleMatches(
+  STATION_FULL_RULES.find(r => r.msg === 'Method HTTP proibido').p,
+  "fetch(url, { method: 'POST' })",
+  'POST'
+);
+assertRuleMatches(
+  STATION_FULL_RULES.find(r => r.msg === 'credentials include').p,
+  "fetch(url, { credentials: 'include' })",
+  'credentials include'
+);
+assertRuleMatches(
+  STATION_FULL_RULES.find(r => r.msg === 'mode no-cors').p,
+  "fetch(url, { mode: 'no-cors' })",
+  'no-cors'
+);
+assertRuleMatches(
+  STATION_FULL_RULES.find(r => r.msg === 'dbPut').p,
+  "await dbPut('book_files', value)",
+  'dbPut'
+);
+assertRuleMatches(
+  STATION_FULL_RULES.find(r => r.msg === 'caches.open').p,
+  "await caches.open('station')",
+  'caches.open'
+);
+assertRuleMatches(
+  STATION_FULL_RULES.find(r => r.msg === 'serviceWorker.postMessage').p,
+  "navigator.serviceWorker.postMessage(data)",
+  'serviceWorker.postMessage'
+);
+
+// Autoteste da regressão real
+const simpleSelectorForEachTest = /(?<!\$)\$\(\s*(['"`])[^'"`\n]+\1\s*\)\s*\.forEach\s*\(/;
+assertRuleMatches(
+  simpleSelectorForEachTest,
+  "$('[data-close-panel]').forEach(() => {})",
+  'simpleSelectorForEach aceita falha correta'
+);
+if (simpleSelectorForEachTest.test("$$('[data-close-panel]').forEach(() => {})")) {
+  throw new Error("Boundary rule self-test failed: simpleSelectorForEach acusando $$ incorretamente");
+}
+console.log('Regex self-tests passed.');
+
 function checkStationBoundary(filePath, content) {
   if (!filePath.endsWith('index.html')) return;
   if (filePath.startsWith('dist/') || filePath.startsWith('dist\\')) return;
@@ -130,27 +210,12 @@ function checkStationBoundary(filePath, content) {
     }
   });
 
-  const fullRules = [
-    { p: /\\b(POST|PUT|PATCH|DELETE)\\b/i, msg: 'Method HTTP proibido' },
-    { p: /credentials\\s*:\\s*['"]include['"]/i, msg: 'credentials include' },
-    { p: /mode\\s*:\\s*['"]no-cors['"]/i, msg: 'mode no-cors' },
-    { p: /Authorization/i, msg: 'Authorization header' },
-    { p: /cookie/i, msg: 'cookies' },
-    { p: /\\bputBook\\b/, msg: 'putBook' },
-    { p: /\\bdbPut\\b/, msg: 'dbPut' },
-    { p: /\\bcaches\\.open\\b/, msg: 'caches.open' },
-    { p: /\\bcache\\.put\\b/, msg: 'cache.put' },
-    { p: /\\bCacheStorage\\b/, msg: 'CacheStorage' },
-    { p: /\\bshowSaveFilePicker\\b/, msg: 'showSaveFilePicker' },
-    { p: /\\bserviceWorker\\.postMessage\\b/, msg: 'serviceWorker.postMessage' },
-    { p: /['"]book_files['"]/, msg: 'persistência em book_files' },
-    { p: /['"]books['"]/, msg: 'persistência no catálogo books' }
-  ];
+
 
   ['fetchStationLibrary', 'testStationConnection', 'openStationBook'].forEach(fn => {
     const body = extractFunctionBody(content, fn);
     if (body) {
-      fullRules.forEach(r => {
+      STATION_FULL_RULES.forEach(r => {
         if (r.p.test(body)) {
           fail(filePath, `Fronteira Station violada na função ${fn}: ${r.msg}`, r.p.source);
         }
@@ -158,20 +223,11 @@ function checkStationBoundary(filePath, content) {
     }
   });
 
-  const openBookCommonRules = [
-    { p: /\\bputBook\\b/, msg: 'putBook' },
-    { p: /\\bdbPut\\b/, msg: 'dbPut' },
-    { p: /\\bcaches\\.open\\b/, msg: 'caches.open' },
-    { p: /\\bcache\\.put\\b/, msg: 'cache.put' },
-    { p: /\\bCacheStorage\\b/, msg: 'CacheStorage' },
-    { p: /\\bshowSaveFilePicker\\b/, msg: 'showSaveFilePicker' },
-    { p: /\\bserviceWorker\\.postMessage\\b/, msg: 'serviceWorker.postMessage' },
-    { p: /['"]book_files['"]/, msg: 'persistência em book_files' }
-  ];
+
 
   const openBookBody = extractFunctionBody(content, '_openBookCommon');
   if (openBookBody) {
-    openBookCommonRules.forEach(r => {
+    OPEN_BOOK_COMMON_RULES.forEach(r => {
       if (r.p.test(openBookBody)) {
         fail(filePath, `Fronteira violada em _openBookCommon: ${r.msg}`, r.p.source);
       }

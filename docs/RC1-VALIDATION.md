@@ -85,7 +85,7 @@ O Kódice é um web app/PWA publicado no Cloudflare com arquitetura local-first.
 | H03 | Sincronizar dados online | Sincronização sem falhas de integridade | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 | H04 | Monitorar pacotes HTTP | Nenhuma URL Station é trafegada | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 | H05 | Sincronizar catálogo | Nenhum arquivo da Station é enviado à nuvem | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
-| H06 | Falha de rede provocada | Recuperação limpa ao voltar online | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| H06 | Falha de rede provocada | Após restaurar a rede, uma nova ação conclui sem recarregar o app | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 
 ## I. Station via web app
 
@@ -94,13 +94,15 @@ O Kódice é um web app/PWA publicado no Cloudflare com arquitetura local-first.
 | I00 | Station não configurada | mensagem correta e Atualizar desativado | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 | I01 | Informar URL HTTPS real | Health check (HTTP 200 e schema válido) | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 | I02 | Acionar "Atualizar" | Catálogo obtido com sucesso | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
-| I03 | Abrir EPUB, PDF, TXT remoto | Download direto no Reader sem gravação local persistente | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
-| I04 | Testar CORS em domínio diferente | Requisição CORS aprovada | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
-| I05 | Station indisponível abruptamente | App relata erro de rede isolado, biblioteca local mantida | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
-| I06 | remover Station | baseUrl e catálogo são limpos, biblioteca local permanece | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
-| I07 | criar nota e progresso em livro remoto | nota e progresso criados | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
-| I08 | recarregar página e reabrir livro remoto | livro remoto reaberto com sucesso | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
-| I09 | bytes remotos são baixados novamente | bytes remotos são baixados novamente; nota e progresso permanecem | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| I03 | Abrir EPUB remoto | Download direto no Reader sem gravação local persistente | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| I04 | Abrir PDF remoto | Download direto no Reader sem gravação local persistente | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| I05 | Abrir TXT remoto | Download direto no Reader sem gravação local persistente | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| I06 | Testar CORS em domínio diferente | Requisição CORS aprovada | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| I07 | Station indisponível abruptamente | App relata erro de rede isolado, biblioteca local mantida | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| I08 | remover Station | baseUrl e catálogo são limpos, biblioteca local permanece | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| I09 | criar nota e progresso em livro remoto | nota e progresso criados | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| I10 | recarregar página e reabrir livro remoto | livro remoto reaberto com sucesso | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
+| I11 | bytes remotos são baixados novamente | bytes remotos são baixados novamente; nota e progresso permanecem | PENDENTE | PENDENTE | PENDENTE | PENDENTE |
 
 ## J. Privacidade no navegador
 
