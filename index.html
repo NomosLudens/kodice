@@ -1596,6 +1596,18 @@ async function getStationFingerprint(url) {
   return hashHex.substring(0, 12);
 }
 
+async function getStationFetchOptions(baseOptions = {}) {
+  const options = { ...baseOptions };
+  if (!options.headers) options.headers = {};
+  if (supabase && state.user) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session && session.access_token) {
+      options.headers['Authorization'] = `Bearer ${session.access_token}`;
+    }
+  }
+  return options;
+}
+
 async function fetchStationLibrary() {
   if (!state.station.baseUrl) return;
   state.station.status = 'loading';
@@ -1603,7 +1615,8 @@ async function fetchStationLibrary() {
   if(state.panels.library) renderLibrary();
   try {
     const url = new URL('/api/codice/library', state.station.baseUrl);
-    const res = await fetch(url, { mode: 'cors', credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer' });
+    const options = await getStationFetchOptions({ mode: 'cors', credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer' });
+    const res = await fetch(url, options);
     if (!res.ok) throw new Error('Status ' + res.status);
     const data = await res.json();
     if (!data || typeof data !== 'object' || data.schemaVersion !== 1 || !Array.isArray(data.books)) {
@@ -1654,7 +1667,8 @@ async function testStationConnection() {
     const normalized = parsed.href.replace(/\/$/, '');
 
     const healthUrl = new URL('/api/codice/health', normalized);
-    const res = await fetch(healthUrl, { mode: 'cors', credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer' });
+    const options = await getStationFetchOptions({ mode: 'cors', credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer' });
+    const res = await fetch(healthUrl, options);
     if (!res.ok) throw new Error('Falha de conexão');
     const data = await res.json();
     if (!data || typeof data !== 'object' || data.ok !== true || data.schemaVersion !== 1 || data.libraryAvailable !== true || !Array.isArray(data.formats) || data.formats.some(f => !['epub', 'pdf', 'txt'].includes(f))) {
@@ -1701,7 +1715,8 @@ async function openStationBook(bookId) {
 
     toast('Baixando da Estação...');
     const url = new URL(`/api/codice/books/${encodeURIComponent(book.id)}`, state.station.baseUrl);
-    const res = await fetch(url, { mode: 'cors', credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer' });
+    const options = await getStationFetchOptions({ mode: 'cors', credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer' });
+    const res = await fetch(url, options);
     if (!res.ok) throw new Error('Falha ao baixar livro');
     const buffer = await res.arrayBuffer();
 
