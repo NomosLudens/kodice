@@ -25,6 +25,15 @@ test('progresso vazio não abre livro', async () => {
   assert.deepEqual(await run({ books: [book('epub-1', 'epub')], progressRows: [] }), { result: false, opened: [] });
 });
 
+test('aceita updated_at number produzido por saveProgress', async () => {
+  const result = await run({
+    books: [book('real-timestamp', 'txt')],
+    progressRows: [progress('real-timestamp', Date.now())],
+    files: { 'real-timestamp': file },
+  });
+  assert.deepEqual(result, { result: true, opened: ['real-timestamp'] });
+});
+
 for (const type of ['epub', 'pdf', 'txt']) {
   test(`${type} local válido chama openBook uma vez`, async () => {
     const result = await run({
