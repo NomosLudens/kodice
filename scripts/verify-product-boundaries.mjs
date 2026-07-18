@@ -4,16 +4,6 @@
  *
  * Verifica que o produto Kódice não contém resíduos da integração Héstia
  * nem corpus jurídico amostral em posição produtiva.
- *
- * Caminhos inspecionados:
- *   - index.html
- *   - src/        (recursivo)
- *   - public/     (recursivo)
- *   - dist/       (recursivo, quando existir)
- *   - package.json
- *   - legal/corpus/*.json  (apenas nível raiz, não _sample/)
- *
- * Encerra com código ≠ 0 em caso de violação.
  */
 
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
@@ -30,15 +20,16 @@ function fail(file, rule, excerpt) {
 // Regras textuais
 // ──────────────────────────────────────────────────────────────────────────────
 const TEXT_RULES = [
-  { id: 'ip-127', pattern: /127\.0\.0\.1:4519/g, rule: 'Endereço 127.0.0.1:4519 é proibido' },
+  { id: 'include-credentials', pattern: /credentials\s*:\s*['"]include['"]/g, rule: 'credentials include proibido' },
+  { id: 'no-cors-mode', pattern: /mode\s*:\s*['"]no-cors['"]/g, rule: 'mode no-cors proibido' },
+  { id: 'ip-127-porta', pattern: /127\.0\.0\.1:4519/g, rule: 'Endereço 127.0.0.1:4519 é proibido' },
   { id: 'localhost-4519', pattern: /localhost:4519/g, rule: 'Endereço localhost:4519 é proibido' },
   { id: 'ip-tailscale', pattern: /100\.\d+\.\d+\.\d+/g, rule: 'Endereço Tailscale (100.x) hardcoded proibido' },
   { id: 'ts-net', pattern: /\.ts\.net/g, rule: 'Hostname .ts.net hardcoded proibido' },
   { id: 'vite-station-url', pattern: /VITE_STATION_URL/g, rule: 'VITE_STATION_URL proibido (usar configuração via UI)' },
-  { id: 'include-credentials', pattern: /credentials\s*:\s*['"]include['"]/g, rule: 'credentials include proibido na integração Héstia' },
-  { id: 'no-cors-mode', pattern: /mode\s*:\s*['"]no-cors['"]/g, rule: 'mode no-cors proibido na integração Héstia' },
   { id: 'import-route', pattern: /\/api\/codice\/import/g, rule: 'Rota de importação proibida na integração Héstia' },
   { id: 'service-worker-cache-station', pattern: /codice\.station\.baseUrl.*serviceWorker/g, rule: 'Service Worker caching de station proibido' },
+
   // Integração Héstia
   { id: 'hestia-api-base',       pattern: 'HESTIA_API_BASE',         rule: 'Constante HESTIA_API_BASE da integração Héstia removida' },
   { id: 'hestia-localhost',      pattern: '127.0.0.1:4517',          rule: 'Endereço local hardcoded da API Héstia (127.0.0.1:4517)' },
@@ -46,17 +37,13 @@ const TEXT_RULES = [
   { id: 'download-hestia-book',  pattern: 'downloadHestiaBook',      rule: 'Função downloadHestiaBook da integração Héstia removida' },
   { id: 'import-docx-to-hestia', pattern: 'importDocxToHestia',      rule: 'Função importDocxToHestia da integração Héstia removida' },
   { id: 'hestia-books-regex',    pattern: /\bhestiaBooks\b/,         rule: 'Identificador hestiaBooks da integração Héstia removido' },
-  { id: 'api-codice-import',     pattern: '/api/codice/import',      rule: 'Rota POST /api/codice/import da integração Héstia removida' },
   { id: 'hestia-server-author',  pattern: 'Héstia Server',           rule: 'Metadado inventado "Héstia Server" da integração Héstia removida' },
-  // DOCX no file input
-  { id: 'docx-file-input',       pattern: /accept=[^>]*\.docx/,      rule: 'Extensão .docx no accept do file input principal (suporte DOCX foi removido)' },
-  { id: 'docx-mime-type',        pattern: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', rule: 'Mime type DOCX detectado no produto' },
-  { id: 'docx-handlefiles',      pattern: /['"]docx['"]\s*\]\s*\.includes|\.includes\(\s*['"]docx['"]\)|\bdocx\b/, rule: 'DOCX listado como formato aceito no produto' },
+
   // Fallback jurídico específico cf88/cpc2015
-  { id: 'legal-fallback-ids',    pattern: /id\s*===\s*['"]cf88['"]\s*\|\|\s*id\s*===\s*['"]cpc2015['"]/,
-                                                                      rule: 'Fallback específico cf88/cpc2015 em openBook() — deve ser removido' },
+  { id: 'legal-fallback-ids',    pattern: /id\s*===\s*['"]cf88['"]\s*\|\|\s*id\s*===\s*['"]cpc2015['"]/, rule: 'Fallback específico cf88/cpc2015 em openBook() — deve ser removido' },
   { id: 'fetch-legal-epub',      pattern: /fetch\s*\(\s*`\/legal\/\$\{/, rule: 'fetch de /legal/${id}.epub — fallback jurídico de rede removido' },
-  // Artefatos jurídicos amostrais
+
+  // Artefatos jurídicos amostrais textuais
   { id: 'public-cf88-epub',      pattern: 'cf88.epub',               rule: 'Referência a cf88.epub — EPUB amostral não deve existir em produto' },
   { id: 'public-cpc2015-epub',   pattern: 'cpc2015.epub',            rule: 'Referência a cpc2015.epub — EPUB amostral não deve existir em produto' },
   { id: 'public-foundation-json',pattern: 'foundation-v1.json',      rule: 'Referência a foundation-v1.json — pacote jurídico amostral não deve existir em produto' },
@@ -66,6 +53,216 @@ const TEXT_EXTENSIONS = new Set([
   '.html', '.js', '.mjs', '.cjs', '.ts', '.tsx',
   '.json', '.css', '.txt', '.md', '.webmanifest',
 ]);
+
+function checkJsRegressions(filePath, content) {
+  if (!filePath.endsWith('index.html')) return;
+  if (filePath.startsWith('dist/') || filePath.startsWith('dist\\')) return;
+  // Checks
+  if (content.includes('\x24\x24a(')) fail(filePath, 'Regressão JS global', 'Uso de $'+'$a(');
+  if (content.includes('\x24(\x24(')) fail(filePath, 'Regressão JS global', 'Uso de $'+'($'+'(');
+  if (/querySelector\([^)]+\)\.forEach/.test(content)) fail(filePath, 'Regressão JS global', 'querySelector().forEach');
+
+  const simpleSelectorForEach = /(?<!\$)\$\(\s*(['"`])[^'"`\n]+\1\s*\)\s*\.forEach\s*\(/;
+  if (simpleSelectorForEach.test(content)) {
+    fail(filePath, 'Regressão JS global', '$().forEach proibido (utilizar iterador seguro)');
+  }
+
+  // Definitions
+  const defRenderBookBuffer = content.match(/function\s+renderBookBuffer\b|const\s+renderBookBuffer\s*=|let\s+renderBookBuffer\s*=/g);
+  if (!defRenderBookBuffer && content.includes('renderBookBuffer')) fail(filePath, 'Regressão JS', 'renderBookBuffer chamada sem definição');
+  if (defRenderBookBuffer && defRenderBookBuffer.length > 1) fail(filePath, 'Regressão JS', 'renderBookBuffer definida mais de uma vez');
+
+  const defShowBookOpenError = content.match(/function\s+showBookOpenError\b|const\s+showBookOpenError\s*=|let\s+showBookOpenError\s*=/g);
+  if (!defShowBookOpenError && content.includes('showBookOpenError')) fail(filePath, 'Regressão JS', 'showBookOpenError chamada sem definição');
+
+  ['renderEpub', 'renderPdf', 'renderTxt'].forEach(fn => {
+    const def = content.match(new RegExp(`function\\s+${fn}\\b|const\\s+${fn}\\s*=|let\\s+${fn}\\s*=`, 'g'));
+    if (def && def.length > 1) fail(filePath, 'Regressão JS', `${fn} definida mais de uma vez`);
+  });
+}
+
+function extractFunctionBody(content, fnName) {
+  const re = new RegExp(`(?:async\\s+)?function\\s+${fnName}\\s*\\([^)]*\\)\\s*\\{`);
+  const match = re.exec(content);
+  if (!match) return null;
+
+  let braceCount = 0;
+  let started = false;
+  let startIdx = match.index + match[0].length - 1;
+
+  for (let i = startIdx; i < content.length; i++) {
+    if (content[i] === '{') {
+      braceCount++;
+      started = true;
+    } else if (content[i] === '}') {
+      braceCount--;
+    }
+
+    if (started && braceCount === 0) {
+      return content.slice(startIdx, i + 1);
+    }
+  }
+  return null;
+}
+
+function countFunctionDefinitions(content, fnName) {
+  const re = new RegExp(`(?:async\\s+)?function\\s+${fnName}\\s*\\(`, 'g');
+  const matches = content.match(re);
+  return matches ? matches.length : 0;
+}
+
+
+const STATION_FULL_RULES = [
+  { p: /\b(POST|PUT|PATCH|DELETE)\b/i, msg: 'Method HTTP proibido' },
+  { p: /credentials\s*:\s*['"]include['"]/i, msg: 'credentials include' },
+  { p: /mode\s*:\s*['"]no-cors['"]/i, msg: 'mode no-cors' },
+  { p: /Authorization/i, msg: 'Authorization header' },
+  { p: /cookie/i, msg: 'cookies' },
+  { p: /\bputBook\b/, msg: 'putBook' },
+  { p: /\bdbPut\b/, msg: 'dbPut' },
+  { p: /\bcaches\.open\b/, msg: 'caches.open' },
+  { p: /\bcache\.put\b/, msg: 'cache.put' },
+  { p: /\bCacheStorage\b/, msg: 'CacheStorage' },
+  { p: /\bshowSaveFilePicker\b/, msg: 'showSaveFilePicker' },
+  { p: /\bserviceWorker\.postMessage\b/, msg: 'serviceWorker.postMessage' },
+  { p: /['"]book_files['"]/, msg: 'persistência em book_files' },
+  { p: /['"]books['"]/, msg: 'persistência no catálogo books' }
+];
+
+const OPEN_BOOK_COMMON_RULES = [
+  { p: /\bputBook\b/, msg: 'putBook' },
+  { p: /\bdbPut\b/, msg: 'dbPut' },
+  { p: /\bcaches\.open\b/, msg: 'caches.open' },
+  { p: /\bcache\.put\b/, msg: 'cache.put' },
+  { p: /\bCacheStorage\b/, msg: 'CacheStorage' },
+  { p: /\bshowSaveFilePicker\b/, msg: 'showSaveFilePicker' },
+  { p: /\bserviceWorker\.postMessage\b/, msg: 'serviceWorker.postMessage' },
+  { p: /['"]book_files['"]/, msg: 'persistência em book_files' }
+];
+
+function assertRuleMatches(rule, sample, label) {
+  rule.lastIndex = 0;
+  if (!rule.test(sample)) {
+    throw new Error(`Boundary rule self-test failed: ${label}`);
+  }
+}
+
+// Autoteste das regras da fronteira
+assertRuleMatches(
+  STATION_FULL_RULES.find(r => r.msg === 'Method HTTP proibido').p,
+  "fetch(url, { method: 'POST' })",
+  'POST'
+);
+assertRuleMatches(
+  STATION_FULL_RULES.find(r => r.msg === 'credentials include').p,
+  "fetch(url, { credentials: 'include' })",
+  'credentials include'
+);
+assertRuleMatches(
+  STATION_FULL_RULES.find(r => r.msg === 'mode no-cors').p,
+  "fetch(url, { mode: 'no-cors' })",
+  'no-cors'
+);
+assertRuleMatches(
+  STATION_FULL_RULES.find(r => r.msg === 'dbPut').p,
+  "await dbPut('book_files', value)",
+  'dbPut'
+);
+assertRuleMatches(
+  STATION_FULL_RULES.find(r => r.msg === 'caches.open').p,
+  "await caches.open('station')",
+  'caches.open'
+);
+assertRuleMatches(
+  STATION_FULL_RULES.find(r => r.msg === 'serviceWorker.postMessage').p,
+  "navigator.serviceWorker.postMessage(data)",
+  'serviceWorker.postMessage'
+);
+
+// Autoteste da regressão real
+const simpleSelectorForEachTest = /(?<!\$)\$\(\s*(['"`])[^'"`\n]+\1\s*\)\s*\.forEach\s*\(/;
+assertRuleMatches(
+  simpleSelectorForEachTest,
+  "$('[data-close-panel]').forEach(() => {})",
+  'simpleSelectorForEach aceita falha correta'
+);
+if (simpleSelectorForEachTest.test("$$('[data-close-panel]').forEach(() => {})")) {
+  throw new Error("Boundary rule self-test failed: simpleSelectorForEach acusando $$ incorretamente");
+}
+console.log('Regex self-tests passed.');
+
+function checkStationBoundary(filePath, content) {
+  if (!filePath.endsWith('index.html')) return;
+  if (filePath.startsWith('dist/') || filePath.startsWith('dist\\')) return;
+
+  const requiredFns = [
+    'fetchStationLibrary', 'testStationConnection', 'openStationBook',
+    '_openBookCommon', 'renderBookBuffer', 'showBookOpenError',
+    'renderEpub', 'renderPdf', 'renderTxt'
+  ];
+
+  requiredFns.forEach(fn => {
+    const count = countFunctionDefinitions(content, fn);
+    if (count === 0) {
+      fail(filePath, 'Função obrigatória ausente', fn);
+    } else if (count > 1) {
+      fail(filePath, 'Função definida mais de uma vez', fn);
+    }
+  });
+
+
+
+  ['fetchStationLibrary', 'testStationConnection', 'openStationBook'].forEach(fn => {
+    const body = extractFunctionBody(content, fn);
+    if (body) {
+      STATION_FULL_RULES.forEach(r => {
+        if (r.p.test(body)) {
+          fail(filePath, `Fronteira Station violada na função ${fn}: ${r.msg}`, r.p.source);
+        }
+      });
+    }
+  });
+
+
+
+  const openBookBody = extractFunctionBody(content, '_openBookCommon');
+  if (openBookBody) {
+    OPEN_BOOK_COMMON_RULES.forEach(r => {
+      if (r.p.test(openBookBody)) {
+        fail(filePath, `Fronteira violada em _openBookCommon: ${r.msg}`, r.p.source);
+      }
+    });
+  }
+}
+
+function checkLegalAndFormats(filePath, content) {
+  if (filePath.endsWith('.md')) return; // ignore docs
+
+  const uiRules = [
+    { p: /Vade Mecum disponível/i, msg: 'Vade Mecum disponível' },
+    { p: /Constituição completa/i, msg: 'Constituição completa' },
+    { p: /CPC completo/i, msg: 'CPC completo' },
+    { p: /corpus oficial/i, msg: 'corpus oficial' },
+    { p: /corpus completo/i, msg: 'corpus completo' },
+  ];
+  uiRules.forEach(r => {
+    if (r.p.test(content)) fail(filePath, `Texto jurídico proibido na UI: ${r.msg}`, r.p.source);
+  });
+
+  const formatRules = [
+    { p: /['"]\.?docx?['"]/i, msg: 'Suporte a DOCX proibido' },
+    { p: /['"]\.?doc['"]/i, msg: 'Suporte a DOC proibido' },
+    { p: /['"]\.?odt['"]/i, msg: 'Suporte a ODT proibido' },
+    { p: /['"]\.?rtf['"]/i, msg: 'Suporte a RTF proibido' },
+    { p: /application\/vnd\.openxmlformats-officedocument/i, msg: 'MIME de OpenXML proibido' },
+    { p: /accept\s*=\s*["'][^"']*\.(?:docx?|odt|rtf)\b[^"']*["']/i, msg: 'Suporte a formatos bloqueados via accept attribute' },
+    { p: /\[[^\]]*['"]\.?docx?['"][^\]]*\]/i, msg: 'Formato proibido em array de formatos' },
+    { p: /includes\s*\(\s*['"]\.?docx?['"]\s*\)/i, msg: 'includes(\'docx\') proibido' },
+  ];
+  formatRules.forEach(r => {
+    if (r.p.test(content)) fail(filePath, `Formato proibido: ${r.msg}`, r.p.source);
+  });
+}
 
 function checkTextFile(filePath, rules) {
   const ext = extname(filePath).toLowerCase();
@@ -101,6 +298,10 @@ function checkTextFile(filePath, rules) {
       }
     }
   }
+
+  checkJsRegressions(filePath, content);
+  checkStationBoundary(filePath, content);
+  checkLegalAndFormats(filePath, content);
 }
 
 // Diretórios ignorados no walk
