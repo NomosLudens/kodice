@@ -5,14 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/build-service-worker.mjs && node scripts/verify-product-boundaries.mjs",
+    "build": "vite build && node scripts/build-service-worker.mjs && node scripts/verify-product-boundaries.mjs && node scripts/test-station-auth.mjs",
     "build:epubs": "node scripts/build-legal-epubs.mjs",
     "preview": "vite preview",
     "verify:decoupling": "node scripts/verify-decoupling.mjs",
     "verify:pwa": "node scripts/verify-pwa.mjs",
     "verify:legal": "node scripts/verify-legal-corpus.mjs",
     "verify:boundaries": "node scripts/verify-product-boundaries.mjs",
-    "test:legal-gate": "node scripts/test-legal-gate.mjs"
+    "test:legal-gate": "node scripts/test-legal-gate.mjs",
+    "test:station-auth": "node scripts/test-station-auth.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",
@@ -21,6 +22,6 @@
     "pdfjs-dist": "3.11.174"
   },
   "devDependencies": {
-    "vite": "^5.0.0"
+    "vite": "^6.0.0"
   }
 }
