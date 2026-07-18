@@ -294,6 +294,15 @@
   .panel-body{overflow-y:auto;padding:12px 14px;flex:1}
   .panel-close{min-width:44px;min-height:44px;border-radius:10px}
   .panel-close:hover{background:var(--elev)}
+  .compact-details,.settings-group{border:1px solid var(--border);border-radius:10px;background:color-mix(in oklab, var(--surface) 92%, var(--elev));}
+  .compact-details summary,.settings-group summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 12px;cursor:pointer;color:var(--text);font-size:13px;font-weight:600;list-style:none;}
+  .compact-details summary::-webkit-details-marker,.settings-group summary::-webkit-details-marker{display:none}
+  .compact-details summary::after,.settings-group summary::after{content:'+';font-size:18px;color:var(--text-2);font-weight:400}
+  .compact-details[open] summary::after,.settings-group[open] summary::after{content:'−'}
+  .compact-details > div{padding:8px 10px 10px;border-top:1px solid var(--border)}
+  .settings-group{border-width:0 0 1px;border-radius:0;background:transparent}
+  .settings-group summary{padding:0 4px;min-height:48px;border-bottom:1px solid var(--border)}
+  .settings-group[open] summary{color:var(--orange)}
 
   /* Library list */
   .book-item{
@@ -357,6 +366,39 @@
 
   /* Utility */
   .hidden{display:none !important}
+
+  @media(max-width:959px){
+    .side-panel,#library-panel{
+      top:var(--safe-t);bottom:0;height:calc(100dvh - var(--safe-t));max-height:none;
+      border-top-left-radius:0;border-top-right-radius:0;
+    }
+    .panel-header{position:sticky;top:0;z-index:2;background:var(--surface);padding-top:10px;}
+    .panel-header .grabber{display:none}
+    .panel-body{min-height:0;}
+    #library-filters{gap:6px !important;margin-bottom:8px !important}
+    #tab-lib-local,#tab-lib-station{min-height:44px !important}
+    #library-filter-details .lib-chip,#library-filter-details select{min-height:44px !important}
+    #lib-search{min-height:44px !important}
+    #lib-search-clear{width:44px !important;height:44px !important}
+    #library-status-row{min-height:32px}
+    #library-status-row button{min-height:44px;padding:4px 10px !important}
+    .settings-group button,.settings-group input,.settings-group select{min-height:44px !important}
+    #btn-add-book{margin-top:4px}
+    #topbar{gap:4px;padding-left:8px;padding-right:8px}
+    #topbar .brand{gap:6px}
+    #topbar .title-wrap{min-width:0}
+    #reader.reader-mode-txt{padding:16px 12px calc(72px + var(--safe-b))}
+    #pdf-viewer{padding:8px;gap:12px}
+  }
+
+  @media(max-width:600px){
+    #landing{padding:18px 16px;gap:10px}
+    #landing img.logo{width:64px;height:64px}
+    #landing h1{font-size:26px}
+    #landing p.lead{font-size:15px;line-height:1.45}
+    #dropzone{margin-top:4px;padding:20px 14px}
+    #dropzone .hint{margin-bottom:10px}
+  }
 </style>
 </head>
 <body>
@@ -489,18 +531,21 @@
         <input id="lib-search" type="search" placeholder="Buscar por título ou autor…" style="width:100%;min-height:40px;padding:8px 34px 8px 12px;border-radius:10px;background:var(--elev);border:1px solid var(--border);color:var(--text);font-size:14px;outline:none" />
         <button id="lib-search-clear" title="Limpar" aria-label="Limpar busca" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);width:28px;height:28px;border-radius:6px;background:transparent;border:0;color:var(--text-2);cursor:pointer;font-size:16px">✕</button>
       </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap" id="lib-type-filters">
-        <button class="lib-chip active" data-type="all" style="padding:6px 10px;border-radius:999px;background:var(--orange);color:#fff;border:0;font-size:12px;font-weight:600;cursor:pointer">Todos</button>
-        <button class="lib-chip" data-type="epub" style="padding:6px 10px;border-radius:999px;background:var(--elev);color:var(--text);border:1px solid var(--border);font-size:12px;font-weight:600;cursor:pointer">EPUB</button>
-        <button class="lib-chip" data-type="pdf" style="padding:6px 10px;border-radius:999px;background:var(--elev);color:var(--text);border:1px solid var(--border);font-size:12px;font-weight:600;cursor:pointer">PDF</button>
-        <button class="lib-chip" data-type="txt" style="padding:6px 10px;border-radius:999px;background:var(--elev);color:var(--text);border:1px solid var(--border);font-size:12px;font-weight:600;cursor:pointer">TXT</button>
-        <select id="lib-sort" style="margin-left:auto;min-height:32px;padding:0 8px;border-radius:8px;background:var(--elev);color:var(--text);border:1px solid var(--border);font-size:12px">
-          <option value="recent">Mais recentes</option>
-          <option value="title">Título (A–Z)</option>
-          <option value="author">Autor (A–Z)</option>
-        </select>
-      </div>
-      <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+      <details id="library-filter-details" class="compact-details">
+        <summary>Filtros e ordem</summary>
+        <div style="display:flex;gap:6px;flex-wrap:wrap" id="lib-type-filters">
+          <button class="lib-chip active" data-type="all" style="padding:6px 10px;border-radius:999px;background:var(--orange);color:#fff;border:0;font-size:12px;font-weight:600;cursor:pointer">Todos</button>
+          <button class="lib-chip" data-type="epub" style="padding:6px 10px;border-radius:999px;background:var(--elev);color:var(--text);border:1px solid var(--border);font-size:12px;font-weight:600;cursor:pointer">EPUB</button>
+          <button class="lib-chip" data-type="pdf" style="padding:6px 10px;border-radius:999px;background:var(--elev);color:var(--text);border:1px solid var(--border);font-size:12px;font-weight:600;cursor:pointer">PDF</button>
+          <button class="lib-chip" data-type="txt" style="padding:6px 10px;border-radius:999px;background:var(--elev);color:var(--text);border:1px solid var(--border);font-size:12px;font-weight:600;cursor:pointer">TXT</button>
+          <select id="lib-sort" style="margin-left:auto;min-height:32px;padding:0 8px;border-radius:8px;background:var(--elev);color:var(--text);border:1px solid var(--border);font-size:12px">
+            <option value="recent">Mais recentes</option>
+            <option value="title">Título (A–Z)</option>
+            <option value="author">Autor (A–Z)</option>
+          </select>
+        </div>
+      </details>
+      <div id="library-status-row" style="display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;">
         <div id="lib-count" style="color:var(--text-2);font-size:11px"></div>
         <button id="btn-station-refresh" style="display:none; padding:4px 8px; font-size:11px; background:var(--elev); border:1px solid var(--border); border-radius:4px; color:var(--text); cursor:pointer">Atualizar</button>
       </div>
@@ -550,6 +595,8 @@
     <button class="panel-close" data-close-panel="settings-panel" aria-label="Fechar">✕</button>
   </div>
   <div class="panel-body">
+    <details class="settings-group" open>
+      <summary>Leitura</summary>
     <div class="setting">
       <div class="setting-label"><b>Tema</b></div>
       <div class="seg" id="theme-seg">
@@ -587,6 +634,9 @@
       <div class="setting-label"><b>Zoom</b><span id="z-val">100%</span></div>
       <input type="range" id="z" min="0.8" max="1.6" step="0.05" value="1" />
     </div>
+    </details>
+    <details class="settings-group">
+      <summary>Conta e sincronização</summary>
     <div class="setting">
       <div class="setting-label"><b>Sincronização</b><span id="sync-status">Local</span></div>
       <div style="color:var(--text-2);font-size:13px;line-height:1.5;margin-bottom:10px">
@@ -604,10 +654,12 @@
       <div id="account-box"></div>
       <div id="sync-status-box" style="margin-top:12px"></div>
     </div>
-        <div class="setting">
-        <div class="setting-label"><b>Estação</b><span id="station-status-label" style="color:var(--text-2);font-size:12px">Confirmação necessária</span></div>
+    </details>
+    <details class="settings-group" id="station-settings-group">
+      <summary><span id="station-identity-label">Estação</span><span id="station-status-label" style="color:var(--text-2);font-size:12px">Confirmação necessária</span></summary>
+      <div class="setting">
         <div style="color:var(--text-2);font-size:13px;line-height:1.5;margin-bottom:10px">
-        <b id="station-identity-label">Estação</b><br>Biblioteca read-only da Estação. A origem só receberá seu token após sua confirmação explícita.
+        Biblioteca read-only da Estação. A origem só receberá seu token após sua confirmação explícita.
       </div>
       <div style="display:flex;flex-direction:column;gap:8px">
         <input type="url" id="station-url-input" placeholder="https://..." style="width:100%;min-height:44px;border-radius:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);padding:0 12px;font-size:14px;outline:none" />
@@ -617,12 +669,15 @@
         </div>
         <button id="btn-station-restore" style="min-height:38px;padding:0 12px;border-radius:8px;background:transparent;color:var(--text-2);border:1px solid var(--border);font-weight:600;cursor:pointer">Restaurar Estação padrão</button>
       </div>
-    </div>
+      </div>
+    </details>
     <div class="setting" id="install-setting" style="display:none">
       <div class="setting-label"><b>Instalação</b></div>
       <button id="btn-install-app" style="min-height:44px;border-radius:10px;background:var(--orange);color:#fff;font-weight:600;padding:0 14px">Instalar Kódice</button>
       <div id="install-help" style="color:var(--text-2);font-size:12px;margin-top:8px"></div>
     </div>
+    <details class="settings-group">
+      <summary>Armazenamento e backup</summary>
     <div class="setting">
       <div class="setting-label"><b>Armazenamento local</b><span id="storage-estimate" style="color:var(--text-2);font-size:12px"></span></div>
     </div>
@@ -655,6 +710,7 @@
         <div id="auto-backup-info" style="color:var(--text-2);font-size:12px"></div>
       </div>
     </div>
+    </details>
   </div>
 </aside>
 
@@ -3624,6 +3680,7 @@ function wire(){
   
   const tabLocal = document.getElementById('tab-lib-local');
   const tabStation = document.getElementById('tab-lib-station');
+  const btnAddBook = document.getElementById('btn-add-book');
   const btnTest = document.getElementById('btn-station-test');
   const btnRemove = document.getElementById('btn-station-remove');
   const btnRestore = document.getElementById('btn-station-restore');
@@ -3638,6 +3695,7 @@ function wire(){
     tabStation.style.background = 'transparent';
     tabStation.style.color = 'var(--text-2)';
     tabStation.style.boxShadow = 'none';
+    if(btnAddBook) btnAddBook.style.display = '';
     renderLibrary();
   });
   
@@ -3651,6 +3709,7 @@ function wire(){
     tabLocal.style.background = 'transparent';
     tabLocal.style.color = 'var(--text-2)';
     tabLocal.style.boxShadow = 'none';
+    if(btnAddBook) btnAddBook.style.display = 'none';
     if(state.station.status === 'unconfigured' || state.station.status === 'origin_pending') {
       // do nothing, just render
     } else if(state.station.status === 'configured' || (state.station.baseUrl && state.station.status === 'error')) {
@@ -3658,6 +3717,7 @@ function wire(){
     }
     renderLibrary();
   });
+  if(btnAddBook) btnAddBook.style.display = state.activeTab === 'station' ? 'none' : '';
   
   if (btnTest) btnTest.addEventListener('click', testStationConnection);
   if (btnRestore) btnRestore.addEventListener('click', restoreDefaultStation);
