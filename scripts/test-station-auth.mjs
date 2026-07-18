@@ -57,6 +57,9 @@ function assertEqual(a, b, msg) {
 // Extrair fontes reais de index.html
 const indexPath = join(__dirname, '..', 'index.html');
 const src = readFileSync(indexPath, 'utf8');
+const getInitialStationConfigSrc = extractFunction(src, 'getInitialStationConfig');
+const restoreDefaultStationSrc   = extractFunction(src, 'restoreDefaultStation');
+const removeStationSrc            = extractFunction(src, 'removeStation');
 
 const mapStationErrorSrc        = extractFunction(src, 'mapStationError');
 const stationStatusFromErrorSrc = extractFunction(src, 'stationStatusFromError');
@@ -101,6 +104,10 @@ function setupEnv(overrides = {}) {
 
   // Mocks do local
   globalThis.supabase = overrides.supabase || null;
+  globalThis.STATION_BASE_URL_KEY = 'codice.station.baseUrl';
+  globalThis.STATION_TRUSTED_ORIGIN_KEY = 'codice.station.trustedOrigin';
+  globalThis.STATION_OPT_OUT_KEY = 'codice.station.defaultOptOut';
+  globalThis.DEFAULT_STATION_URL = 'https://kaline-box.taildb6c11.ts.net';
   globalThis.state = state;
   globalThis.localStorage = {
     getItem: k => ls[k] ?? null,
@@ -149,6 +156,9 @@ function setupEnv(overrides = {}) {
   globalThis.loadProfile = overrides.loadProfile || (async () => ({}));
 
   // Compilar e registrar funções reais
+  globalThis.getInitialStationConfig = new Function(`"use strict"; ${getInitialStationConfigSrc}; return getInitialStationConfig;`)();
+  globalThis.restoreDefaultStation = new Function(`"use strict"; ${restoreDefaultStationSrc}; return restoreDefaultStation;`)();
+  globalThis.removeStation = new Function(`"use strict"; ${removeStationSrc}; return removeStation;`)();
   // eslint-disable-next-line no-new-func
   globalThis.mapStationError = new Function(`"use strict"; ${mapStationErrorSrc}; return mapStationError;`)();
   // eslint-disable-next-line no-new-func
@@ -220,8 +230,49 @@ function setupEnv(overrides = {}) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Execução dos testes (13 cenários)
+// Execução dos testes
 // ─────────────────────────────────────────────────────────────────────────────
+
+await test('0. perfil novo recebe a Kaline Box sem request automático', async () => {
+  let fetchCalled = false;
+  const { state } = setupEnv({ fetchImpl: async () => { fetchCalled = true; } });
+  const initial = globalThis.getInitialStationConfig();
+  state.station.baseUrl = initial.baseUrl;
+  state.station.status = initial.status;
+  assertEqual(initial.baseUrl, 'https://kaline-box.taildb6c11.ts.net');
+  assertEqual(initial.status, 'origin_pending');
+  assert(!fetchCalled, 'a configuração inicial não pode consultar a Station');
+});
+
+await test('0b. stationFetch bloqueia request e Bearer antes da confirmação', async () => {
+  let fetchCalled = false;
+  setupEnv({
+    supabase: { auth: { getSession: async () => ({ data: { session: { access_token: 'tok' } } }) } },
+    fetchImpl: async () => { fetchCalled = true; }
+  });
+  try { await globalThis.stationFetch('/api/codice/health', { baseUrl: 'https://kaline-box.taildb6c11.ts.net' }); }
+  catch (e) { assertEqual(e.code, 'origin_not_allowed'); }
+  assert(!fetchCalled);
+});
+
+await test('0c. remoção persiste opt-out e restauração reabre confirmação', async () => {
+  const { ls, state } = setupEnv({
+    localStorageData: {
+      'codice.station.baseUrl': 'https://station.local',
+      'codice.station.trustedOrigin': 'https://station.local'
+    }
+  });
+  await globalThis.removeStation();
+  assertEqual(ls['codice.station.defaultOptOut'], '1');
+  const afterReload = globalThis.getInitialStationConfig();
+  assertEqual(afterReload.baseUrl, '');
+  assertEqual(afterReload.status, 'unconfigured');
+  globalThis.restoreDefaultStation();
+  assertEqual(state.station.baseUrl, 'https://kaline-box.taildb6c11.ts.net');
+  assertEqual(state.station.status, 'origin_pending');
+  assert(!ls['codice.station.defaultOptOut']);
+  assert(!ls['codice.station.trustedOrigin']);
+});
 
 await test('1. stationFetch envia Bearer, credentials:omit, cache:no-store, redirect:error', async () => {
   let fetchArgs = null;

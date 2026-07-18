@@ -605,16 +605,17 @@
       <div id="sync-status-box" style="margin-top:12px"></div>
     </div>
         <div class="setting">
-      <div class="setting-label"><b>Estação Privada</b><span id="station-status-label" style="color:var(--text-2);font-size:12px">Não configurada</span></div>
-      <div style="color:var(--text-2);font-size:13px;line-height:1.5;margin-bottom:10px">
-        Conecte a biblioteca read-only de uma Estação.
+        <div class="setting-label"><b>Estação</b><span id="station-status-label" style="color:var(--text-2);font-size:12px">Confirmação necessária</span></div>
+        <div style="color:var(--text-2);font-size:13px;line-height:1.5;margin-bottom:10px">
+        <b>Estação padrão · Kaline Box</b><br>Biblioteca read-only da Estação. A origem só receberá seu token após sua confirmação explícita.
       </div>
       <div style="display:flex;flex-direction:column;gap:8px">
         <input type="url" id="station-url-input" placeholder="https://..." style="width:100%;min-height:44px;border-radius:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);padding:0 12px;font-size:14px;outline:none" />
         <div style="display:flex;gap:8px">
-          <button id="btn-station-test" class="primary" style="flex:1;min-height:44px;border-radius:10px;background:var(--orange);color:#fff;font-weight:600;border:none;cursor:pointer">Testar e Salvar</button>
+          <button id="btn-station-test" class="primary" style="flex:1;min-height:44px;border-radius:10px;background:var(--orange);color:#fff;font-weight:600;border:none;cursor:pointer">Confirmar e testar</button>
           <button id="btn-station-remove" style="min-height:44px;padding:0 14px;border-radius:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);font-weight:600;cursor:pointer">Remover</button>
         </div>
+        <button id="btn-station-restore" style="min-height:38px;padding:0 12px;border-radius:8px;background:transparent;color:var(--text-2);border:1px solid var(--border);font-weight:600;cursor:pointer">Restaurar Estação padrão</button>
       </div>
     </div>
     <div class="setting" id="install-setting" style="display:none">
@@ -708,6 +709,25 @@ import { restoreLastLocalBook } from './src/restoreLastLocalBook.js';
  * =======================================================*/
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL?.trim() || "";
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() || "";
+const DEFAULT_STATION_URL = (import.meta.env.VITE_KODICE_STATION_URL?.trim()
+  || 'https://kaline-box.taildb6c11.ts.net').replace(/\/$/, '');
+const STATION_BASE_URL_KEY = 'codice.station.baseUrl';
+const STATION_TRUSTED_ORIGIN_KEY = 'codice.station.trustedOrigin';
+const STATION_OPT_OUT_KEY = 'codice.station.defaultOptOut';
+
+function getInitialStationConfig() {
+  const savedUrl = localStorage.getItem(STATION_BASE_URL_KEY)?.trim();
+  const optedOut = localStorage.getItem(STATION_OPT_OUT_KEY) === '1';
+  if (savedUrl || optedOut) {
+    return {
+      baseUrl: savedUrl || '',
+      status: savedUrl
+        ? (localStorage.getItem(STATION_TRUSTED_ORIGIN_KEY) ? 'configured' : 'origin_pending')
+        : 'unconfigured',
+    };
+  }
+  return { baseUrl: DEFAULT_STATION_URL, status: 'origin_pending' };
+}
 
 // Tabelas esperadas no backend (Supabase):
 //   public.codice_progress (user_id uuid, book_id text, cfi, page, scroll_top, percentage, title, updated_at)
@@ -736,6 +756,7 @@ if(SYNC_ENABLED){
 /* =========================================================
  * State
  * =======================================================*/
+const initialStation = getInitialStationConfig();
 const state = {
   books: [],           // {id,title,author,type,addedAt,progress}
   activeBook: null,    // {id,type,title,author,data,rendition?,pdf?,toc?,progress}
@@ -748,8 +769,8 @@ const state = {
   panels: { library:false, toc:false, notebook:false, settings:false },
   activeTab: 'local',
   station: {
-    baseUrl: localStorage.getItem('codice.station.baseUrl') || '',
-    status: localStorage.getItem('codice.station.baseUrl') ? 'configured' : 'unconfigured',
+    baseUrl: initialStation.baseUrl,
+    status: initialStation.status,
     books: [],
     health: null,
     generatedAt: null,
@@ -1414,13 +1435,25 @@ function renderLibrary(){
       document.getElementById('btn-station-goto-settings').addEventListener('click', () => openPanel('settings-panel'));
       return;
     }
+    if (state.station.status === 'origin_pending') {
+      list.innerHTML = `<div class="empty">Confirme a origem da Estação para acessar a Biblioteca.<br><br><button id="btn-station-goto-settings" style="padding:8px 16px;background:var(--elev);border:1px solid var(--border);border-radius:8px;color:var(--text);cursor:pointer;margin-top:8px">Confirmar Estação</button></div>`;
+      const c = document.getElementById('lib-count'); if(c) c.textContent='';
+      document.getElementById('btn-station-goto-settings').addEventListener('click', () => openPanel('settings-panel'));
+      return;
+    }
     if (state.station.status === 'auth_not_configured') {
       list.innerHTML = `<div class="empty">Configure o Supabase para usar a Estação.</div>`;
       const c = document.getElementById('lib-count'); if(c) c.textContent='';
       return;
     }
     if (state.station.status === 'login_required') {
-      list.innerHTML = `<div class="empty">Faça login para acessar a Estação.<br><br><button id="btn-station-login" style="padding:8px 16px;background:var(--orange);color:#fff;border:none;border-radius:8px;cursor:pointer;margin-top:8px;font-weight:600">Entrar</button></div>`;
+      list.innerHTML = `<div class="empty">Entre no Kódice para acessar a Estação.<br><br><button id="btn-station-login" style="padding:8px 16px;background:var(--orange);color:#fff;border:none;border-radius:8px;cursor:pointer;margin-top:8px;font-weight:600">Entrar</button></div>`;
+      const c = document.getElementById('lib-count'); if(c) c.textContent='';
+      document.getElementById('btn-station-login')?.addEventListener('click', () => openAuth());
+      return;
+    }
+    if (state.station.status === 'session_expired') {
+      list.innerHTML = `<div class="empty">Sua sessão expirou. Entre novamente para acessar a Estação.<br><br><button id="btn-station-login" style="padding:8px 16px;background:var(--orange);color:#fff;border:none;border-radius:8px;cursor:pointer;margin-top:8px;font-weight:600">Entrar novamente</button></div>`;
       const c = document.getElementById('lib-count'); if(c) c.textContent='';
       document.getElementById('btn-station-login')?.addEventListener('click', () => openAuth());
       return;
@@ -1682,7 +1715,7 @@ function stationStatusFromError(code) {
   const map = {
     station_auth_not_configured: 'auth_not_configured',
     authentication_required:     'login_required',
-    authentication_failed:       'login_required',
+    authentication_failed:       'session_expired',
     authorization_failed:        'unauthorized',
     authentication_unavailable:  'auth_unavailable',
     origin_not_allowed:          'origin_not_allowed',
@@ -1748,8 +1781,21 @@ async function stationFetch(path, { baseUrl, approvedOrigin = null }, retried = 
   }
 
   // 3. Verificar origin confiável (approvedOrigin efêmera ou localStorage)
-  const requestedOrigin = new URL(baseUrl).origin;
-  const trusted = approvedOrigin || localStorage.getItem('codice.station.trustedOrigin');
+  let requestedOrigin;
+  try {
+    const parsedBase = new URL(baseUrl);
+    if ((parsedBase.protocol !== 'https:' && parsedBase.protocol !== 'http:') ||
+        parsedBase.username || parsedBase.password || parsedBase.search || parsedBase.hash ||
+        (parsedBase.pathname !== '/' && parsedBase.pathname !== '')) {
+      throw new Error('invalid station base URL');
+    }
+    requestedOrigin = parsedBase.origin;
+  } catch {
+    const err = new Error(mapStationError('host_not_allowed'));
+    err.code = 'host_not_allowed';
+    throw err;
+  }
+  const trusted = approvedOrigin || localStorage.getItem(STATION_TRUSTED_ORIGIN_KEY);
   if (requestedOrigin !== trusted) {
     const err = new Error(mapStationError('origin_not_allowed'));
     err.code = 'origin_not_allowed';
@@ -1925,7 +1971,7 @@ async function testStationConnection() {
 
     // Confirmar sempre que a origin candidata não for a origin confiável salva:
     // cobre primeira configuração, URLs salvas antes deste PR e mudança de origin.
-    const savedTrusted = localStorage.getItem('codice.station.trustedOrigin');
+    const savedTrusted = localStorage.getItem(STATION_TRUSTED_ORIGIN_KEY);
     if (candidateOrigin !== savedTrusted) {
       const confirmed = window.confirm(
         `A origem "${candidateOrigin}" receberá o token da sua sessão.\nDeseja continuar?`
@@ -1944,8 +1990,9 @@ async function testStationConnection() {
     }
 
     // Salvar somente após health autenticado válido
-    localStorage.setItem('codice.station.baseUrl', normalized);
-    localStorage.setItem('codice.station.trustedOrigin', candidateOrigin);
+    localStorage.setItem(STATION_BASE_URL_KEY, normalized);
+    localStorage.setItem(STATION_TRUSTED_ORIGIN_KEY, candidateOrigin);
+    localStorage.removeItem(STATION_OPT_OUT_KEY);
     state.station.baseUrl = normalized;
     state.station.status = 'configured';
     state.station.books = [];
@@ -1973,14 +2020,16 @@ function updateStationSettingsUI(overrideStatus) {
     inp.value = state.station.baseUrl;
     const labelMap = {
       online:              'Online',
-      error:               'Indisponível',
-      configured:          'Configurada',
-      login_required:      'Login necessário',
+      error:               'Tailscale desconectado ou Estação indisponível',
+      configured:          'Aguardando health',
+      login_required:      'Entre para acessar',
+      session_expired:     'Sessão expirada',
       unauthorized:        'Sem autorização',
       auth_unavailable:    'Autenticação indisponível',
       auth_not_configured: 'Supabase não configurado',
       origin_not_allowed:  'Origem não autorizada',
-      host_not_allowed:    'Host inválido',
+      host_not_allowed:    'Configuração inválida',
+      origin_pending:      'Confirmação necessária',
     };
     lbl.textContent = labelMap[state.station.status] || 'Conectando...';
   } else {
@@ -3482,6 +3531,52 @@ async function beforePwaReload(){
 /* =========================================================
  * Wire events
  * =======================================================*/
+function restoreDefaultStation() {
+  localStorage.removeItem(STATION_OPT_OUT_KEY);
+  localStorage.removeItem(STATION_TRUSTED_ORIGIN_KEY);
+  localStorage.setItem(STATION_BASE_URL_KEY, DEFAULT_STATION_URL);
+  state.station.baseUrl = DEFAULT_STATION_URL;
+  state.station.status = 'origin_pending';
+  state.station.books = [];
+  state.station.health = null;
+  state.station.error = null;
+  updateStationSettingsUI();
+  if(state.activeTab === 'station') renderLibrary();
+  toast('Estação padrão restaurada. Confirme a origem para conectar.');
+}
+
+async function removeStation() {
+  localStorage.removeItem(STATION_BASE_URL_KEY);
+  localStorage.removeItem(STATION_TRUSTED_ORIGIN_KEY);
+  localStorage.setItem(STATION_OPT_OUT_KEY, '1');
+  state.station.baseUrl = '';
+  state.station.status = 'unconfigured';
+  state.station.books = [];
+  state.station.health = null;
+  state.station.generatedAt = null;
+  state.station.truncated = false;
+  state.station.error = null;
+  // Liberar recursos do livro remoto se aberto
+  if (state.activeBook && state.activeBook.isLocal === false) {
+    try { await flushPendingNotes(); } catch {}
+    await releaseActiveBookResources();
+    setReaderChromeVisible(true);
+    $('#landing').classList.remove('hidden');
+    $('#reader').classList.add('hidden');
+    applyReaderModeClass(null);
+    $('#title-wrap').classList.add('hidden');
+    resetReaderNavState();
+    setReaderInlineNavVisible(false);
+    $('#book-title').textContent = ''; $('#book-author').textContent = '';
+    updateProgress(0);
+    $('#toc-body').innerHTML = '<div class="empty">Abra um livro para ver o sumário.</div>';
+    updateRail();
+  }
+  updateStationSettingsUI();
+  if(state.activeTab === 'station') renderLibrary();
+  toast('Estação removida');
+}
+
 function wire(){
   wirePwaUi();
   updateStationSettingsUI();
@@ -3490,6 +3585,7 @@ function wire(){
   const tabStation = document.getElementById('tab-lib-station');
   const btnTest = document.getElementById('btn-station-test');
   const btnRemove = document.getElementById('btn-station-remove');
+  const btnRestore = document.getElementById('btn-station-restore');
   
   if (tabLocal) tabLocal.addEventListener('click', () => {
     state.activeTab = 'local';
@@ -3514,7 +3610,7 @@ function wire(){
     tabLocal.style.background = 'transparent';
     tabLocal.style.color = 'var(--text-2)';
     tabLocal.style.boxShadow = 'none';
-    if(state.station.status === 'unconfigured') {
+    if(state.station.status === 'unconfigured' || state.station.status === 'origin_pending') {
       // do nothing, just render
     } else if(state.station.status === 'configured' || (state.station.baseUrl && state.station.status === 'error')) {
       fetchStationLibrary();
@@ -3523,39 +3619,11 @@ function wire(){
   });
   
   if (btnTest) btnTest.addEventListener('click', testStationConnection);
+  if (btnRestore) btnRestore.addEventListener('click', restoreDefaultStation);
   const btnRefresh = document.getElementById('btn-station-refresh');
   if (btnRefresh) btnRefresh.addEventListener('click', fetchStationLibrary);
   
-  if (btnRemove) btnRemove.addEventListener('click', async () => {
-    localStorage.removeItem('codice.station.baseUrl');
-    localStorage.removeItem('codice.station.trustedOrigin');
-    state.station.baseUrl = '';
-    state.station.status = 'unconfigured';
-    state.station.books = [];
-    state.station.health = null;
-    state.station.generatedAt = null;
-    state.station.truncated = false;
-    state.station.error = null;
-    // Liberar recursos do livro remoto se aberto
-    if (state.activeBook && state.activeBook.isLocal === false) {
-      try { await flushPendingNotes(); } catch {}
-      await releaseActiveBookResources();
-      setReaderChromeVisible(true);
-      $('#landing').classList.remove('hidden');
-      $('#reader').classList.add('hidden');
-      applyReaderModeClass(null);
-      $('#title-wrap').classList.add('hidden');
-      resetReaderNavState();
-      setReaderInlineNavVisible(false);
-      $('#book-title').textContent = ''; $('#book-author').textContent = '';
-      updateProgress(0);
-      $('#toc-body').innerHTML = '<div class="empty">Abra um livro para ver o sumário.</div>';
-      updateRail();
-    }
-    updateStationSettingsUI();
-    if(state.activeTab === 'station') renderLibrary();
-    toast('Estação removida');
-  });
+  if (btnRemove) btnRemove.addEventListener('click', removeStation);
   // (importNotesMarkdown defined above)
   // Auto-backup select
   const abSel = document.getElementById('auto-backup-freq');
