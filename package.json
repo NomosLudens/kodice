@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/build-service-worker.mjs && node scripts/verify-product-boundaries.mjs && node scripts/test-station-auth.mjs",
+    "build": "vite build && node scripts/build-service-worker.mjs && node scripts/verify-product-boundaries.mjs && node scripts/test-station-auth.mjs && node scripts/test-pdf-engine.mjs",
     "build:epubs": "node scripts/build-legal-epubs.mjs",
     "preview": "vite preview",
     "verify:decoupling": "node scripts/verify-decoupling.mjs",
@@ -13,13 +13,14 @@
     "verify:legal": "node scripts/verify-legal-corpus.mjs",
     "verify:boundaries": "node scripts/verify-product-boundaries.mjs",
     "test:legal-gate": "node scripts/test-legal-gate.mjs",
-    "test:station-auth": "node scripts/test-station-auth.mjs"
+    "test:station-auth": "node scripts/test-station-auth.mjs",
+    "test:pdf-engine": "node scripts/test-pdf-engine.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",
     "epubjs": "0.3.93",
     "jszip": "^3.10.1",
-    "pdfjs-dist": "3.11.174"
+    "pdfjs-dist": "6.1.200"
   },
   "devDependencies": {
     "vite": "^6.0.0"
