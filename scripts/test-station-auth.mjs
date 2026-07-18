@@ -60,6 +60,9 @@ const src = readFileSync(indexPath, 'utf8');
 const getInitialStationConfigSrc = extractFunction(src, 'getInitialStationConfig');
 const restoreDefaultStationSrc   = extractFunction(src, 'restoreDefaultStation');
 const removeStationSrc            = extractFunction(src, 'removeStation');
+const renderStationConfiguredStateSrc = extractFunction(src, 'renderStationConfiguredState');
+const renderLibrarySrc            = extractFunction(src, 'renderLibrary');
+const stationIdentityLabelSrc     = extractFunction(src, 'stationIdentityLabel');
 
 const mapStationErrorSrc        = extractFunction(src, 'mapStationError');
 const stationStatusFromErrorSrc = extractFunction(src, 'stationStatusFromError');
@@ -89,6 +92,9 @@ function setupEnv(overrides = {}) {
     'toc-body':       { innerHTML: '' },
     'station-url-input': { value: '' },
     'station-status-label': { textContent: '' },
+    'station-identity-label': { textContent: '' },
+    'library-list': { innerHTML: '' },
+    'lib-count': { textContent: '' },
     ...overrides.domElements,
   };
 
@@ -160,6 +166,7 @@ function setupEnv(overrides = {}) {
   globalThis.getInitialStationConfig = new Function(`"use strict"; ${getInitialStationConfigSrc}; return getInitialStationConfig;`)();
   globalThis.restoreDefaultStation = new Function(`"use strict"; ${restoreDefaultStationSrc}; return restoreDefaultStation;`)();
   globalThis.removeStation = new Function(`"use strict"; ${removeStationSrc}; return removeStation;`)();
+  globalThis.stationIdentityLabel = new Function(`"use strict"; ${stationIdentityLabelSrc}; return stationIdentityLabel;`)();
   // eslint-disable-next-line no-new-func
   globalThis.mapStationError = new Function(`"use strict"; ${mapStationErrorSrc}; return mapStationError;`)();
   // eslint-disable-next-line no-new-func
@@ -170,6 +177,7 @@ function setupEnv(overrides = {}) {
   globalThis.stationFetch = new Function(`"use strict"; ${stationFetchSrc}; return stationFetch;`)();
   // eslint-disable-next-line no-new-func
   globalThis.fetchStationLibrary = new Function(`"use strict"; ${fetchStationLibrarySrc}; return fetchStationLibrary;`)();
+  globalThis.renderStationConfiguredState = new Function(`"use strict"; ${renderStationConfiguredStateSrc}; return renderStationConfiguredState;`)();
   // eslint-disable-next-line no-new-func
   globalThis.testStationConnection = new Function(`"use strict"; ${testStationConnectionSrc}; return testStationConnection;`)();
   // eslint-disable-next-line no-new-func
@@ -307,6 +315,54 @@ await test('0d. autenticação recupera session_expired e permite nova consulta 
 
   await globalThis.fetchStationLibrary();
   assertEqual(libraryCalls, 1, 'catálogo deve poder ser consultado novamente após a recuperação');
+});
+
+await test('0e. configured mostra estado neutro e só carrega catálogo por ação explícita', async () => {
+  let loadHandler = null;
+  const { domElements, state } = setupEnv({
+    stateOverride: {
+      activeTab: 'station',
+      station: { baseUrl: 'https://station.local', status: 'configured', books: [] }
+    },
+    domElements: {
+      'btn-station-load': { addEventListener: (event, handler) => { loadHandler = handler; } }
+    }
+  });
+  let fetchCalls = 0;
+  globalThis.fetchStationLibrary = async () => { fetchCalls++; };
+  globalThis.renderLibrary = new Function(`"use strict"; ${renderLibrarySrc}; return renderLibrary;`)();
+
+  globalThis.renderLibrary();
+  assert(!domElements['library-list'].innerHTML.includes('Nenhum livro encontrado'));
+  assert(domElements['library-list'].innerHTML.includes('Estação pronta para consulta'));
+  assert(domElements['library-list'].innerHTML.includes('Carregar catálogo'));
+  assertEqual(fetchCalls, 0, 'configured não deve consultar a Station ao renderizar');
+  assert(loadHandler, 'configured deve oferecer ação explícita de carregamento');
+  await loadHandler();
+  assertEqual(fetchCalls, 1, 'ação deve chamar fetchStationLibrary');
+  assertEqual(state.station.status, 'configured');
+});
+
+await test('0f. online com catálogo vazio mostra vazio somente após consulta real', async () => {
+  const { domElements } = setupEnv({
+    stateOverride: {
+      activeTab: 'station',
+      station: { baseUrl: 'https://station.local', status: 'online', books: [] }
+    }
+  });
+  globalThis.renderLibrary = new Function(`"use strict"; ${renderLibrarySrc}; return renderLibrary;`)();
+  globalThis.renderLibrary();
+  assert(domElements['library-list'].innerHTML.includes('Nenhum livro encontrado'));
+});
+
+await test('0g. identidade da Station distingue padrão, personalizada e ausência sem alterar configuração', async () => {
+  assertEqual(globalThis.stationIdentityLabel('https://kaline-box.taildb6c11.ts.net'), 'Estação padrão · Kaline Box');
+  assertEqual(globalThis.stationIdentityLabel('https://other-station.example'), 'Estação personalizada');
+  assertEqual(globalThis.stationIdentityLabel(''), 'Estação');
+  const { state } = setupEnv({
+    stateOverride: { station: { baseUrl: 'https://other-station.example', status: 'configured', books: [] } }
+  });
+  assertEqual(state.station.baseUrl, 'https://other-station.example');
 });
 
 await test('1. stationFetch envia Bearer, credentials:omit, cache:no-store, redirect:error', async () => {

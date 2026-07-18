@@ -607,7 +607,7 @@
         <div class="setting">
         <div class="setting-label"><b>Estação</b><span id="station-status-label" style="color:var(--text-2);font-size:12px">Confirmação necessária</span></div>
         <div style="color:var(--text-2);font-size:13px;line-height:1.5;margin-bottom:10px">
-        <b>Estação padrão · Kaline Box</b><br>Biblioteca read-only da Estação. A origem só receberá seu token após sua confirmação explícita.
+        <b id="station-identity-label">Estação</b><br>Biblioteca read-only da Estação. A origem só receberá seu token após sua confirmação explícita.
       </div>
       <div style="display:flex;flex-direction:column;gap:8px">
         <input type="url" id="station-url-input" placeholder="https://..." style="width:100%;min-height:44px;border-radius:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);padding:0 12px;font-size:14px;outline:none" />
@@ -1414,6 +1414,11 @@ async function loadLibrary(){
   state.books = rows.map(bookMetadataFromRecord).sort((a,b)=>b.addedAt-a.addedAt);
   renderLibrary();
 }
+function renderStationConfiguredState(list) {
+  list.innerHTML = '<div class="empty">Estação pronta para consulta.<br><br><button id="btn-station-load" style="padding:8px 16px;background:var(--elev);border:1px solid var(--border);border-radius:8px;color:var(--text);cursor:pointer">Carregar catálogo</button></div>';
+  const c = document.getElementById('lib-count'); if(c) c.textContent='';
+  document.getElementById('btn-station-load')?.addEventListener('click', fetchStationLibrary);
+}
 function renderLibrary(){
   const list = $('#library-list');
   const isLocal = state.activeTab !== 'station';
@@ -1456,6 +1461,10 @@ function renderLibrary(){
       list.innerHTML = `<div class="empty">Sua sessão expirou. Entre novamente para acessar a Estação.<br><br><button id="btn-station-login" style="padding:8px 16px;background:var(--orange);color:#fff;border:none;border-radius:8px;cursor:pointer;margin-top:8px;font-weight:600">Entrar novamente</button></div>`;
       const c = document.getElementById('lib-count'); if(c) c.textContent='';
       document.getElementById('btn-station-login')?.addEventListener('click', () => openAuth());
+      return;
+    }
+    if (state.station.status === 'configured') {
+      renderStationConfiguredState(list);
       return;
     }
     if (state.station.status === 'unauthorized') {
@@ -2010,9 +2019,22 @@ async function testStationConnection() {
   }
 }
 
+function stationIdentityLabel(baseUrl) {
+  if (!baseUrl) return 'Estação';
+  try {
+    return new URL(baseUrl).origin === new URL(DEFAULT_STATION_URL).origin
+      ? 'Estação padrão · Kaline Box'
+      : 'Estação personalizada';
+  } catch {
+    return 'Estação personalizada';
+  }
+}
+
 function updateStationSettingsUI(overrideStatus) {
   const lbl = document.getElementById('station-status-label');
   const inp = document.getElementById('station-url-input');
+  const identity = document.getElementById('station-identity-label');
+  if(identity) identity.textContent = stationIdentityLabel(state.station.baseUrl);
   if(!lbl || !inp) return;
   if(overrideStatus) {
     lbl.textContent = overrideStatus;
