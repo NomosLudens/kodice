@@ -98,12 +98,14 @@
   #reader-content img{max-width:100%;height:auto}
   #reader-content pre,#reader-content code{max-width:100%;overflow-x:auto;white-space:pre-wrap;overflow-wrap:anywhere}
   #reader-content table{max-width:100%;display:block;overflow-x:auto}
-  #reader.reader-mode-epub-paginated{overflow:hidden;padding:0 0 calc(72px + var(--safe-b));}
+  #reader.reader-mode-epub-paginated{display:flex;flex-direction:column;overflow:hidden;padding:0 0 calc(72px + var(--safe-b));}
   #app.reader-chrome-hidden #reader.reader-mode-epub-paginated{padding-bottom:var(--safe-b)}
   #app.reader-chrome-hidden #reader-inline-nav{opacity:0;visibility:hidden;pointer-events:none}
   #reader.reader-mode-epub-scrolled{overflow-y:auto;overflow-x:hidden;}
   #reader.reader-mode-pdf,#reader.reader-mode-txt{overflow-y:auto;overflow-x:hidden;}
   #epub-viewer{width:100%;max-width:100%;min-width:0;height:100%;min-height:0;overflow:hidden}
+  #reader.reader-mode-epub-paginated #epub-viewer{height:auto;flex:1 1 auto}
+  #epub-viewer iframe{display:block;width:100%;height:100%;border:0}
   #reader.reader-mode-epub-scrolled #epub-viewer{overflow:visible}
   #pdf-viewer{display:flex;flex-direction:column;align-items:center;gap:16px;padding:16px;width:100%;max-width:100%;min-width:0;overflow-x:hidden}
   #pdf-controls,#pdf-canvas-wrap{width:100%;max-width:100%}
@@ -1086,13 +1088,28 @@ function applyTheme(t){
 }
 let readingModeSwitching = false;
 let epubLayoutResizeFrame = 0;
+let epubLayoutResizeRun = 0;
+
+function nextEpubLayoutFrame(){
+  return new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+}
 
 function scheduleEpubLayoutResize(book, rendition){
   if(epubLayoutResizeFrame) cancelAnimationFrame(epubLayoutResizeFrame);
-  epubLayoutResizeFrame = requestAnimationFrame(()=>{
+  const run = ++epubLayoutResizeRun;
+  epubLayoutResizeFrame = requestAnimationFrame(async()=>{
     epubLayoutResizeFrame = 0;
     if(state.activeBook !== book || book?.rendition !== rendition || state.readingMode !== 'paginated' || readingModeSwitching) return;
-    try{ rendition.resize(); }catch(e){ console.warn('[Kódice] Falha ao redimensionar EPUB', e); }
+    try{
+      const cfi = getCurrentEpubCfi();
+      await nextEpubLayoutFrame();
+      if(run !== epubLayoutResizeRun || state.activeBook !== book || book.rendition !== rendition) return;
+      rendition.resize();
+      if(cfi) await rendition.display(cfi);
+      if(run !== epubLayoutResizeRun || state.activeBook !== book || book.rendition !== rendition) return;
+      book.readerLocation = rendition.currentLocation?.() ?? book.readerLocation;
+      updateReaderNavState();
+    }catch(e){ console.warn('[Kódice] Falha ao redimensionar EPUB', e); }
   });
 }
 
@@ -2238,13 +2255,23 @@ async function createEpubRendition(book, target){
   $('#reader').onscroll = null;
   $('#epub-viewer').classList.remove('hidden');
   $('#epub-viewer').innerHTML = '';
+  await nextEpubLayoutFrame();
+  const viewerRect = $('#epub-viewer').getBoundingClientRect();
+  if(viewerRect.width <= 0 || viewerRect.height <= 0){
+    const error = new Error('EPUB viewer sem dimensões positivas');
+    error.code = 'EPUB_LAYOUT';
+    throw error;
+  }
   const rendition = book.renderTo('epub-viewer', { width:'100%', height:'100%', flow: mode === 'paginated' ? 'paginated' : 'scrolled-doc', spread:'none' });
   state.activeBook.rendition = rendition;
 
   // theme
-  const containedTheme = {'html':{'max-width':'100% !important','min-width':'0 !important','box-sizing':'border-box !important','overflow-x':'hidden !important'},'*':{'box-sizing':'border-box !important'},'body':{'max-width':'100% !important','min-width':'0 !important','overflow-x':'hidden !important','overflow-wrap':'anywhere !important'},'img,svg,video,canvas':{'max-width':'100% !important','width':'auto !important','height':'auto !important','object-fit':'contain !important','display':'block !important','margin-left':'auto !important','margin-right':'auto !important'},'pre,code':{'max-width':'100% !important','overflow-x':'auto !important','white-space':'pre-wrap !important','overflow-wrap':'anywhere !important'},'table':{'max-width':'100% !important','display':'block !important','overflow-x':'auto !important'}};
-  rendition.themes.register('night', { ...containedTheme, 'body':{ ...containedTheme.body, 'background':'#0B0C0F !important','color':'#F5F1EA !important','font-family':'Georgia, serif !important','padding':'16px clamp(14px, 4vw, 24px) !important' }, 'a':{'color':'#FF4C1F !important'} });
-  rendition.themes.register('day', { ...containedTheme, 'body':{ ...containedTheme.body, 'background':'#F5F0E7 !important','color':'#211E1A !important','font-family':'Georgia, serif !important','padding':'16px clamp(14px, 4vw, 24px) !important' }, 'a':{'color':'#D8431D !important'} });
+  const containedTheme = {'*':{'box-sizing':'border-box !important'},'img,svg,video,canvas':{'max-width':'100% !important','width':'auto !important','height':'auto !important','object-fit':'contain !important','display':'block !important','margin-left':'auto !important','margin-right':'auto !important'},'pre,code':{'max-width':'100% !important','overflow-x':'auto !important','white-space':'pre-wrap !important','overflow-wrap':'anywhere !important'}};
+  const modeTheme = mode === 'paginated'
+    ? { ...containedTheme, 'html':{'box-sizing':'border-box !important'}, 'body':{'box-sizing':'border-box !important','overflow-wrap':'anywhere !important'}, 'table':{'max-width':'100% !important'} }
+    : { ...containedTheme, 'html':{'max-width':'100% !important','min-width':'0 !important','box-sizing':'border-box !important','overflow-x':'hidden !important'}, 'body':{'max-width':'100% !important','min-width':'0 !important','overflow-x':'hidden !important','overflow-wrap':'anywhere !important'}, 'table':{'max-width':'100% !important','display':'block !important','overflow-x':'auto !important'} };
+  rendition.themes.register('night', { ...modeTheme, 'body':{ ...modeTheme.body, 'background':'#0B0C0F !important','color':'#F5F1EA !important','font-family':'Georgia, serif !important', ...(mode === 'scrolled' ? { 'padding':'16px clamp(14px, 4vw, 24px) !important' } : {}) }, 'a':{'color':'#FF4C1F !important'} });
+  rendition.themes.register('day', { ...modeTheme, 'body':{ ...modeTheme.body, 'background':'#F5F0E7 !important','color':'#211E1A !important','font-family':'Georgia, serif !important', ...(mode === 'scrolled' ? { 'padding':'16px clamp(14px, 4vw, 24px) !important' } : {}) }, 'a':{'color':'#D8431D !important'} });
   rendition.themes.select(state.theme);
   applyCurrentEpubTypography(rendition);
   rendition.hooks.content.register(contents=>{
@@ -2266,6 +2293,7 @@ async function createEpubRendition(book, target){
     }
   });
 
+  await nextEpubLayoutFrame();
   await rendition.display(target || undefined);
   if(state.activeBook?.rendition !== rendition) return;
   state.activeBook.readerLocation = rendition.currentLocation?.() ?? null;
@@ -3746,7 +3774,9 @@ function wire(){
         try{ await renderPdfPage(state.activeBook.pdfRequestedPage || state.pdfPage || 1); }
         catch(e){ if(!isPdfRenderCancelled(e)) { console.warn('[Kódice] Falha ao redimensionar PDF', e); toast('Não foi possível redimensionar esta página.'); } }
       }
-      else if(state.activeBook?.rendition) updateReaderNavState();
+      else if(state.activeBook?.type === 'epub' && state.readingMode === 'paginated' && state.activeBook.rendition){
+        scheduleEpubLayoutResize(state.activeBook, state.activeBook.rendition);
+      } else if(state.activeBook?.rendition) updateReaderNavState();
     }, 150);
   };
   window.addEventListener('resize', handleReaderResize);
