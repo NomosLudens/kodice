@@ -57,6 +57,12 @@ function assertEqual(a, b, msg) {
 // Extrair fontes reais de index.html
 const indexPath = join(__dirname, '..', 'index.html');
 const src = readFileSync(indexPath, 'utf8');
+const getInitialStationConfigSrc = extractFunction(src, 'getInitialStationConfig');
+const restoreDefaultStationSrc   = extractFunction(src, 'restoreDefaultStation');
+const removeStationSrc            = extractFunction(src, 'removeStation');
+const renderStationConfiguredStateSrc = extractFunction(src, 'renderStationConfiguredState');
+const renderLibrarySrc            = extractFunction(src, 'renderLibrary');
+const stationIdentityLabelSrc     = extractFunction(src, 'stationIdentityLabel');
 
 const mapStationErrorSrc        = extractFunction(src, 'mapStationError');
 const stationStatusFromErrorSrc = extractFunction(src, 'stationStatusFromError');
@@ -69,6 +75,7 @@ const clearStationRemoteStateSrc = extractFunction(src, 'clearStationRemoteState
 const handleSignOutSrc          = extractFunction(src, 'handleSignOut');
 const signOutSrc                = extractFunction(src, 'signOut');
 const refreshUserSrc            = extractFunction(src, 'refreshUser');
+const recoverStationAfterAuthSrc = extractFunction(src, 'recoverStationAfterAuth');
 
 // Configuração do ambiente e injetor no globalThis
 function setupEnv(overrides = {}) {
@@ -85,6 +92,9 @@ function setupEnv(overrides = {}) {
     'toc-body':       { innerHTML: '' },
     'station-url-input': { value: '' },
     'station-status-label': { textContent: '' },
+    'station-identity-label': { textContent: '' },
+    'library-list': { innerHTML: '' },
+    'lib-count': { textContent: '' },
     ...overrides.domElements,
   };
 
@@ -101,6 +111,10 @@ function setupEnv(overrides = {}) {
 
   // Mocks do local
   globalThis.supabase = overrides.supabase || null;
+  globalThis.STATION_BASE_URL_KEY = 'codice.station.baseUrl';
+  globalThis.STATION_TRUSTED_ORIGIN_KEY = 'codice.station.trustedOrigin';
+  globalThis.STATION_OPT_OUT_KEY = 'codice.station.defaultOptOut';
+  globalThis.DEFAULT_STATION_URL = 'https://kaline-box.taildb6c11.ts.net';
   globalThis.state = state;
   globalThis.localStorage = {
     getItem: k => ls[k] ?? null,
@@ -149,6 +163,10 @@ function setupEnv(overrides = {}) {
   globalThis.loadProfile = overrides.loadProfile || (async () => ({}));
 
   // Compilar e registrar funções reais
+  globalThis.getInitialStationConfig = new Function(`"use strict"; ${getInitialStationConfigSrc}; return getInitialStationConfig;`)();
+  globalThis.restoreDefaultStation = new Function(`"use strict"; ${restoreDefaultStationSrc}; return restoreDefaultStation;`)();
+  globalThis.removeStation = new Function(`"use strict"; ${removeStationSrc}; return removeStation;`)();
+  globalThis.stationIdentityLabel = new Function(`"use strict"; ${stationIdentityLabelSrc}; return stationIdentityLabel;`)();
   // eslint-disable-next-line no-new-func
   globalThis.mapStationError = new Function(`"use strict"; ${mapStationErrorSrc}; return mapStationError;`)();
   // eslint-disable-next-line no-new-func
@@ -159,6 +177,7 @@ function setupEnv(overrides = {}) {
   globalThis.stationFetch = new Function(`"use strict"; ${stationFetchSrc}; return stationFetch;`)();
   // eslint-disable-next-line no-new-func
   globalThis.fetchStationLibrary = new Function(`"use strict"; ${fetchStationLibrarySrc}; return fetchStationLibrary;`)();
+  globalThis.renderStationConfiguredState = new Function(`"use strict"; ${renderStationConfiguredStateSrc}; return renderStationConfiguredState;`)();
   // eslint-disable-next-line no-new-func
   globalThis.testStationConnection = new Function(`"use strict"; ${testStationConnectionSrc}; return testStationConnection;`)();
   // eslint-disable-next-line no-new-func
@@ -171,6 +190,7 @@ function setupEnv(overrides = {}) {
   globalThis.signOut = new Function(`"use strict"; ${signOutSrc}; return signOut;`)();
   // eslint-disable-next-line no-new-func
   globalThis.refreshUser = new Function(`"use strict"; ${refreshUserSrc}; return refreshUser;`)();
+  globalThis.recoverStationAfterAuth = new Function(`"use strict"; ${recoverStationAfterAuthSrc}; return recoverStationAfterAuth;`)();
 
   // Dependências internas adicionadas ao global
   globalThis.notesWriteChain = Promise.resolve();
@@ -220,8 +240,130 @@ function setupEnv(overrides = {}) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Execução dos testes (13 cenários)
+// Execução dos testes
 // ─────────────────────────────────────────────────────────────────────────────
+
+await test('0. perfil novo recebe a Kaline Box sem request automático', async () => {
+  let fetchCalled = false;
+  const { state } = setupEnv({ fetchImpl: async () => { fetchCalled = true; } });
+  const initial = globalThis.getInitialStationConfig();
+  state.station.baseUrl = initial.baseUrl;
+  state.station.status = initial.status;
+  assertEqual(initial.baseUrl, 'https://kaline-box.taildb6c11.ts.net');
+  assertEqual(initial.status, 'origin_pending');
+  assert(!fetchCalled, 'a configuração inicial não pode consultar a Station');
+});
+
+await test('0b. stationFetch bloqueia request e Bearer antes da confirmação', async () => {
+  let fetchCalled = false;
+  setupEnv({
+    supabase: { auth: { getSession: async () => ({ data: { session: { access_token: 'tok' } } }) } },
+    fetchImpl: async () => { fetchCalled = true; }
+  });
+  try { await globalThis.stationFetch('/api/codice/health', { baseUrl: 'https://kaline-box.taildb6c11.ts.net' }); }
+  catch (e) { assertEqual(e.code, 'origin_not_allowed'); }
+  assert(!fetchCalled);
+});
+
+await test('0c. remoção persiste opt-out e restauração reabre confirmação', async () => {
+  const { ls, state } = setupEnv({
+    localStorageData: {
+      'codice.station.baseUrl': 'https://station.local',
+      'codice.station.trustedOrigin': 'https://station.local'
+    }
+  });
+  await globalThis.removeStation();
+  assertEqual(ls['codice.station.defaultOptOut'], '1');
+  const afterReload = globalThis.getInitialStationConfig();
+  assertEqual(afterReload.baseUrl, '');
+  assertEqual(afterReload.status, 'unconfigured');
+  globalThis.restoreDefaultStation();
+  assertEqual(state.station.baseUrl, 'https://kaline-box.taildb6c11.ts.net');
+  assertEqual(state.station.status, 'origin_pending');
+  assert(!ls['codice.station.defaultOptOut']);
+  assert(!ls['codice.station.trustedOrigin']);
+});
+
+await test('0d. autenticação recupera session_expired e permite nova consulta do catálogo', async () => {
+  let libraryCalls = 0;
+  const { state } = setupEnv({
+    supabase: {
+      auth: { getSession: async () => ({ data: { session: {
+        user: { id: 'user-456', email: 'reader@example.com' },
+        access_token: 'tok'
+      } } }) }
+    },
+    stateOverride: {
+      user: null,
+      station: { baseUrl: 'https://station.local', status: 'session_expired', books: [] }
+    },
+    localStorageData: { 'codice.station.trustedOrigin': 'https://station.local' },
+    fetchImpl: async () => {
+      libraryCalls++;
+      return {
+        ok: true, status: 200, headers: new Map(),
+        json: async () => ({ schemaVersion: 1, books: [] })
+      };
+    }
+  });
+
+  await globalThis.refreshUser();
+  const recovered = globalThis.recoverStationAfterAuth(null);
+  assert(recovered, 'autenticação válida deveria recuperar a Station');
+  assertEqual(state.station.status, 'configured');
+  assertEqual(libraryCalls, 0, 'recuperação não deve consultar a Station automaticamente');
+
+  await globalThis.fetchStationLibrary();
+  assertEqual(libraryCalls, 1, 'catálogo deve poder ser consultado novamente após a recuperação');
+});
+
+await test('0e. configured mostra estado neutro e só carrega catálogo por ação explícita', async () => {
+  let loadHandler = null;
+  const { domElements, state } = setupEnv({
+    stateOverride: {
+      activeTab: 'station',
+      station: { baseUrl: 'https://station.local', status: 'configured', books: [] }
+    },
+    domElements: {
+      'btn-station-load': { addEventListener: (event, handler) => { loadHandler = handler; } }
+    }
+  });
+  let fetchCalls = 0;
+  globalThis.fetchStationLibrary = async () => { fetchCalls++; };
+  globalThis.renderLibrary = new Function(`"use strict"; ${renderLibrarySrc}; return renderLibrary;`)();
+
+  globalThis.renderLibrary();
+  assert(!domElements['library-list'].innerHTML.includes('Nenhum livro encontrado'));
+  assert(domElements['library-list'].innerHTML.includes('Estação pronta para consulta'));
+  assert(domElements['library-list'].innerHTML.includes('Carregar catálogo'));
+  assertEqual(fetchCalls, 0, 'configured não deve consultar a Station ao renderizar');
+  assert(loadHandler, 'configured deve oferecer ação explícita de carregamento');
+  await loadHandler();
+  assertEqual(fetchCalls, 1, 'ação deve chamar fetchStationLibrary');
+  assertEqual(state.station.status, 'configured');
+});
+
+await test('0f. online com catálogo vazio mostra vazio somente após consulta real', async () => {
+  const { domElements } = setupEnv({
+    stateOverride: {
+      activeTab: 'station',
+      station: { baseUrl: 'https://station.local', status: 'online', books: [] }
+    }
+  });
+  globalThis.renderLibrary = new Function(`"use strict"; ${renderLibrarySrc}; return renderLibrary;`)();
+  globalThis.renderLibrary();
+  assert(domElements['library-list'].innerHTML.includes('Nenhum livro encontrado'));
+});
+
+await test('0g. identidade da Station distingue padrão, personalizada e ausência sem alterar configuração', async () => {
+  assertEqual(globalThis.stationIdentityLabel('https://kaline-box.taildb6c11.ts.net'), 'Estação padrão · Kaline Box');
+  assertEqual(globalThis.stationIdentityLabel('https://other-station.example'), 'Estação personalizada');
+  assertEqual(globalThis.stationIdentityLabel(''), 'Estação');
+  const { state } = setupEnv({
+    stateOverride: { station: { baseUrl: 'https://other-station.example', status: 'configured', books: [] } }
+  });
+  assertEqual(state.station.baseUrl, 'https://other-station.example');
+});
 
 await test('1. stationFetch envia Bearer, credentials:omit, cache:no-store, redirect:error', async () => {
   let fetchArgs = null;
