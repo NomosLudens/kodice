@@ -26,6 +26,34 @@ function fail(file, rule, excerpt) {
   violations++;
 }
 
+const ALLOWED_STATION_ORIGIN = 'https://kaline-box.taildb6c11.ts.net';
+const URL_PATTERN = /https?:\/\/[^\s'"`<>()[\]]+/g;
+
+function isAllowedStationUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.origin === ALLOWED_STATION_ORIGIN &&
+      !url.username && !url.password &&
+      url.pathname === '/' && !url.search && !url.hash;
+  } catch {
+    return false;
+  }
+}
+
+function checkTsNetUrls(filePath, content) {
+  for (const match of content.matchAll(URL_PATTERN)) {
+    const value = match[0].replace(/[.,;:)]+$/, '');
+    let parsed;
+    try { parsed = new URL(value); } catch { continue; }
+    if (parsed.hostname.endsWith('.ts.net') && !isAllowedStationUrl(value)) {
+      const lineStart = content.lastIndexOf('\n', match.index) + 1;
+      const lineEnd = content.indexOf('\n', match.index);
+      const excerpt = content.slice(lineStart, lineEnd === -1 ? undefined : lineEnd).trim().slice(0, 120);
+      fail(filePath, 'URL .ts.net não autorizada; somente a origin exata da Station padrão é permitida', excerpt);
+    }
+  }
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Regras textuais
 // ──────────────────────────────────────────────────────────────────────────────
@@ -33,7 +61,6 @@ const TEXT_RULES = [
   { id: 'ip-127', pattern: /127\.0\.0\.1:4519/g, rule: 'Endereço 127.0.0.1:4519 é proibido' },
   { id: 'localhost-4519', pattern: /localhost:4519/g, rule: 'Endereço localhost:4519 é proibido' },
   { id: 'ip-tailscale', pattern: /100\.\d+\.\d+\.\d+/g, rule: 'Endereço Tailscale (100.x) hardcoded proibido' },
-  { id: 'ts-net', pattern: /https:\/\/(?!kaline-box\.taildb6c11\.ts\.net\b)[^\s'"`]+\.ts\.net\b/g, rule: 'Hostname .ts.net hardcoded proibido (exceto Station padrão validada)' },
   { id: 'vite-station-url', pattern: /VITE_STATION_URL/g, rule: 'VITE_STATION_URL proibido (usar configuração via UI)' },
   { id: 'include-credentials', pattern: /credentials\s*:\s*['"]include['"]/g, rule: 'credentials include proibido na integração Héstia' },
   { id: 'no-cors-mode', pattern: /mode\s*:\s*['"]no-cors['"]/g, rule: 'mode no-cors proibido na integração Héstia' },
@@ -89,6 +116,8 @@ function checkTextFile(filePath, rules) {
   } catch {
     return;
   }
+
+  checkTsNetUrls(filePath, content);
 
   for (const { pattern, rule: ruleMsg } of rules) {
     if (typeof pattern === 'string') {
@@ -376,6 +405,17 @@ function selfAssert(cond, msg) {
     // eslint-disable-next-line no-global-assign
     fail = originalFail;
   }
+}
+
+// Canário 10: URLs .ts.net são interpretadas, não comparadas por substring
+{
+  selfAssert(isAllowedStationUrl(ALLOWED_STATION_ORIGIN), 'Origin exata da Station padrão deve ser aceita');
+  selfAssert(!isAllowedStationUrl('https://kaline-box.taildb6c11.ts.net.evil.ts.net'), 'Subdomínio/sufixo .ts.net malicioso deve ser rejeitado');
+  selfAssert(!isAllowedStationUrl('https://kaline-box.taildb6c11.ts.net@evil.ts.net'), 'Credencial com host malicioso deve ser rejeitada');
+  selfAssert(!isAllowedStationUrl('https://kaline-box.taildb6c11.ts.net:444'), 'Porta diferente deve ser rejeitada');
+  selfAssert(!isAllowedStationUrl('https://kaline-box.taildb6c11.ts.net/library'), 'Path deve ser rejeitado');
+  selfAssert(!isAllowedStationUrl('https://kaline-box.taildb6c11.ts.net/?x=1'), 'Query deve ser rejeitada');
+  selfAssert(!isAllowedStationUrl('https://kaline-box.taildb6c11.ts.net/#x'), 'Hash deve ser rejeitado');
 }
 
 if (violations > 0) {

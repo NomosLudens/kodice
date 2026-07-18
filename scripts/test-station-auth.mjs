@@ -72,6 +72,7 @@ const clearStationRemoteStateSrc = extractFunction(src, 'clearStationRemoteState
 const handleSignOutSrc          = extractFunction(src, 'handleSignOut');
 const signOutSrc                = extractFunction(src, 'signOut');
 const refreshUserSrc            = extractFunction(src, 'refreshUser');
+const recoverStationAfterAuthSrc = extractFunction(src, 'recoverStationAfterAuth');
 
 // Configuração do ambiente e injetor no globalThis
 function setupEnv(overrides = {}) {
@@ -181,6 +182,7 @@ function setupEnv(overrides = {}) {
   globalThis.signOut = new Function(`"use strict"; ${signOutSrc}; return signOut;`)();
   // eslint-disable-next-line no-new-func
   globalThis.refreshUser = new Function(`"use strict"; ${refreshUserSrc}; return refreshUser;`)();
+  globalThis.recoverStationAfterAuth = new Function(`"use strict"; ${recoverStationAfterAuthSrc}; return recoverStationAfterAuth;`)();
 
   // Dependências internas adicionadas ao global
   globalThis.notesWriteChain = Promise.resolve();
@@ -272,6 +274,39 @@ await test('0c. remoção persiste opt-out e restauração reabre confirmação'
   assertEqual(state.station.status, 'origin_pending');
   assert(!ls['codice.station.defaultOptOut']);
   assert(!ls['codice.station.trustedOrigin']);
+});
+
+await test('0d. autenticação recupera session_expired e permite nova consulta do catálogo', async () => {
+  let libraryCalls = 0;
+  const { state } = setupEnv({
+    supabase: {
+      auth: { getSession: async () => ({ data: { session: {
+        user: { id: 'user-456', email: 'reader@example.com' },
+        access_token: 'tok'
+      } } }) }
+    },
+    stateOverride: {
+      user: null,
+      station: { baseUrl: 'https://station.local', status: 'session_expired', books: [] }
+    },
+    localStorageData: { 'codice.station.trustedOrigin': 'https://station.local' },
+    fetchImpl: async () => {
+      libraryCalls++;
+      return {
+        ok: true, status: 200, headers: new Map(),
+        json: async () => ({ schemaVersion: 1, books: [] })
+      };
+    }
+  });
+
+  await globalThis.refreshUser();
+  const recovered = globalThis.recoverStationAfterAuth(null);
+  assert(recovered, 'autenticação válida deveria recuperar a Station');
+  assertEqual(state.station.status, 'configured');
+  assertEqual(libraryCalls, 0, 'recuperação não deve consultar a Station automaticamente');
+
+  await globalThis.fetchStationLibrary();
+  assertEqual(libraryCalls, 1, 'catálogo deve poder ser consultado novamente após a recuperação');
 });
 
 await test('1. stationFetch envia Bearer, credentials:omit, cache:no-store, redirect:error', async () => {

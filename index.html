@@ -2920,6 +2920,25 @@ async function refreshUser(){
   renderAccount(); updateSyncBadge();
   return state.user;
 }
+
+function recoverStationAfterAuth(previousUserId) {
+  if (!state.user || !state.station.baseUrl) return false;
+
+  let requestedOrigin;
+  try { requestedOrigin = new URL(state.station.baseUrl).origin; } catch { return false; }
+  if (requestedOrigin !== localStorage.getItem(STATION_TRUSTED_ORIGIN_KEY)) return false;
+
+  const identityChanged = Boolean(previousUserId && state.user.id !== previousUserId);
+  const canRecover = state.station.status === 'login_required' ||
+    state.station.status === 'session_expired' ||
+    (state.station.status === 'unauthorized' && identityChanged);
+  if (!canRecover) return false;
+
+  state.station.status = 'configured';
+  updateStationSettingsUI();
+  return true;
+}
+
 async function pullRemoteData(){
   if(!supabase || !state.user) return;
   try{
@@ -3901,19 +3920,8 @@ function wire(){
       const prevUserId = state.user?.id;
       await refreshUser();
       if(state.user){
-        // Se baseUrl configurada e status era login_required, voltar para configured
-        if (state.station.baseUrl && state.station.status === 'login_required') {
-          state.station.status = 'configured';
-          updateStationSettingsUI();
-          if (state.panels.library) renderLibrary();
-        }
-        // unauthorized só volta para configured se a identidade realmente mudar
-        const identityChanged = prevUserId && state.user.id !== prevUserId;
-        if (state.station.baseUrl && state.station.status === 'unauthorized' && identityChanged) {
-          state.station.status = 'configured';
-          updateStationSettingsUI();
-          if (state.panels.library) renderLibrary();
-        }
+        const recoveredStation = recoverStationAfterAuth(prevUserId);
+        if (recoveredStation && state.panels.library) renderLibrary();
         await pullRemoteData();
         flushQueue();
       }
