@@ -697,6 +697,7 @@
 import { createClient } from '@supabase/supabase-js';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url';
 import { initPwa } from './src/pwa.js';
+import { restoreLastLocalBook } from './src/restoreLastLocalBook.js';
 
 /* =========================================================
  * CONFIG — Supabase
@@ -3736,24 +3737,15 @@ function wire(){
   window.addEventListener('online', ()=>{ state.online=true; updateSyncBadge(); toast('Conexão restaurada'); });
   window.addEventListener('offline', ()=>{ state.online=false; updateSyncBadge(); toast('Modo local — sem conexão.'); });
   initPwa({ onUpdateAvailable: showPwaUpdate, beforeReload: beforePwaReload });
-  // If library has books, auto-open the last read
-  const progressAll = await dbAll('progress');
-  if(progressAll.length && window.matchMedia('(min-width: 960px)').matches){
-    const localBooks = new Set(state.books.map(b => b.id));
-    const candidates = progressAll.filter(p => {
-      const id = p.book_id;
-      return typeof id === 'string' && id.trim() !== '' && !id.startsWith('station:') && localBooks.has(id);
+  try {
+    await restoreLastLocalBook({
+      progressRows: await dbAll('progress'),
+      books: state.books,
+      getBookFile,
+      openBook,
     });
-    if(candidates.length){
-      candidates.sort((a,b) => (Number(b.updated_at) || 0) - (Number(a.updated_at) || 0));
-      const last = candidates[0];
-      const file = await getBookFile(last.book_id);
-      if(file && file.data){
-        await openBook(last.book_id);
-      } else {
-        console.warn(`Bytes ausentes para ${last.book_id}. Permanecendo na landing.`);
-      }
-    }
+  } catch (error) {
+    console.warn('[Kódice] Não foi possível restaurar o último livro.', error);
   }
 })();
 </script>
