@@ -13,8 +13,10 @@
     "verify:legal": "node scripts/verify-legal-corpus.mjs",
     "verify:boundaries": "node scripts/verify-product-boundaries.mjs",
     "legal:import:cpc": "node scripts/import-cpc2015.mjs",
-    "legal:sync": "node scripts/sync-legal-corpus.mjs",
+    "legal:build:db": "node scripts/build-legal-db.mjs",
     "test:cpc": "node scripts/test-cpc-pipeline.mjs",
+    "test:legal:db": "node scripts/test-legal-db.mjs",
+    "test:legal:api": "node scripts/test-legal-api.mjs",
     "test:legal-gate": "node scripts/test-legal-gate.mjs",
     "test:station-auth": "node scripts/test-station-auth.mjs",
     "test:pdf-engine": "node scripts/test-pdf-engine.mjs"

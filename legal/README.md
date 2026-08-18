@@ -2,6 +2,32 @@
 
 Este diretório contém a base canônica para o corpus jurídico estruturado do Kódice.
 
+## Arquitetura de Persistência Jurídica: VM Mini
+
+O corpus jurídico do Kódice adota a arquitetura canônica **VM Mini**:
+
+```text
+FONTES OFICIAIS
+      ↓
+legal/sources/
+      ↓
+importador determinístico
+      ↓
+legal/corpus/
+      ↓
+verificação / hash
+      ↓
+VM MINI
+      ↓
+SQLite (/var/lib/kodice/legal.db)
+      ↓
+API Privada Kódice (porta 4520)
+      ↓
+Tailscale HTTPS
+      ↓
+Kódice PWA
+```
+
 ## Fontes oficiais aceitas
 
 A constante única `OFFICIAL_SOURCE_HOSTS`, em `scripts/legal-corpus-lib.mjs`, limita `officialSourceUrl` a famílias oficiais aprovadas pelo projeto:
@@ -31,34 +57,27 @@ O arquivo `legal/corpus/cpc2015.json` é gerado deterministicamente pelo importa
 node scripts/import-cpc2015.mjs
 ```
 
-O importador lê exclusivamente os bytes brutos do snapshot oficial preservado em `legal/sources/cpc2015/`, deriva todas as unidades jurídicas hierárquicas (partes, livros, títulos, capítulos, seções, subseções, artigos, parágrafos, incisos, alíneas e itens) e valida conformidade integral com o schema sem qualquer intervenção manual.
+O importador lê exclusivamente os bytes brutos do snapshot oficial preservado em `legal/sources/cpc2015/`, deriva todas as 4.199 unidades jurídicas hierárquicas (1.075 artigos) e valida conformidade integral com o schema sem qualquer intervenção manual.
 
-## Regra de integridade e Build
+## Materialização no SQLite (VM Mini)
 
-O pacote público `public/legal/foundation-v1.json` é gerado por `scripts/build-legal-package.mjs` a partir de `legal/corpus/*.json`.
-
-```bash
-node scripts/build-legal-package.mjs
-node scripts/verify-legal-corpus.mjs
-node scripts/test-cpc-pipeline.mjs
-```
-
-O campo `hash` do pacote é o SHA-256 do conteúdo estável do manifesto, calculado sobre:
-
-- `schemaVersion`
-- `packageId`
-- `version`
-- `normIds`
-- `norms`
-
-O campo `generatedAt` fica fora do material hasheado para manter o hash determinístico em builds repetidos com o mesmo corpus.
-
-## Persistência no Supabase
-
-A persistência do corpus estruturado no Supabase é realizada pelo script idempotente `scripts/sync-legal-corpus.mjs`:
+A persistência do corpus estruturado no SQLite local da VM Mini é realizada pelo script idempotente `scripts/build-legal-db.mjs`:
 
 ```bash
-node scripts/sync-legal-corpus.mjs
+node scripts/build-legal-db.mjs
 ```
 
-Requer as variáveis `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` (ou `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY`) configuradas no ambiente.
+O banco é criado/atualizado com schema relacional normalizado (`legal_norms`, `legal_versions`, `legal_units`), garantindo unicidade de versão vigente e caminhos canônicos (`canonical_path`).
+
+## API Jurídica Privada
+
+A API privada do Vade Mecum é executada via `node:http` nativo:
+
+```bash
+node scripts/legal-api-server.mjs
+```
+
+Endpoints mínimos:
+- `GET /health` → `{ "status": "ok", "service": "kodice-legal-api" }`
+- `GET /api/legal/norms/:normId` → Metadados da norma
+- `GET /api/legal/norms/:normId/units/:canonicalPath` → Unidade jurídica recuperada do SQLite (ex: `art300`)
