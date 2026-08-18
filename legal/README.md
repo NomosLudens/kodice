@@ -7,16 +7,41 @@ Este diretório contém a base canônica para o corpus jurídico estruturado do 
 A constante única `OFFICIAL_SOURCE_HOSTS`, em `scripts/legal-corpus-lib.mjs`, limita `officialSourceUrl` a famílias oficiais aprovadas pelo projeto:
 
 - Normas.leg.br;
-- Câmara dos Deputados;
-- Senado Federal;
-- Planalto;
-- LexML, apenas para identificação e relacionamentos.
+- Câmara dos Deputados (`www.camara.leg.br`, `www2.camara.leg.br`);
+- Senado Federal (`www.senado.leg.br`, `legis.senado.leg.br`);
+- Planalto (`www.planalto.gov.br`);
+- LexML (`www.lexml.gov.br`), para identificação, URNs e relacionamentos.
 
 Sites privados, blogs, resumos, Wikipédia, Jusbrasil, PDFs sem origem comprovada e texto gerado por IA permanecem proibidos.
 
-## Regra de integridade
+## Fonte oficial do CPC/2015
+
+- **Provider primário:** Câmara dos Deputados — Centro de Documentação e Informação
+- **URL oficial:** `https://www.camara.leg.br/legin/fed/lei/2015/lei-13105-16-marco-2015-780273-normaatualizada-pl.html`
+- **Formato:** HTML oficial integral compilado/atualizado com metadados legislativos completos.
+- **Snapshot local:** `legal/sources/cpc2015/lei-13105-16-marco-2015-normaatualizada-pl.html`
+- **SHA-256 do snapshot:** `ef5749a3c624c8b8644949f6aa61370663b7da1bcfa6e1f1b25cbde5aa70b3e3`
+- **Data de verificação:** `2026-08-18T00:00:00.000Z`
+
+## Importador determinístico
+
+O arquivo `legal/corpus/cpc2015.json` é gerado deterministicamente pelo importador oficial:
+
+```bash
+node scripts/import-cpc2015.mjs
+```
+
+O importador lê exclusivamente os bytes brutos do snapshot oficial preservado em `legal/sources/cpc2015/`, deriva todas as unidades jurídicas hierárquicas (partes, livros, títulos, capítulos, seções, subseções, artigos, parágrafos, incisos, alíneas e itens) e valida conformidade integral com o schema sem qualquer intervenção manual.
+
+## Regra de integridade e Build
 
 O pacote público `public/legal/foundation-v1.json` é gerado por `scripts/build-legal-package.mjs` a partir de `legal/corpus/*.json`.
+
+```bash
+node scripts/build-legal-package.mjs
+node scripts/verify-legal-corpus.mjs
+node scripts/test-cpc-pipeline.mjs
+```
 
 O campo `hash` do pacote é o SHA-256 do conteúdo estável do manifesto, calculado sobre:
 
@@ -28,62 +53,12 @@ O campo `hash` do pacote é o SHA-256 do conteúdo estável do manifesto, calcul
 
 O campo `generatedAt` fica fora do material hasheado para manter o hash determinístico em builds repetidos com o mesmo corpus.
 
-## Build determinístico
+## Persistência no Supabase
 
-O `generatedAt` não usa relógio de parede. A origem determinística é, nesta ordem:
+A persistência do corpus estruturado no Supabase é realizada pelo script idempotente `scripts/sync-legal-corpus.mjs`:
 
-1. `SOURCE_DATE_EPOCH`, quando definido;
-2. o maior `lastVerifiedAt` entre as normas;
-3. falha explícita se nenhuma data válida existir.
+```bash
+node scripts/sync-legal-corpus.mjs
+```
 
-Dois builds com os mesmos arquivos de corpus e fontes oficiais devem gerar bytes idênticos.
-
-## Arquivo oficial de origem
-
-Cada norma deve declarar `sourceFile`, sempre como caminho relativo dentro de `legal/sources/`. O build e o verificador calculam SHA-256 dos bytes reais desse arquivo e comparam com `sourceHash`.
-
-Caminhos absolutos, `..` e qualquer arquivo fora de `legal/sources/` são rejeitados.
-
-## Manifesto de aquisição
-
-Cada norma deve conter um manifesto `acquisition` derivado do arquivo oficial e conferido pelo validador, contendo no mínimo:
-
-- `normId`
-- `sourceFile`
-- `sourceHash`
-- `unitCount`
-- `articleCount`
-- `firstCanonicalPath`
-- `lastCanonicalPath`
-- `verifiedAt`
-- `complete: true`
-
-O validador compara esses valores com as unidades realmente presentes no corpus. Os smoke checks jurídicos continuam existindo, mas não provam integralidade sozinhos.
-
-## Gate de corpus
-
-Nenhum texto jurídico deve ser escrito manualmente ou inventado. Antes de adicionar uma norma em `legal/corpus`, confirme fonte oficial, URL, versão, data de verificação, hash SHA-256 do material de origem e estrutura integral validada.
-
-Se Constituição Federal, ADCT e CPC não puderem ser obtidos e conferidos em fonte oficial, o resultado do PR permanece: **BLOQUEADO — CORPUS OFICIAL AUSENTE**.
-
-## Datas de aquisição
-
-Enquanto não houver uma razão operacional concreta para duas datas diferentes, `acquisition.verifiedAt` deve ser exatamente igual a `lastVerifiedAt`.
-
-## Limite atual do gate
-
-O gate atual comprova:
-
-- identidade do arquivo oficial por SHA-256;
-- procedência declarada por URL permitida;
-- consistência estrutural interna;
-- contagens e caminhos do corpus;
-- determinismo do pacote.
-
-O gate ainda não comprova:
-
-- que cada texto em `legal/corpus` foi extraído corretamente do arquivo oficial;
-- que não houve alteração durante a transformação;
-- fidelidade fonte → unidades.
-
-Essa prova será implementada quando os arquivos oficiais forem definidos, através de importadores determinísticos específicos para o formato real das fontes. Não há parser genérico neste commit.
+Requer as variáveis `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` (ou `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY`) configuradas no ambiente.
