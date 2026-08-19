@@ -653,14 +653,14 @@
 
   /* Tray temporário de estrutura (≡) — drawer a partir da esquerda */
   #legal-tree-pane {
-    position: absolute;
+    position: fixed;
     top: 0;
     left: 0;
     bottom: 0;
     width: min(86vw, 340px);
     border-right: 1px solid var(--border);
     background: var(--bg);
-    z-index: 5;
+    z-index: 50;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -759,13 +759,13 @@
 
   /* Tray temporário de busca (🔍) — popover a partir do topo */
   #legal-search-popover {
-    position: absolute;
+    position: fixed;
     top: 0;
     left: 0;
     right: 0;
     background: var(--bg);
     border-bottom: 1px solid var(--border);
-    z-index: 6;
+    z-index: 60;
     padding: 16px 24px;
     display: flex;
     flex-direction: column;
