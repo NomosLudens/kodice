@@ -1,0 +1,17 @@
+[Unit]
+Description=Kódice Legal API Server
+After=network.target
+
+[Service]
+Type=simple
+User=tonyus-dev
+WorkingDirectory=/srv/kodice
+ExecStart=/usr/local/bin/node scripts/legal-api-server.mjs
+Restart=always
+RestartSec=5
+Environment=KODICE_LEGAL_DB=/var/lib/kodice/legal.db
+Environment=KODICE_LEGAL_PORT=4520
+Environment=KODICE_LEGAL_HOST=127.0.0.1
+
+[Install]
+WantedBy=multi-user.target

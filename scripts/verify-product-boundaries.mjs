@@ -27,17 +27,17 @@ function fail(file, rule, excerpt) {
 }
 
 const ALLOWED_STATION_ORIGIN = 'https://kaline-box.taildb6c11.ts.net';
+const ALLOWED_LEGAL_ORIGIN = 'https://mini.taildb6c11.ts.net';
 const URL_PATTERN = /https?:\/\/[^\s'"`<>()[\]]+/g;
 
 function isAllowedStationUrl(value) {
   try {
     const url = new URL(value);
-    if (url.hostname !== new URL(ALLOWED_STATION_ORIGIN).hostname) return false;
     if (url.username || url.password) return false;
     // 1) Kaline Box raiz (Station API: /api/codice/...)
     if (url.origin === ALLOWED_STATION_ORIGIN && url.pathname === '/' && !url.search && !url.hash) return true;
-    // 2) Kaline Box com path /api/legal (Vade Mecum: API jurídica privada)
-    if (url.origin === ALLOWED_STATION_ORIGIN && url.pathname === '/api/legal' && !url.search && !url.hash) return true;
+    // 2) Mini com path /api/legal (Vade Mecum: API jurídica privada)
+    if (url.origin === ALLOWED_LEGAL_ORIGIN && (url.pathname === '/api/legal' || url.pathname.startsWith('/api/legal/')) && !url.search && !url.hash) return true;
     return false;
   } catch {
     return false;
@@ -414,7 +414,7 @@ function selfAssert(cond, msg) {
 // Canário 10: URLs .ts.net são interpretadas, não comparadas por substring
 {
   selfAssert(isAllowedStationUrl(ALLOWED_STATION_ORIGIN), 'Origin exata da Station padrão deve ser aceita');
-  selfAssert(isAllowedStationUrl('https://kaline-box.taildb6c11.ts.net/api/legal'), 'Path /api/legal da Kaline Box deve ser aceito (API jurídica privada)');
+  selfAssert(isAllowedStationUrl('https://mini.taildb6c11.ts.net/api/legal'), 'Path /api/legal da Mini deve ser aceito (API jurídica privada)');
   selfAssert(!isAllowedStationUrl('https://kaline-box.taildb6c11.ts.net.evil.ts.net'), 'Subdomínio/sufixo .ts.net malicioso deve ser rejeitado');
   selfAssert(!isAllowedStationUrl('https://kaline-box.taildb6c11.ts.net@evil.ts.net'), 'Credencial com host malicioso deve ser rejeitada');
   selfAssert(!isAllowedStationUrl('https://kaline-box.taildb6c11.ts.net:444'), 'Porta diferente deve ser rejeitada');

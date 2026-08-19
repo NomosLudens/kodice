@@ -8,9 +8,18 @@
  * Usa puppeteer-core + Chrome headless já instalado.
  */
 import puppeteer from 'puppeteer-core';
+import { startLegalApiServer } from './legal-api-server.mjs';
 
 const APP_URL = process.env.APP_URL || 'http://127.0.0.1:5273';
 const LEGAL_URL = process.env.LEGAL_URL || 'http://127.0.0.1:4520';
+
+let legalServerInstance = null;
+try {
+  const { server } = await startLegalApiServer('legal.db', 4520, '127.0.0.1');
+  legalServerInstance = server;
+} catch {
+  // Se a porta já estiver em uso, assume servidor já rodando
+}
 
 let passed = 0, failed = 0;
 function check(cond, name) {
@@ -26,12 +35,12 @@ const browserInstance = await puppeteer.launch({
 
 try {
   const page = await browserInstance.newPage();
-  // Interceta todas as requests para a Kaline Box e redireciona para o servidor local.
+  // Interceta todas as requests para a Mini e redireciona para o servidor local.
   await page.setRequestInterception(true);
   page.on('request', (req) => {
     const url = req.url();
-    if (url.includes('kaline-box.taildb6c11.ts.net')) {
-      const newUrl = url.replace('https://kaline-box.taildb6c11.ts.net', LEGAL_URL);
+    if (url.includes('mini.taildb6c11.ts.net')) {
+      const newUrl = url.replace('https://mini.taildb6c11.ts.net', LEGAL_URL);
       req.continue({ url: newUrl });
     } else {
       req.continue();
@@ -45,7 +54,7 @@ try {
   page.on('pageerror', err => console.warn('  [pageerror]', err.message));
   page.on('requestfailed', req => console.warn('  [requestfailed]', req.url(), req.failure()?.errorText));
   page.on('response', async (res) => {
-    if (res.url().includes('4520') || res.url().includes('kaline-box')) {
+    if (res.url().includes('4520') || res.url().includes('mini')) {
       console.warn(`  [response ${res.status()}] ${res.url()}`);
     }
   });
@@ -99,7 +108,7 @@ try {
         // Caminho direto via fetch + atribuição manual ao DOM, contornando a navegação.
         // Validamos o texto oficial renderizado na UI.
         try {
-          const r = await fetch('https://kaline-box.taildb6c11.ts.net/api/legal/norms/cpc2015/units/art300');
+          const r = await fetch('https://mini.taildb6c11.ts.net/api/legal/norms/cpc2015/units/art300');
           if (!r.ok) throw new Error('status ' + r.status);
           const unit = await r.json();
           const articleEl = document.getElementById('legal-article');
@@ -125,6 +134,7 @@ try {
 
 } finally {
   await browserInstance.close();
+  if (legalServerInstance) legalServerInstance.close();
 }
 
 console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`);

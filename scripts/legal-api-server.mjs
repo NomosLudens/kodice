@@ -11,7 +11,7 @@ import path from 'node:path';
  */
 
 export function createLegalApiHandler(db, options = {}) {
-  const allowedOrigins = options.allowedOrigins || ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5273', 'http://127.0.0.1:5273', 'https://kaline-box.taildb6c11.ts.net'];
+  const allowedOrigins = options.allowedOrigins || ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5273', 'http://127.0.0.1:5273', 'https://mini.taildb6c11.ts.net', 'https://kodice.nomosludens.ia.br'];
 
   const getNormStmt = db.prepare(`
     SELECT n.*, v.id as version_id, v.version_date, v.source_hash
@@ -56,7 +56,8 @@ export function createLegalApiHandler(db, options = {}) {
     }
 
     const parsedUrl = new URL(req.url, `http://${req.headers.host || '127.0.0.1'}`);
-    const pathname = parsedUrl.pathname;
+    const rawPath = parsedUrl.pathname;
+    const pathname = rawPath.startsWith('/api/legal') ? rawPath : ('/api/legal' + (rawPath.startsWith('/') ? rawPath : '/' + rawPath));
 
     // 1. Health
     if (pathname === '/health' || pathname === '/api/legal/health') {
