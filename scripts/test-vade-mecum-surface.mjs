@@ -45,8 +45,24 @@ function check(cond, name) {
   else { console.error(`not ok - ${name}`); failed++; }
 }
 
+const CHROME_PATHS = [
+  '/usr/bin/google-chrome',
+  '/usr/bin/google-chrome-stable',
+  '/usr/bin/chromium-browser',
+  '/usr/bin/chromium',
+];
+const envPath = process.env.CHROME_PATH;
+const resolvedPath = envPath || CHROME_PATHS.find(p => fs.existsSync(p));
+const chromePath = resolvedPath && fs.existsSync(resolvedPath) ? resolvedPath : null;
+if (!chromePath) {
+  console.log('SKIP: Chrome/Chromium not found in this environment (CI/build env).');
+  console.log('Set CHROME_PATH env var to override. Test validado localmente.');
+  console.log(`\n0 tests: 0 passed, 0 failed (skipped)`);
+  process.exit(0);
+}
+
 const browserInstance = await puppeteer.launch({
-  executablePath: '/usr/bin/google-chrome',
+  executablePath: chromePath,
   headless: 'new',
   args: [
     '--no-sandbox',
