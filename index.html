@@ -1255,7 +1255,7 @@ async function loadLegalChildren(normId, parentCp){
     }
     status.textContent = `${children.length} unidade(s) em ${parentCp}.`;
     childrenEl.innerHTML = children.map(c => `
-      <button class="legal-child-btn" data-cp="${escapeAttr(c.canonical_path)}" data-kind="${escapeAttr(c.kind)}"
+      <button class="legal-child-btn" data-cp="${escapeAttr(c.canonicalPath || c.canonical_path)}" data-kind="${escapeAttr(c.kind)}"
               style="min-height:40px;padding:8px 10px;border-radius:8px;background:var(--elev);color:var(--text);border:1px solid var(--border);text-align:left;cursor:pointer;font-size:13px">
         <span style="color:var(--text-2);font-size:11px;font-weight:600;letter-spacing:.04em">${escapeHtml(c.kind.toUpperCase())}</span>
         <span style="margin-left:8px">${escapeHtml(c.label)}</span>

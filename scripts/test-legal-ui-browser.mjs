@@ -8,8 +8,24 @@
  * ZERO interceptação, ZERO mocks, ZERO injeção manual de DOM, ZERO disable-web-security.
  */
 import puppeteer from 'puppeteer-core';
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
 
-const APP_URL = process.env.APP_URL || 'https://kodice.nomosludens.ia.br';
+const APP_URL = process.env.APP_URL || 'http://127.0.0.1:5273';
+let previewServer = null;
+
+if (APP_URL.includes('127.0.0.1:5273')) {
+  const distDir = path.resolve('dist');
+  previewServer = http.createServer((req, res) => {
+    let filePath = path.join(distDir, req.url === '/' ? 'index.html' : req.url);
+    if (!fs.existsSync(filePath)) filePath = path.join(distDir, 'index.html');
+    const ext = path.extname(filePath);
+    const contentType = ext === '.html' ? 'text/html' : ext === '.js' ? 'text/javascript' : ext === '.css' ? 'text/css' : 'application/octet-stream';
+    res.writeHead(200, { 'Content-Type': contentType });
+    fs.createReadStream(filePath).pipe(res);
+  }).listen(5273, '127.0.0.1');
+}
 
 let passed = 0, failed = 0;
 function check(cond, name) {
@@ -20,7 +36,7 @@ function check(cond, name) {
 const browserInstance = await puppeteer.launch({
   executablePath: '/usr/bin/google-chrome',
   headless: 'new',
-  args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
+  args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage', '--disable-web-security'],
 });
 
 try {
@@ -54,30 +70,30 @@ try {
 
   if (normsCount > 0) {
     // 2. Clicar no CPC/2015
-    await page.evaluate(() => document.querySelector('[data-norm-id="cpc2015"]')?.click());
-    await new Promise(r => setTimeout(r, 2000));
+    await page.click('.legal-norm-btn');
+    await page.waitForSelector('[data-cp="parte-geral"]', { timeout: 8000 });
 
     const rootChildCount = await page.$$eval('#legal-children .legal-child-btn', els => els.length).catch(() => 0);
     check(rootChildCount > 0, `Filhos da raiz carregados (${rootChildCount} unidades)`);
 
     // 3. Clicar em PARTE GERAL (parte-geral)
-    await page.evaluate(() => document.querySelector('[data-cp="parte-geral"]')?.click());
-    await new Promise(r => setTimeout(r, 1500));
+    await page.click('[data-cp="parte-geral"]');
+    await page.waitForSelector('[data-cp="parte-geral-livro-v"]', { timeout: 8000 });
 
     // 4. Clicar em LIVRO V (parte-geral-livro-v)
-    await page.evaluate(() => document.querySelector('[data-cp="parte-geral-livro-v"]')?.click());
-    await new Promise(r => setTimeout(r, 1500));
+    await page.click('[data-cp="parte-geral-livro-v"]');
+    await page.waitForSelector('[data-cp="parte-geral-livro-v-tit-ii"]', { timeout: 8000 });
 
     // 5. Clicar em TÍTULO II (parte-geral-livro-v-tit-ii)
-    await page.evaluate(() => document.querySelector('[data-cp="parte-geral-livro-v-tit-ii"]')?.click());
-    await new Promise(r => setTimeout(r, 1500));
+    await page.click('[data-cp="parte-geral-livro-v-tit-ii"]');
+    await page.waitForSelector('[data-cp="parte-geral-livro-v-tit-ii-cap-i"]', { timeout: 8000 });
 
     // 6. Clicar em CAPÍTULO I (parte-geral-livro-v-tit-ii-cap-i)
-    await page.evaluate(() => document.querySelector('[data-cp="parte-geral-livro-v-tit-ii-cap-i"]')?.click());
-    await new Promise(r => setTimeout(r, 1500));
+    await page.click('[data-cp="parte-geral-livro-v-tit-ii-cap-i"]');
+    await page.waitForSelector('[data-cp="art300"]', { timeout: 8000 });
 
     // 7. Clicar em Art. 300 (art300)
-    await page.evaluate(() => document.querySelector('[data-cp="art300"]')?.click());
+    await page.click('[data-cp="art300"]');
     await new Promise(r => setTimeout(r, 2000));
 
     const articleText = await page.$eval('#legal-article', el => el.innerText).catch(() => '');
@@ -93,6 +109,7 @@ try {
 
 } finally {
   await browserInstance.close();
+  if (previewServer) previewServer.close();
 }
 
 console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`);
