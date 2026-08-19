@@ -1288,47 +1288,58 @@ async function openLegalArticle(normId, cp){
   articleEl.classList.remove('hidden');
   articleEl.innerHTML = '<div style="color:var(--text-2);font-size:12px">Carregando unidade…</div>';
   try {
-    const unit = await legalFetch(`/norms/${encodeURIComponent(normId)}/units/${encodeURIComponent(cp)}`);
-    articleEl.innerHTML = `
-      <div style="color:var(--text-2);font-size:11px;font-weight:600;letter-spacing:.05em">${escapeHtml(unit.kind.toUpperCase())} · ${escapeHtml(unit.id)}</div>
-      <div style="font-size:18px;font-weight:700;color:var(--text)">${escapeHtml(unit.label)}</div>
-      <div style="color:var(--text-2);font-size:12px">Origem: <a href="${escapeAttr(unit.normId ? '' : '')}" style="color:var(--orange)" rel="noopener noreferrer">${escapeHtml(normId)}</a></div>
-      <div style="font-size:15px;line-height:1.7;color:var(--text);margin-top:6px">${escapeHtml(unit.text)}</div>
-      <div style="display:flex;gap:8px;margin-top:8px">
-        <button id="btn-legal-child-load" style="flex:1;min-height:40px;border-radius:8px;background:var(--orange);color:#fff;border:0;font-weight:600;cursor:pointer;font-size:13px">Ver filhos (se houver)</button>
-      </div>
-    `;
-    const btn = document.getElementById('btn-legal-child-load');
-    if(btn){
-      btn.addEventListener('click', async ()=>{
-        const kids = await legalFetch(`/norms/${encodeURIComponent(normId)}/children?parent=${encodeURIComponent(cp)}`).catch(()=>[]);
-        if(!Array.isArray(kids) || !kids.length){
-          articleEl.querySelector('#btn-legal-child-load').textContent = 'Sem filhos';
-          return;
-        }
-        articleEl.insertAdjacentHTML('beforeend', '<div id="legal-article-kids" style="display:flex;flex-direction:column;gap:6px;margin-top:8px"></div>');
-        const kidsEl = articleEl.querySelector('#legal-article-kids');
-        kidsEl.innerHTML = kids.map(c => `
-          <button class="legal-grandchild-btn" data-cp="${escapeAttr(c.canonical_path)}" data-kind="${escapeAttr(c.kind)}"
-                  style="min-height:40px;padding:8px 10px;border-radius:8px;background:var(--surface);color:var(--text);border:1px solid var(--border);text-align:left;cursor:pointer;font-size:13px">
-            <span style="color:var(--text-2);font-size:11px;font-weight:600;letter-spacing:.04em">${escapeHtml(c.kind.toUpperCase())}</span>
-            <span style="margin-left:8px">${escapeHtml(c.label)}</span>
-          </button>
-        `).join('');
-        $$('#legal-article-kids .legal-grandchild-btn').forEach(b=>{
-          b.addEventListener('click', ()=>{
-            legalState.breadcrumb.push({ kind: b.dataset.kind, id: b.dataset.cp });
-            openLegalArticle(normId, b.dataset.cp);
-          });
-        });
-      });
+    const [unit, kids] = await Promise.all([
+      legalFetch(`/norms/${encodeURIComponent(normId)}/units/${encodeURIComponent(cp)}`),
+      legalFetch(`/norms/${encodeURIComponent(normId)}/children?parent=${encodeURIComponent(cp)}`).catch(() => [])
+    ]);
+
+    let kidsHtml = '';
+    if (Array.isArray(kids) && kids.length > 0) {
+      kidsHtml = `
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:10px">
+          <div style="font-size:11px;font-weight:700;letter-spacing:.05em;color:var(--text-2)">DESDOBRAMENTOS (${kids.length})</div>
+          ${kids.map(c => `
+            <div class="legal-grandchild-btn" data-cp="${escapeAttr(c.canonicalPath || c.canonical_path)}" data-kind="${escapeAttr(c.kind)}"
+                 style="padding:10px 14px;border-radius:8px;background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--orange);cursor:pointer;display:flex;flex-direction:column;gap:4px">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <span style="color:var(--orange);font-size:11px;font-weight:700;text-transform:uppercase">${escapeHtml(c.kind || '')}</span>
+                <span style="font-size:12px;font-weight:600;color:var(--text-2)">${escapeHtml(c.label || '')}</span>
+              </div>
+              ${c.heading ? `<div style="color:var(--text-2);font-size:12px;font-weight:500">${escapeHtml(c.heading)}</div>` : ''}
+              ${c.text ? `<div style="font-size:14px;line-height:1.65;color:var(--text);margin-top:2px">${escapeHtml(c.text)}</div>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      `;
     }
+
+    articleEl.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <span style="background:rgba(234,88,12,0.12);color:var(--orange);font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;letter-spacing:.04em;text-transform:uppercase">${escapeHtml((unit.kind || 'ARTIGO').toUpperCase())}</span>
+        <span style="color:var(--text-2);font-size:12px;font-weight:500">${escapeHtml(unit.label || '')}</span>
+      </div>
+      ${unit.heading ? `<div style="font-size:13px;font-weight:600;color:var(--orange);margin-bottom:8px">${escapeHtml(unit.heading)}</div>` : ''}
+      <div style="font-size:15px;line-height:1.75;color:var(--text);padding:14px 16px;background:var(--elev);border-radius:10px;border:1px solid var(--border);border-left:3px solid var(--orange);white-space:pre-wrap;margin-top:4px">${escapeHtml(unit.text || '(Sem texto textual nesta unidade)')}</div>
+      ${kidsHtml}
+    `;
+
+    $$('#legal-article .legal-grandchild-btn').forEach(b => {
+      b.addEventListener('click', () => {
+        const childCp = b.dataset.cp;
+        const childKind = b.dataset.kind;
+        if (childCp) {
+          legalState.breadcrumb.push({ kind: childKind, id: childCp });
+          openLegalArticle(normId, childCp);
+        }
+      });
+    });
+
     // Persistir progresso do último artigo aberto
     try {
       const id = 'legal:' + normId + ':' + cp;
       const row = { id, kind: 'legal', normId, canonicalPath: cp, updated_at: Date.now() };
       await dbPut('progress', { book_id: id, cfi: null, page: null, scroll_top: null, percentage: 0, title: `${normId} · ${cp}`, updated_at: row.updated_at });
-    } catch (e) { /* falha silenciosa — não bloqueia leitura */ }
+    } catch (e) { /* falha silenciosa */ }
   } catch (e) {
     articleEl.innerHTML = '<div style="color:var(--text-2);font-size:12px">Falha ao carregar unidade: ' + escapeHtml(e?.message || String(e)) + '</div>';
   }
