@@ -1182,6 +1182,7 @@ function legalFetch(path){
       cache: 'no-store',
       redirect: 'error',
       referrerPolicy: 'no-referrer',
+      targetAddressSpace: 'private',
       signal: ctrl.signal,
       headers: { Accept: 'application/json' },
     }).then(r=>{

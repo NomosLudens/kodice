@@ -36,10 +36,17 @@ export function createLegalApiHandler(db, options = {}) {
 
   return (req, res) => {
     const origin = req.headers.origin;
-    if (origin && (allowedOrigins.includes(origin) || allowedOrigins.includes('*'))) {
+    const cleanOrigin = origin ? origin.replace(/\/+$/, '') : null;
+    const isAllowed = cleanOrigin && (allowedOrigins.includes(cleanOrigin) || allowedOrigins.includes('*') || allowedOrigins.some(o => o.replace(/\/+$/, '') === cleanOrigin));
+    if (isAllowed) {
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.setHeader('Access-Control-Allow-Headers', '*');
+      res.setHeader('Access-Control-Allow-Private-Network', 'true');
+    } else if (!origin) {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', '*');
       res.setHeader('Access-Control-Allow-Private-Network', 'true');
     }
 

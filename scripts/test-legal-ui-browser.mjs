@@ -2,24 +2,14 @@
 /**
  * test-legal-ui-browser.mjs
  *
- * Validação browser-side do fluxo jurídico: o usuário realmente consegue
- * entrar no Jurídico → CPC/2015 → Art. 300 → ver texto oficial vindo da API.
+ * Validação browser-side do fluxo jurídico real: o usuário clica de verdade em
+ * Jurídico → CPC/2015 → Parte Geral → Livro V → Título II → Capítulo I → Art. 300.
  *
- * Usa puppeteer-core + Chrome headless já instalado.
+ * ZERO interceptação, ZERO mocks, ZERO injeção manual de DOM, ZERO disable-web-security.
  */
 import puppeteer from 'puppeteer-core';
-import { startLegalApiServer } from './legal-api-server.mjs';
 
-const APP_URL = process.env.APP_URL || 'http://127.0.0.1:5273';
-const LEGAL_URL = process.env.LEGAL_URL || 'http://127.0.0.1:4520';
-
-let legalServerInstance = null;
-try {
-  const { server } = await startLegalApiServer('legal.db', 4520, '127.0.0.1');
-  legalServerInstance = server;
-} catch {
-  // Se a porta já estiver em uso, assume servidor já rodando
-}
+const APP_URL = process.env.APP_URL || 'https://kodice.nomosludens.ia.br';
 
 let passed = 0, failed = 0;
 function check(cond, name) {
@@ -30,105 +20,79 @@ function check(cond, name) {
 const browserInstance = await puppeteer.launch({
   executablePath: '/usr/bin/google-chrome',
   headless: 'new',
-  args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage', '--disable-web-security'],
+  args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
 });
 
 try {
   const page = await browserInstance.newPage();
-  // Interceta todas as requests para a Mini e redireciona para o servidor local.
-  await page.setRequestInterception(true);
-  page.on('request', (req) => {
-    const url = req.url();
-    if (url.includes('mini.taildb6c11.ts.net')) {
-      const newUrl = url.replace('https://mini.taildb6c11.ts.net', LEGAL_URL);
-      req.continue({ url: newUrl });
-    } else {
-      req.continue();
-    }
-  });
 
-  // Captura console + requests
   page.on('console', msg => {
     if (msg.type() === 'error') console.warn('  [console.error]', msg.text());
   });
   page.on('pageerror', err => console.warn('  [pageerror]', err.message));
   page.on('requestfailed', req => console.warn('  [requestfailed]', req.url(), req.failure()?.errorText));
-  page.on('response', async (res) => {
-    if (res.url().includes('4520') || res.url().includes('mini')) {
-      console.warn(`  [response ${res.status()}] ${res.url()}`);
-    }
-  });
 
   await page.setViewport({ width: 390, height: 844 });
   await page.goto(APP_URL, { waitUntil: 'networkidle0' });
-
-  // Aguarda render
   await new Promise(r => setTimeout(r, 1500));
 
-  // Verifica que o título KÓDICE aparece
   const titleText = await page.title();
   check(titleText.includes('KÓDICE'), `Título contém KÓDICE: "${titleText}"`);
 
-  // Procura e clica no botão Jurídico
+  // 1. Clicar no botão Jurídico
   const legalBtnExists = await page.evaluate(() => {
     const el = document.querySelector('[data-nav="legal"]');
     if (el) { el.click(); return true; }
     return false;
   });
   check(legalBtnExists, 'Botão Jurídico acionado no sidebar');
-  await page.waitForSelector('#legal-norms .legal-norm-btn', { timeout: 5000 }).catch(() => {});
 
+  await page.waitForSelector('#legal-norms .legal-norm-btn', { timeout: 8000 }).catch(() => {});
   const status = await page.$eval('#legal-status', el => el.textContent).catch(() => '');
   const normsCount = await page.$$eval('#legal-norms .legal-norm-btn', els => els.length).catch(() => 0);
+  check(normsCount > 0, `Lista normas carregada (${normsCount} normas, status="${status}")`);
 
-    check(normsCount > 0, `Lista normas carregada (${normsCount} normas, status="${status}")`);
+  if (normsCount > 0) {
+    // 2. Clicar no CPC/2015
+    await page.evaluate(() => document.querySelector('[data-norm-id="cpc2015"]')?.click());
+    await new Promise(r => setTimeout(r, 2000));
 
-    if (normsCount > 0) {
-      // Clica no CPC/2015
-      await page.evaluate(() => document.querySelector('[data-norm-id="cpc2015"]')?.click());
-      await new Promise(r => setTimeout(r, 1500));
+    const rootChildCount = await page.$$eval('#legal-children .legal-child-btn', els => els.length).catch(() => 0);
+    check(rootChildCount > 0, `Filhos da raiz carregados (${rootChildCount} unidades)`);
 
-      const childCount = await page.$$eval('#legal-children .legal-child-btn', els => els.length).catch(() => 0);
-      check(childCount > 0, `Filhos da raiz carregados (${childCount} unidades)`);
+    // 3. Clicar em PARTE GERAL (parte-geral)
+    await page.evaluate(() => document.querySelector('[data-cp="parte-geral"]')?.click());
+    await new Promise(r => setTimeout(r, 1500));
 
-      // Navega recursivamente até encontrar o artigo. O caminho real é:
-      // preambulo → parte-geral → livro-v → tit-ii → cap-i → ... → art300
-      // Como a UI navega via clicks sucessivos, abrimos art300 chamando
-      // diretamente a função openLegalArticle acessível via escopo do módulo.
-      // Para isso, precisamos disparar via um botão de criança que a UI já tenha
-      // criado para um article ou parágrafo. A abordagem mais robusta é clicar
-      // no primeiro botão de "parte" e repetir até encontrar artigo.
-      const articleText = await page.evaluate(async () => {
-        const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-        // Caminho direto via fetch + atribuição manual ao DOM, contornando a navegação.
-        // Validamos o texto oficial renderizado na UI.
-        try {
-          const r = await fetch('https://mini.taildb6c11.ts.net/api/legal/norms/cpc2015/units/art300');
-          if (!r.ok) throw new Error('status ' + r.status);
-          const unit = await r.json();
-          const articleEl = document.getElementById('legal-article');
-          articleEl.classList.remove('hidden');
-          articleEl.innerHTML = `<div style="color:var(--text-2);font-size:11px;font-weight:600;letter-spacing:.05em">${unit.kind.toUpperCase()}</div>` +
-            `<div style="font-size:18px;font-weight:700">${unit.label}</div>` +
-            `<div style="font-size:15px;line-height:1.7;margin-top:6px">${unit.text}</div>`;
-          return articleEl.innerText;
-        } catch (e) {
-          return 'ERROR: ' + e.message;
-        }
-      });
-      check(articleText.includes('tutela de urgência será concedida'),
-            `Art. 300 carregado com texto oficial (trecho: "${articleText.slice(0, 100).replace(/\n/g, ' ')}")`);
+    // 4. Clicar em LIVRO V (parte-geral-livro-v)
+    await page.evaluate(() => document.querySelector('[data-cp="parte-geral-livro-v"]')?.click());
+    await new Promise(r => setTimeout(r, 1500));
 
-      // Reload e verifica que UI volta ao estado legal
-      await page.reload({ waitUntil: 'networkidle0' });
-      await new Promise(r => setTimeout(r, 1500));
-      const titleAfterReload = await page.title();
-      check(titleAfterReload.includes('KÓDICE'), 'Reload mantém o app no ar');
-    }
+    // 5. Clicar em TÍTULO II (parte-geral-livro-v-tit-ii)
+    await page.evaluate(() => document.querySelector('[data-cp="parte-geral-livro-v-tit-ii"]')?.click());
+    await new Promise(r => setTimeout(r, 1500));
+
+    // 6. Clicar em CAPÍTULO I (parte-geral-livro-v-tit-ii-cap-i)
+    await page.evaluate(() => document.querySelector('[data-cp="parte-geral-livro-v-tit-ii-cap-i"]')?.click());
+    await new Promise(r => setTimeout(r, 1500));
+
+    // 7. Clicar em Art. 300 (art300)
+    await page.evaluate(() => document.querySelector('[data-cp="art300"]')?.click());
+    await new Promise(r => setTimeout(r, 2000));
+
+    const articleText = await page.$eval('#legal-article', el => el.innerText).catch(() => '');
+    check(articleText.includes('tutela de urgência será concedida'),
+          `Art. 300 aberto por cliques reais (trecho: "${articleText.slice(0, 100).replace(/\n/g, ' ')}")`);
+
+    // 8. Reload do app e sanidade
+    await page.reload({ waitUntil: 'networkidle0' });
+    await new Promise(r => setTimeout(r, 1500));
+    const titleAfterReload = await page.title();
+    check(titleAfterReload.includes('KÓDICE'), 'Reload mantém o app no ar');
+  }
 
 } finally {
   await browserInstance.close();
-  if (legalServerInstance) legalServerInstance.close();
 }
 
 console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`);
