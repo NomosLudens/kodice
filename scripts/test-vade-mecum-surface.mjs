@@ -143,7 +143,7 @@ try {
   });
   check(searchResultsCount > 0, `Busca por '300' retornou ${searchResultsCount} unidade(s)`);
 
-  // 4. Clica no resultado Art. 300 (deve fechar o tray e abrir o artigo)
+  // 4. Clica no resultado Art. 300 (deve fechar o tray e rolar até o artigo dentro do documento contínuo)
   await page.evaluate(() => {
     const items = document.querySelectorAll('#legal-search-popover-results .vade-search-item');
     const target = Array.from(items).find(el => el.textContent.includes('ART300') || el.textContent.includes('ART. 300'));
@@ -154,15 +154,36 @@ try {
   await page.waitForFunction(() => !document.getElementById('legal-search-popover')?.classList.contains('open'), { timeout: 3000 });
   check(true, 'Tray de busca fecha após selecionar resultado');
 
-  // Artigo 300 aberto editorialmente
+  // P1: o documento contínuo carrega a norma inteira e o Art. 300 fica visível no reader.
   await page.waitForFunction(() => {
-    const h1 = document.querySelector('#legal-article-container h1');
-    return h1 && h1.textContent.includes('ART. 300');
-  }, { timeout: 10000 });
-  const articleTitle = await page.evaluate(() => {
-    return document.querySelector('#legal-article-container h1')?.textContent || '';
+    const art = document.querySelector('#legal-document [data-cp="art300"]');
+    return !!(art && art.querySelector('.legal-unit-title'));
+  }, { timeout: 15000 });
+  // Aguarda o scrollIntoView({behavior:'smooth'}) terminar — pode percorrer
+  // milhares de pixels (CPC tem 4199 unidades).
+  await page.waitForFunction(() => {
+    const art = document.querySelector('#legal-document [data-cp="art300"]');
+    if (!art) return false;
+    const r = art.getBoundingClientRect();
+    // Aceita estar visível: top dentro do viewport ou já passou do topo, mas
+    // ainda dentro da altura visível.
+    return r.top < window.innerHeight && r.bottom > 0 && r.top > -window.innerHeight;
+  }, { timeout: 5000 }).catch(() => {});
+  const articleState = await page.evaluate(() => {
+    const art = document.querySelector('#legal-document [data-cp="art300"]');
+    const title = art?.querySelector('.legal-unit-title')?.textContent || '';
+    const text = art?.querySelector('.legal-unit-text')?.textContent || '';
+    const r = art ? art.getBoundingClientRect() : null;
+    return {
+      title,
+      textStart: text.slice(0, 80),
+      inViewport: !!(r && r.top < window.innerHeight && r.bottom > 0),
+      unitsCount: document.querySelectorAll('#legal-document .legal-unit').length
+    };
   });
-  check(articleTitle.includes('ART. 300'), `Artigo 300 aberto editorialmente: "${articleTitle}"`);
+  check(articleState.title.includes('ART. 300'), `Artigo 300 materializado no documento: "${articleState.title}"`);
+  check(articleState.inViewport, `Artigo 300 visível na viewport (${articleState.unitsCount} unidades carregadas)`);
+  check(articleState.textStart.includes('tutela') || articleState.textStart.length > 20, `Texto do Art. 300 começa com: "${articleState.textStart}"`);
 
   // 5. Testar Busca por Texto ("tutela de urgência") via tray
   await page.evaluate(() => {

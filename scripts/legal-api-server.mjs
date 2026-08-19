@@ -96,6 +96,45 @@ export function createLegalApiHandler(db, options = {}) {
       return;
     }
 
+    // 2aa. Full norm units: /api/legal/norms/:normId/units
+    // Returns ALL units of the current version, ordered by sort_order ASC.
+    // Used by the reader to render the whole norm as a continuous document.
+    const fullUnitsMatch = pathname.match(/^\/api\/legal\/norms\/([^/]+)\/units$/);
+    if (fullUnitsMatch) {
+      const normId = decodeURIComponent(fullUnitsMatch[1]);
+      const normRow = db.prepare('SELECT current_version_id FROM legal_norms WHERE id = ?').get(normId);
+      if (!normRow || !normRow.current_version_id) {
+        res.statusCode = 404;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ error: 'Legal norm not found', normId }));
+        return;
+      }
+      const fullUnitsStmt = db.prepare(`
+        SELECT id, norm_id, version_id, parent_id, kind, label, canonical_path, heading, text, sort_order, status
+        FROM legal_units
+        WHERE norm_id = ? AND version_id = ?
+        ORDER BY sort_order ASC
+      `);
+      const rows = fullUnitsStmt.all(normId, normRow.current_version_id);
+      const out = rows.map(r => ({
+        id: r.id,
+        normId: r.norm_id,
+        versionId: r.version_id,
+        parentId: r.parent_id,
+        kind: r.kind,
+        label: r.label,
+        canonicalPath: r.canonical_path,
+        heading: r.heading,
+        text: r.text,
+        sortOrder: r.sort_order,
+        status: r.status
+      }));
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify(out));
+      return;
+    }
+
     // 2a. List children: /api/legal/norms/:normId/children?parent=<canonicalPath>
     const childrenMatch = pathname.match(/^\/api\/legal\/norms\/([^/]+)\/children$/);
     if (childrenMatch) {

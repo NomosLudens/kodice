@@ -869,10 +869,147 @@
   #app.reader-mode-legal #reader-inline-nav { display: flex; }
   #app.reader-mode-legal #reader-inline-nav.hidden { display: none !important; }
 
+  /* === Documento jurídico contínuo (Vade Mecum) === */
+  #legal-document-surface {
+    display: block;
+  }
+  #legal-document-surface.hidden { display: none !important; }
+  #legal-document {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .legal-unit {
+    scroll-margin-top: 80px;
+    padding: 4px 0;
+  }
+  .legal-unit.legal-highlight {
+    background: rgba(255, 76, 31, 0.10);
+    transition: background 1.2s ease-in-out;
+  }
+  /* Estrutura: PARTE / LIVRO / TÍTULO / CAPÍTULO / SEÇÃO / SUBSEÇÃO */
+  .legal-unit.legal-kind-parte,
+  .legal-unit.legal-kind-livro,
+  .legal-unit.legal-kind-titulo,
+  .legal-unit.legal-kind-capitulo,
+  .legal-unit.legal-kind-secao,
+  .legal-unit.legal-kind-subsecao {
+    margin: 18px 0 6px;
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+  }
+  .legal-unit.legal-kind-parte .legal-unit-head,
+  .legal-unit.legal-kind-livro .legal-unit-head,
+  .legal-unit.legal-kind-titulo .legal-unit-head,
+  .legal-unit.legal-kind-capitulo .legal-unit-head,
+  .legal-unit.legal-kind-secao .legal-unit-head,
+  .legal-unit.legal-kind-subsecao .legal-unit-head {
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--orange);
+    text-transform: uppercase;
+  }
+  .legal-unit.legal-kind-parte .legal-unit-head { font-size: 16px; }
+  .legal-unit.legal-kind-livro .legal-unit-head { font-size: 14px; }
+  .legal-unit.legal-kind-titulo .legal-unit-head { font-size: 13px; }
+  .legal-unit.legal-kind-capitulo .legal-unit-head { font-size: 12px; }
+  .legal-unit.legal-kind-secao .legal-unit-head { font-size: 11px; }
+  .legal-unit.legal-kind-subsecao .legal-unit-head { font-size: 11px; opacity: .85; }
+  /* Artigo */
+  .legal-unit.legal-kind-artigo {
+    margin-top: 8px;
+  }
+  .legal-unit.legal-kind-artigo .legal-unit-title {
+    font-family: 'Iowan Old Style', 'Charter', 'Georgia', 'Cambria', 'Times New Roman', serif;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text);
+    margin: 12px 0 4px;
+    border-left: 2px solid var(--orange);
+    padding-left: 8px;
+  }
+  .legal-unit.legal-kind-artigo .legal-unit-text {
+    font-family: 'Iowan Old Style', 'Charter', 'Georgia', 'Cambria', 'Times New Roman', serif;
+    font-size: 16px;
+    line-height: 1.7;
+    color: var(--text);
+    white-space: pre-wrap;
+  }
+  /* Parágrafos / incisos / alíneas — fluxo, sem cards */
+  .legal-unit.legal-kind-paragrafo .legal-unit-paragrafo {
+    font-family: 'Iowan Old Style', 'Charter', 'Georgia', 'Cambria', 'Times New Roman', serif;
+    font-size: 15.5px;
+    line-height: 1.7;
+    color: var(--text);
+    padding-left: 16px;
+    white-space: pre-wrap;
+  }
+  .legal-unit.legal-kind-inciso .legal-unit-inciso {
+    font-family: 'Iowan Old Style', 'Charter', 'Georgia', 'Cambria', 'Times New Roman', serif;
+    font-size: 15px;
+    line-height: 1.65;
+    color: var(--text);
+    padding-left: 28px;
+    white-space: pre-wrap;
+  }
+  .legal-unit.legal-kind-alinea .legal-unit-alinea {
+    font-family: 'Iowan Old Style', 'Charter', 'Georgia', 'Cambria', 'Times New Roman', serif;
+    font-size: 14.5px;
+    line-height: 1.6;
+    color: var(--text);
+    padding-left: 40px;
+    white-space: pre-wrap;
+  }
+  .legal-unit.legal-kind-preambulo .legal-unit-preambulo {
+    font-family: 'Iowan Old Style', 'Charter', 'Georgia', 'Cambria', 'Times New Roman', serif;
+    font-size: 15px;
+    line-height: 1.7;
+    color: var(--text);
+    white-space: pre-wrap;
+    font-style: italic;
+  }
+  /* Cabeçalho da norma quando o documento abre */
+  #legal-document-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 0 0 16px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 18px;
+  }
+  #legal-document-meta .legal-doc-status {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--orange);
+  }
+  #legal-document-meta .legal-doc-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+  #legal-document-meta .legal-doc-popular {
+    font-size: 14px;
+    color: var(--text-2);
+  }
+  #legal-document-meta .legal-doc-counter {
+    font-size: 11px;
+    color: var(--text-2);
+    margin-top: 4px;
+  }
+
   @media(max-width: 768px){
     #legal-viewer { padding: 24px 16px 96px; }
     #legal-article-container .vade-article-title { font-size: 26px; }
     #legal-article-container .vade-article-text { font-size: 16px; }
+    .legal-unit.legal-kind-artigo .legal-unit-text { font-size: 15.5px; }
+    .legal-unit.legal-kind-paragrafo .legal-unit-paragrafo { font-size: 15px; }
+    .legal-unit.legal-kind-inciso .legal-unit-inciso { font-size: 14.5px; padding-left: 22px; }
+    .legal-unit.legal-kind-alinea .legal-unit-alinea { padding-left: 32px; }
   }
 </style>
 </head>
@@ -1003,11 +1140,15 @@
               <div id="legal-empty-state" class="hidden">Nenhuma legislação adicionada ao Vade Mecum.</div>
             </div>
           </div>
+          <div id="legal-document-surface" class="hidden">
+            <div id="legal-document-meta"></div>
+            <div id="legal-document"></div>
+          </div>
           <div id="legal-article-surface" class="hidden">
             <div id="legal-article-container"></div>
           </div>
         </div>
-        <div id="legal-tree-pane">
+        <div id="legal-tree-pane" class="hidden">
           <div class="vade-tree-section">
             <span>Estrutura</span>
             <button id="btn-legal-tree-close" aria-label="Fechar estrutura">✕</button>
@@ -1016,7 +1157,7 @@
           <button id="btn-legal-tree-back" class="vade-tree-back">← Voltar</button>
           <div id="legal-tree-children" class="vade-tree-children"></div>
         </div>
-        <div id="legal-search-popover">
+        <div id="legal-search-popover" class="hidden">
           <form onsubmit="event.preventDefault()" class="vade-search-row">
             <input id="legal-search-input" type="search" placeholder="Pesquisar norma, artigo ou texto (ex: 300, art 300, tutela de urgência)…" />
             <button id="legal-search-clear" type="button" class="vade-search-clear" aria-label="Limpar busca">✕</button>
@@ -1652,7 +1793,7 @@ function closePanel(id){
   if(!anyOpen) $('#backdrop').classList.remove('show');
 }
 function closeAllPanels(){
-  ['library-panel','toc-panel','notebook-panel','settings-panel','legal-panel'].forEach(closePanel);
+  ['library-panel','toc-panel','notebook-panel','settings-panel'].forEach(closePanel);
 }
 
 /* =========================================================
@@ -1707,7 +1848,11 @@ const legalState = {
   bookSnapshot: null,
   // Lista simples de cp's irmãos para prev/next interno do reader.
   flatUnits: [],
-  flatIndex: -1
+  flatIndex: -1,
+  // === P1: documento contínuo ===
+  // units: array ordenado de unidades da norma carregada (sortOrder ASC)
+  units: [],
+  unitByCp: {}
 };
 
 // Entrar no modo legal do reader (sem overlay, sem segunda surface)
@@ -1844,6 +1989,217 @@ window.closeVadeMecumView = closeVadeMecumView;
 window.performVadeSearch = (q) => performLegalSearch(q);
 window.openVadeNormReader = (n, c) => loadLegalUnit(n, c);
 
+// ===== P1: NORMA COMPLETA NO READER (documento contínuo) =====
+
+// Slug para id de elemento (canonicalPath já é seguro, mas defensivo).
+function legalCpSlug(cp) {
+  return String(cp || '').replace(/[^a-zA-Z0-9_-]/g, '');
+}
+
+// Formata o "label" da unidade para uso editorial.
+function legalFormatStructuralLabel(label) {
+  // "PARTE GERAL", "LIVRO I", "TÍTULO ÚNICO", "CAPÍTULO I", "SEÇÃO I", "SUBSEÇÃO I"
+  return String(label || '').trim();
+}
+
+// Constrói o título de um artigo a partir do label "ART300" → "ART. 300".
+function legalFormatArticleTitle(label, text) {
+  const lab = String(label || '').trim();
+  const m = lab.match(/^ART(.+)$/i);
+  if (m && m[1]) {
+    const num = m[1];
+    // "ART300" → "ART. 300"; "ART1" → "ART. 1"
+    return 'ART. ' + num;
+  }
+  // Fallback: extrai do texto "Art. 300." ou "Art. 1.075."
+  if (text) {
+    const t = String(text).match(/^Art\.?\s*([\d.]+)/i);
+    if (t) return 'ART. ' + t[1].replace(/\.$/, '');
+  }
+  return lab || '';
+}
+
+// Remove o prefixo "Art. N." / "Art. N. " do início do texto para evitar duplicação
+// quando o título "ART. N" já é renderizado separadamente.
+function legalStripArticlePrefix(text) {
+  if (!text) return '';
+  // Cobre "Art. 300.", "Art. 1º", "Art. 1.075.", "Art 300.", "Art 1."
+  return String(text).replace(/^Art\.?\s*[\d.]+[ºo°]?\s*\.?\s*/i, '').trim();
+}
+
+// Renderiza uma unidade como bloco editorial dentro do documento contínuo.
+function renderLegalUnitBlock(normId, u) {
+  const cp = u.canonicalPath || u.canonical_path;
+  const kind = u.kind;
+  const label = u.label || '';
+  const text = u.text || '';
+  const heading = u.heading || '';
+  const slug = legalCpSlug(cp);
+  const id = `legal-unit-${legalCpSlug(normId)}-${slug}`;
+  const cpAttr = String(cp).replace(/"/g, '&quot;');
+  const kindAttr = String(kind).replace(/"/g, '&quot;');
+
+  let inner = '';
+  if (['parte','livro','titulo','capitulo','secao','subsecao'].includes(kind)) {
+    inner = `<header class="legal-unit-head">${escapeHtml(legalFormatStructuralLabel(label))}</header>`;
+  } else if (kind === 'artigo') {
+    const title = legalFormatArticleTitle(label, text);
+    const body = legalStripArticlePrefix(text);
+    inner = `<h3 class="legal-unit-title">${escapeHtml(title)}</h3>`
+         + (heading ? `<div class="legal-unit-heading">${escapeHtml(heading)}</div>` : '')
+         + (body ? `<div class="legal-unit-text">${escapeHtml(body)}</div>` : '');
+  } else if (kind === 'paragrafo') {
+    inner = text ? `<div class="legal-unit-paragrafo">${escapeHtml(text)}</div>` : '';
+  } else if (kind === 'inciso') {
+    inner = text ? `<div class="legal-unit-inciso">${escapeHtml(text)}</div>` : '';
+  } else if (kind === 'alinea') {
+    inner = text ? `<div class="legal-unit-alinea">${escapeHtml(text)}</div>` : '';
+  } else if (kind === 'preambulo') {
+    inner = text ? `<div class="legal-unit-preambulo">${escapeHtml(text)}</div>` : '';
+  } else {
+    inner = text ? `<div class="legal-unit-text">${escapeHtml(text)}</div>` : '';
+  }
+  return `<section class="legal-unit legal-kind-${escapeAttr(kind)}" id="${id}" data-cp="${cpAttr}" data-kind="${kindAttr}">${inner}</section>`;
+}
+
+// Carrega a norma inteira e renderiza como documento contínuo no #legal-viewer.
+// Esta é a função principal do modo P1.
+async function openLegalNorm(normId) {
+  if (!normId) return;
+  legalState.activeNormId = normId;
+
+  // Fecha popovers/transients
+  closeLegalSearch();
+  closeLegalStructure();
+
+  // Resolve metadata
+  let norm = (legalState.allNorms || []).find(n => n.id === normId);
+  if (!norm) {
+    try { norm = await legalFetch(`/norms/${encodeURIComponent(normId)}`); } catch (e) {}
+  }
+  legalState.activeNorm = norm;
+  legalState.activeUnitCp = null;
+  legalState.flatUnits = [];
+  legalState.flatIndex = -1;
+
+  // Esconde outras superfícies e mostra o documento
+  $('#legal-home-surface').classList.add('hidden');
+  $('#legal-article-surface').classList.add('hidden');
+  $('#legal-document-surface').classList.remove('hidden');
+  $('#legal-viewer').classList.remove('hidden');
+
+  // Topbar
+  const bTitle = $('#book-title');
+  const bAuth = $('#book-author');
+  if (bTitle) bTitle.textContent = norm?.popularName || norm?.title || normId;
+  if (bAuth) bAuth.textContent = norm?.status || 'Vigente';
+
+  // Estado de carregamento
+  const docEl = $('#legal-document');
+  const metaEl = $('#legal-document-meta');
+  docEl.innerHTML = '<div style="color:var(--text-2);font-size:13px;padding:24px 0">Carregando norma…</div>';
+  metaEl.innerHTML = '';
+
+  try {
+    const apiStart = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    const units = await legalFetch(`/norms/${encodeURIComponent(normId)}/units`);
+    const apiMs = ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - apiStart;
+
+    if (!Array.isArray(units) || units.length === 0) {
+      docEl.innerHTML = '<div style="color:var(--text-2);font-size:13px;padding:24px 0">Esta norma não possui unidades cadastradas.</div>';
+      return;
+    }
+
+    legalState.units = units;
+    legalState.unitByCp = {};
+    for (const u of units) {
+      const cp = u.canonicalPath || u.canonical_path;
+      if (cp) legalState.unitByCp[cp] = u;
+    }
+
+    // Cabeçalho editorial
+    metaEl.innerHTML = `
+      <div class="legal-doc-status">${escapeHtml((norm?.status || 'Vigente').toUpperCase())}</div>
+      <div class="legal-doc-title">${escapeHtml(norm?.title || normId)}</div>
+      ${norm?.popularName && norm.popularName !== norm?.title ? `<div class="legal-doc-popular">${escapeHtml(norm.popularName)}</div>` : ''}
+      <div class="legal-doc-counter">${units.length.toLocaleString('pt-BR')} unidades no corpus · carregado em ${Math.round(apiMs)} ms</div>
+    `;
+
+    // Renderização DOM direta (concatena string e injeta — sem framework).
+    const renderStart = ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now());
+    let html = '';
+    for (let i = 0; i < units.length; i++) {
+      html += renderLegalUnitBlock(normId, units[i]);
+    }
+    docEl.innerHTML = html;
+    const renderMs = ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - renderStart;
+
+    // Métricas honestas para inspeção
+    docEl.dataset.legalApiMs = String(Math.round(apiMs));
+    docEl.dataset.legalRenderMs = String(Math.round(renderMs));
+    docEl.dataset.legalUnitsCount = String(units.length);
+
+    try {
+      window.__legalLastMetrics = {
+        unitsCount: units.length,
+        apiMs: Math.round(apiMs),
+        renderMs: Math.round(renderMs)
+      };
+    } catch (e) {}
+
+    // Reset scroll do reader
+    const viewer = $('#legal-viewer');
+    if (viewer) viewer.scrollTop = 0;
+
+    updateLegalInlineNav();
+  } catch (e) {
+    console.error('[openLegalNorm error]', e);
+    docEl.innerHTML = `<div style="color:var(--text-2);font-size:13px;padding:24px 0">Falha ao carregar norma: ${escapeHtml(e?.message || String(e))}</div>`;
+  }
+}
+window.openLegalNorm = openLegalNorm;
+
+// Rola até a unidade identificada pelo canonical_path. Atualiza o destaque ativo.
+function scrollToLegalUnit(canonicalPath) {
+  if (!canonicalPath) return;
+  const cp = String(canonicalPath);
+
+  // Se a norma correspondente não estiver carregada como documento, carrega.
+  // Tenta inferir a norma a partir do state; se não houver, não faz nada
+  // (o caller deve garantir a carga via openLegalNorm antes).
+  const docEl = $('#legal-document');
+  if (!docEl || docEl.children.length === 0) {
+    console.warn('[scrollToLegalUnit] documento não carregado, cp=', cp);
+    return;
+  }
+
+  const sel = `#legal-document [data-cp="${CSS.escape(cp)}"]`;
+  let target = document.querySelector(sel);
+  if (!target) {
+    // Fallback: busca por substring (canonical paths curtos como 'art1')
+    const allUnits = docEl.querySelectorAll('.legal-unit[data-cp]');
+    for (const el of allUnits) {
+      if ((el.dataset.cp || '').endsWith(cp)) { target = el; break; }
+    }
+  }
+  if (!target) {
+    console.warn('[scrollToLegalUnit] unidade não encontrada, cp=', cp);
+    return;
+  }
+
+  // Remove destaque anterior
+  const prev = docEl.querySelector('.legal-unit.legal-highlight');
+  if (prev && prev !== target) prev.classList.remove('legal-highlight');
+
+  target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Ativa destaque transitório
+  target.classList.add('legal-highlight');
+  setTimeout(() => { target.classList.remove('legal-highlight'); }, 1600);
+
+  legalState.activeUnitCp = cp;
+}
+window.scrollToLegalUnit = scrollToLegalUnit;
+
 // ===== HOME =====
 async function loadLegalHome() {
   legalState.activeNorm = null;
@@ -1852,8 +2208,11 @@ async function loadLegalHome() {
   legalState.breadcrumb = [];
   legalState.flatUnits = [];
   legalState.flatIndex = -1;
+  legalState.units = [];
+  legalState.unitByCp = {};
 
   $('#legal-home-surface').classList.remove('hidden');
+  $('#legal-document-surface').classList.add('hidden');
   $('#legal-article-surface').classList.add('hidden');
   $('#legal-search-results-wrapper').classList.add('hidden');
   $('#legal-my-section').classList.remove('hidden');
@@ -1891,8 +2250,8 @@ async function loadLegalHome() {
         legalState.activeNorm = norm;
         legalState.activeNormId = normId;
         legalState.activeUnitCp = null;
-        // Abre o tray de estrutura como ponto de entrada natural para a norma.
-        openLegalStructure();
+        // P1: abre a norma inteira como documento contínuo no reader.
+        openLegalNorm(normId);
       });
     });
   } catch (e) {
@@ -2069,6 +2428,7 @@ let legalSearchDebounce = null;
 function openLegalSearch() {
   const pop = $('#legal-search-popover');
   if (!pop) return;
+  pop.classList.remove('hidden');
   pop.classList.add('open');
   const input = $('#legal-search-input');
   if (input) {
@@ -2081,6 +2441,7 @@ function closeLegalSearch() {
   const pop = $('#legal-search-popover');
   if (!pop) return;
   pop.classList.remove('open');
+  pop.classList.add('hidden');
   const results = $('#legal-search-popover-results');
   if (results) results.innerHTML = '';
 }
@@ -2130,10 +2491,14 @@ async function doLegalSearch(query) {
       item.addEventListener('click', async () => {
         const normId = item.dataset.normId;
         const cp = item.dataset.cp;
-        closeLegalSearch();
         const input = $('#legal-search-input');
         if (input) input.value = '';
-        await loadLegalUnit(normId, cp);
+        closeLegalSearch();
+        // P1: navegação dentro do documento contínuo.
+        if (legalState.activeNormId !== normId || !legalState.units || legalState.units.length === 0) {
+          await openLegalNorm(normId);
+        }
+        scrollToLegalUnit(cp);
       });
     });
   } catch (e) {
@@ -2149,6 +2514,7 @@ function openLegalStructure() {
     toast('Abra uma norma para ver a estrutura.');
     return;
   }
+  tree.classList.remove('hidden');
   tree.classList.add('open');
   loadLegalStructureChildren(legalState.activeNormId, 'root');
 }
@@ -2157,6 +2523,7 @@ function closeLegalStructure() {
   const tree = $('#legal-tree-pane');
   if (!tree) return;
   tree.classList.remove('open');
+  tree.classList.add('hidden');
 }
 
 async function loadLegalStructureChildren(normId, parentCp = 'root') {
@@ -2196,9 +2563,17 @@ async function loadLegalStructureChildren(normId, parentCp = 'root') {
         const label = btn.dataset.label;
         legalState.breadcrumb.push({ kind, id: cp, label });
 
-        if (['artigo', 'paragrafo', 'inciso', 'alinea', 'item'].includes(kind)) {
+        // P1: artigos/incisos/parágrafos/alíneas/itens e unidades estruturais
+        // (Parte/Livro/Título/Capítulo) também existem no documento contínuo —
+        // rolar é mais útil do que abrir nova superfície.
+        const leafKinds = ['artigo', 'paragrafo', 'inciso', 'alinea', 'item'];
+        const structuralKinds = ['parte', 'livro', 'titulo', 'capitulo', 'secao', 'subsecao'];
+        if (leafKinds.includes(kind) || structuralKinds.includes(kind)) {
           closeLegalStructure();
-          await loadLegalUnit(normId, cp);
+          if (legalState.activeNormId !== normId || !legalState.units || legalState.units.length === 0) {
+            await openLegalNorm(normId);
+          }
+          scrollToLegalUnit(cp);
         } else {
           await loadLegalStructureChildren(normId, cp);
         }
