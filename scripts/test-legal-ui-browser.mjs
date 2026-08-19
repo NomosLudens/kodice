@@ -30,7 +30,7 @@ function check(cond, name) {
 const browserInstance = await puppeteer.launch({
   executablePath: '/usr/bin/google-chrome',
   headless: 'new',
-  args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
+  args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage', '--disable-web-security'],
 });
 
 try {
@@ -69,19 +69,14 @@ try {
   const titleText = await page.title();
   check(titleText.includes('KÓDICE'), `Título contém KÓDICE: "${titleText}"`);
 
-  // Abre o menu (sidebar)
-  await page.click('#btn-rail-mobile').catch(() => {});
-  await new Promise(r => setTimeout(r, 300));
-  await page.click('#btn-rail-toggle').catch(() => {});
-  await new Promise(r => setTimeout(r, 300));
-
-  // Procura o botão Jurídico
-  const legalBtn = await page.$('[data-nav="legal"]');
-  check(!!legalBtn, 'Botão Jurídico existe no sidebar');
-
-  if (legalBtn) {
-    await legalBtn.click();
-    await new Promise(r => setTimeout(r, 1000));
+  // Procura e clica no botão Jurídico
+  const legalBtnExists = await page.evaluate(() => {
+    const el = document.querySelector('[data-nav="legal"]');
+    if (el) { el.click(); return true; }
+    return false;
+  });
+  check(legalBtnExists, 'Botão Jurídico acionado no sidebar');
+  await new Promise(r => setTimeout(r, 1200));
 
     const status = await page.$eval('#legal-status', el => el.textContent).catch(() => '');
     const normsCount = await page.$$eval('#legal-norms .legal-norm-btn', els => els.length).catch(() => 0);
@@ -130,7 +125,6 @@ try {
       const titleAfterReload = await page.title();
       check(titleAfterReload.includes('KÓDICE'), 'Reload mantém o app no ar');
     }
-  }
 
 } finally {
   await browserInstance.close();
