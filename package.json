@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/build-service-worker.mjs && node scripts/verify-product-boundaries.mjs && node scripts/test-station-auth.mjs && node scripts/test-pdf-engine.mjs && node scripts/test-p1-regressions.mjs && node scripts/test-p1-runtime.mjs && node scripts/test-reader-real.mjs && node scripts/test-backup-real.mjs",
+    "build": "vite build && node scripts/build-service-worker.mjs && node scripts/verify-product-boundaries.mjs && node scripts/test-station-auth.mjs && node scripts/test-pdf-engine.mjs && node scripts/test-p1-regressions.mjs && node scripts/test-p1-runtime.mjs && node scripts/test-reader-real.mjs && node scripts/test-backup-real.mjs && node scripts/test-vade-mecum-surface.mjs",
     "build:epubs": "node scripts/build-legal-epubs.mjs",
     "preview": "vite preview",
     "verify:decoupling": "node scripts/verify-decoupling.mjs",
@@ -24,6 +24,7 @@
     "test:p1-runtime": "node scripts/test-p1-runtime.mjs",
     "test:reader-real": "node scripts/test-reader-real.mjs",
     "test:legal-ui-browser": "node scripts/test-legal-ui-browser.mjs",
+    "test:vade-mecum-surface": "node scripts/test-vade-mecum-surface.mjs",
     "test:backup-real": "node scripts/test-backup-real.mjs",
     "test:pagehide-notes": "node scripts/test-pagehide-notes.mjs",
     "test:mobile-pointer-real": "node scripts/test-mobile-pointer-real.mjs",

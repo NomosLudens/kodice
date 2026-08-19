@@ -391,13 +391,82 @@
     #pdf-viewer{padding:8px;gap:12px}
   }
 
-  @media(max-width:600px){
-    #landing{padding:18px 16px;gap:10px}
-    #landing img.logo{width:64px;height:64px}
-    #landing h1{font-size:26px}
-    #landing p.lead{font-size:15px;line-height:1.45}
-    #dropzone{margin-top:4px;padding:20px 14px}
-    #dropzone .hint{margin-bottom:10px}
+  /* Vade Mecum Main Surface Styles */
+  #vade-mecum-view {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg);
+  }
+  #vade-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--elev);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  #vade-body {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    position: relative;
+  }
+  #vade-home-surface {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  #vade-reader-surface {
+    flex: 1;
+    display: flex;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+  #vade-tree-pane {
+    width: 320px;
+    min-width: 280px;
+    border-right: 1px solid var(--border);
+    background: var(--elev);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: transform .25s ease-in-out;
+  }
+  #vade-content-pane {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    background: var(--bg);
+  }
+  .vade-mobile-only { display: none !important; }
+
+  @media(max-width: 768px){
+    .vade-mobile-only { display: inline-flex !important; }
+    #vade-reader-surface { position: relative; }
+    #vade-tree-pane {
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 85%;
+      max-width: 320px;
+      z-index: 100;
+      box-shadow: 4px 0 20px rgba(0,0,0,0.5);
+      transform: translateX(-100%);
+    }
+    #vade-tree-pane.vade-drawer-open {
+      transform: translateX(0);
+    }
+    #vade-content-pane {
+      padding: 16px;
+    }
   }
 </style>
 </head>
@@ -507,6 +576,66 @@
       <div id="reader-content"></div>
       <div id="epub-viewer" class="hidden"></div>
       <div id="pdf-viewer" class="hidden"></div>
+    </section>
+
+    <!-- Vade Mecum Main Surface -->
+    <section id="vade-mecum-view" class="hidden">
+      <!-- Top Search & Header Bar for Vade Mecum -->
+      <div id="vade-header">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:10px">
+            <h2 style="font-size:20px;font-weight:700;letter-spacing:.02em;color:var(--text);margin:0">Vade Mecum</h2>
+            <span style="font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(234,88,12,0.12);color:var(--orange);font-weight:600">Corpus Oficial</span>
+          </div>
+          <button id="btn-vade-tree-toggle" class="vade-mobile-only" style="padding:8px 12px;border-radius:8px;background:var(--surface);color:var(--text);border:1px solid var(--border);font-size:13px;font-weight:600;cursor:pointer">
+            Estrutura ☰
+          </button>
+        </div>
+        
+        <form onsubmit="event.preventDefault()" style="position:relative;width:100%">
+          <input id="vade-search-input" type="search" placeholder="Pesquisar norma, artigo ou texto (ex: 300, art 300, tutela de urgência)..."
+                 style="width:100%;min-height:44px;padding:10px 40px 10px 14px;border-radius:10px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:14px;outline:none" />
+          <button id="vade-search-clear" type="button" style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);background:transparent;border:0;color:var(--text-2);cursor:pointer;font-size:16px;padding:4px 8px">✕</button>
+        </form>
+      </div>
+
+      <!-- Main Body Container -->
+      <div id="vade-body">
+        
+        <!-- HOME VIEW (Meu Vade Mecum & Search Results) -->
+        <div id="vade-home-surface">
+          <div id="vade-search-results-wrapper" class="hidden" style="display:flex;flex-direction:column;gap:12px">
+            <h3 style="font-size:13px;font-weight:700;color:var(--text-2);letter-spacing:.04em;text-transform:uppercase">Resultados da Busca</h3>
+            <div id="vade-search-results-list" style="display:flex;flex-direction:column;gap:8px"></div>
+          </div>
+
+          <div id="vade-my-section" style="display:flex;flex-direction:column;gap:14px">
+            <h3 style="font-size:15px;font-weight:700;color:var(--text);letter-spacing:.02em">Meu Vade Mecum</h3>
+            <div id="vade-norms-grid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(280px, 1fr));gap:14px"></div>
+            <div id="vade-empty-state" class="hidden" style="padding:30px;text-align:center;color:var(--text-2);background:var(--elev);border-radius:12px;border:1px dashed var(--border);font-size:14px">
+              Nenhuma legislação adicionada ao Vade Mecum.
+            </div>
+          </div>
+        </div>
+
+        <!-- LEITOR JURÍDICO SURFACE -->
+        <div id="vade-reader-surface" class="hidden">
+          <div id="vade-tree-pane">
+            <div style="padding:12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+              <span style="font-size:12px;font-weight:700;color:var(--text-2);letter-spacing:.05em">ESTRUTURA DA NORMA</span>
+              <button id="btn-vade-tree-close" class="vade-mobile-only" style="background:transparent;border:0;color:var(--text-2);cursor:pointer;font-size:16px">✕</button>
+            </div>
+            <div id="vade-tree-breadcrumb" style="padding:8px 12px;font-size:12px;color:var(--orange);font-weight:600;border-bottom:1px solid var(--border);word-break:break-word"></div>
+            <button id="btn-vade-tree-back" style="display:none;margin:8px 12px 0 12px;padding:8px 12px;border-radius:8px;background:var(--surface);color:var(--text);border:1px solid var(--border);font-size:12px;font-weight:600;cursor:pointer">← Voltar</button>
+            <div id="vade-tree-children" style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:6px"></div>
+          </div>
+
+          <div id="vade-content-pane">
+            <div id="vade-article-container" style="max-width:800px;margin:0 auto;display:flex;flex-direction:column;gap:16px"></div>
+          </div>
+        </div>
+
+      </div>
     </section>
 
     <div id="reader-inline-nav" class="hidden" aria-label="Navegação de leitura">
@@ -1141,6 +1270,7 @@ function toast(msg, ms=1800){
   clearTimeout(toast._t); toast._t = setTimeout(()=>el.classList.remove('show'), ms);
 }
 function openPanel(id){
+  if(id === 'library-panel') closeVadeMecumView();
   setReaderChromeVisible(true);
   const panel = document.getElementById(id); if(!panel) return;
   panel.classList.add('open'); $('#backdrop').classList.add('show');
@@ -1158,21 +1288,23 @@ function closeAllPanels(){
 }
 
 /* =========================================================
- * Vade Mecum — UI jurídica mínima
+ * Vade Mecum — Superfície Principal de Primeira Classe
  * =======================================================*/
-const LEGAL_API_URL = (import.meta.env.VITE_KODICE_LEGAL_API_URL?.trim()
-  || 'https://mini.taildb6c11.ts.net/api/legal').replace(/\/+$/, '');
+function getLegalApiUrl() {
+  if (typeof window !== 'undefined' && window.KODICE_LEGAL_API_URL) {
+    return window.KODICE_LEGAL_API_URL.replace(/\/+$/, '');
+  }
+  return (import.meta.env.VITE_KODICE_LEGAL_API_URL?.trim()
+    || 'https://mini.taildb6c11.ts.net/api/legal').replace(/\/+$/, '');
+}
 const LEGAL_API_TIMEOUT_MS = 15000;
 
-// Whitelist estrita: apenas endpoints da API jurídica privada do Kódice.
-// Mantém o padrão defensivo de stationFetch: nada é cacheado, sem credentials,
-// sem Authorization. Endpoint é GET-only.
 function legalFetch(path){
   if(typeof path !== 'string' || !path.startsWith('/')){
     return Promise.reject(new Error('legalFetch: path deve começar com /'));
   }
   const cleanPath = path.replace(/\/+/g, '/');
-  const url = LEGAL_API_URL + cleanPath;
+  const url = getLegalApiUrl() + cleanPath;
   return new Promise((resolve, reject)=>{
     const ctrl = new AbortController();
     const timer = setTimeout(()=>{ ctrl.abort(); reject(new Error('legal-api-timeout')); }, LEGAL_API_TIMEOUT_MS);
@@ -1182,7 +1314,7 @@ function legalFetch(path){
       cache: 'no-store',
       redirect: 'error',
       referrerPolicy: 'no-referrer',
-      targetAddressSpace: 'private',
+      ...(url.includes('.ts.net') ? { targetAddressSpace: 'private' } : {}),
       signal: ctrl.signal,
       headers: { Accept: 'application/json' },
     }).then(r=>{
@@ -1196,152 +1328,310 @@ function legalFetch(path){
   });
 }
 
-const legalState = { normId: null, parent: 'root', breadcrumb: [] };
+const legalState = {
+  activeNorm: null,
+  activeNormId: null,
+  activeUnitCp: null,
+  breadcrumb: [],
+  searchQuery: '',
+  allNorms: []
+};
 
-async function openLegalPanel(){
-  document.getElementById('legal-api-host').textContent = LEGAL_API_URL;
-  legalState.normId = null; legalState.parent = 'root'; legalState.breadcrumb = [];
-  document.getElementById('legal-children').innerHTML = '';
-  document.getElementById('legal-article').classList.add('hidden');
-  document.getElementById('legal-article').innerHTML = '';
-  document.getElementById('btn-legal-back').style.display = 'none';
-  openPanel('legal-panel');
-  const status = document.getElementById('legal-status');
-  const normsEl = document.getElementById('legal-norms');
-  status.textContent = 'Carregando normas…';
-  normsEl.innerHTML = '';
-  try {
-    const norms = await legalFetch('/norms');
-    status.textContent = `${norms.length} norma(s) disponível(eis).`;
-    normsEl.innerHTML = norms.map(n => `
-      <button class="legal-norm-btn" data-norm-id="${escapeAttr(n.id)}"
-              style="min-height:44px;padding:10px 12px;border-radius:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);text-align:left;cursor:pointer;font-size:14px;font-weight:600">
-        <div>${escapeHtml(n.title)}</div>
-        <div style="font-size:11px;color:var(--text-2);font-weight:400;margin-top:2px">${escapeHtml(n.popularName)} · ${n.year} · ${escapeHtml(n.status)}</div>
-      </button>
-    `).join('');
-    $$('#legal-norms .legal-norm-btn').forEach(btn=>{
-      btn.addEventListener('click', ()=> loadLegalNorm(btn.dataset.normId));
-    });
-  } catch (e) {
-    status.textContent = 'API jurídica indisponível: ' + (e?.message || e);
-    normsEl.innerHTML = '<div style="color:var(--text-2);font-size:12px">A VM Mini precisa estar acessível.</div>';
+// Alternar visão principal para Vade Mecum
+async function openVadeMecumView() {
+  closeAllPanels();
+  $('#landing').classList.add('hidden');
+  $('#reader').classList.add('hidden');
+  $('#vade-mecum-view').classList.remove('hidden');
+  
+  // Atualizar topbar title
+  const titleWrap = $('#title-wrap');
+  if (titleWrap) titleWrap.classList.remove('hidden');
+  const bTitle = $('#book-title');
+  if (bTitle) bTitle.textContent = 'Vade Mecum';
+  const bAuth = $('#book-author');
+  if (bAuth) bAuth.textContent = 'Corpus Jurídico Oficial';
+
+  // Se não tiver normas carregadas ainda ou se quiser resetar home
+  if (!legalState.allNorms || legalState.allNorms.length === 0) {
+    await loadVadeHome();
   }
 }
 
-async function loadLegalNorm(normId){
-  legalState.normId = normId;
-  legalState.parent = 'root';
-  legalState.breadcrumb = [{ kind: 'norm', id: normId }];
-  document.getElementById('legal-article').classList.add('hidden');
-  document.getElementById('legal-article').innerHTML = '';
-  await loadLegalChildren(normId, 'root');
+// Fechar Vade Mecum view quando voltar para Biblioteca ou Leitor de livros
+function closeVadeMecumView() {
+  $('#vade-mecum-view').classList.add('hidden');
 }
+window.openVadeMecumView = openVadeMecumView;
+window.performVadeSearch = performVadeSearch;
+window.openVadeNormReader = openVadeNormReader;
 
-async function loadLegalChildren(normId, parentCp){
-  legalState.parent = parentCp;
-  const status = document.getElementById('legal-status');
-  const childrenEl = document.getElementById('legal-children');
-  status.textContent = 'Carregando…';
-  childrenEl.innerHTML = '';
-  const parentBtn = document.getElementById('btn-legal-back');
-  parentBtn.style.display = (parentCp === 'root' && legalState.breadcrumb.length <= 1) ? 'none' : '';
+// Carregar Home do Vade Mecum
+async function loadVadeHome() {
+  legalState.activeNorm = null;
+  legalState.activeNormId = null;
+  legalState.activeUnitCp = null;
+  legalState.breadcrumb = [];
+
+  $('#vade-home-surface').classList.remove('hidden');
+  $('#vade-reader-surface').classList.add('hidden');
+  $('#vade-search-results-wrapper').classList.add('hidden');
+
+  const normsGrid = $('#vade-norms-grid');
+  const emptyState = $('#vade-empty-state');
+  normsGrid.innerHTML = '<div style="color:var(--text-2);font-size:13px;grid-column:1/-1">Carregando legislação disponível…</div>';
+  emptyState.classList.add('hidden');
+
   try {
-    const q = parentCp === 'root' ? '' : '?parent=' + encodeURIComponent(parentCp);
-    const children = await legalFetch(`/norms/${encodeURIComponent(normId)}/children${q}`);
-    if (!children.length) {
-      status.textContent = 'Sem unidades mais finas — abra um artigo diretamente.';
+    const norms = await legalFetch('/norms');
+    legalState.allNorms = norms;
+    if (!Array.isArray(norms) || norms.length === 0) {
+      normsGrid.innerHTML = '';
+      emptyState.classList.remove('hidden');
       return;
     }
-    status.textContent = `${children.length} unidade(s) em ${parentCp}.`;
-    childrenEl.innerHTML = children.map(c => `
-      <button class="legal-child-btn" data-cp="${escapeAttr(c.canonicalPath || c.canonical_path)}" data-kind="${escapeAttr(c.kind)}"
-              style="min-height:40px;padding:8px 10px;border-radius:8px;background:var(--elev);color:var(--text);border:1px solid var(--border);text-align:left;cursor:pointer;font-size:13px">
-        <span style="color:var(--text-2);font-size:11px;font-weight:600;letter-spacing:.04em">${escapeHtml(c.kind.toUpperCase())}</span>
-        <span style="margin-left:8px">${escapeHtml(c.label)}</span>
-        ${c.heading ? `<div style="color:var(--text-2);font-size:11px;margin-top:2px">${escapeHtml(c.heading)}</div>` : ''}
+    emptyState.classList.add('hidden');
+    normsGrid.innerHTML = norms.map(n => `
+      <div class="vade-norm-card" data-norm-id="${escapeAttr(n.id)}"
+           style="padding:16px;border-radius:12px;background:var(--elev);border:1px solid var(--border);cursor:pointer;display:flex;flex-direction:column;gap:8px;transition:border-color .15s">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;background:rgba(234,88,12,0.12);color:var(--orange);letter-spacing:.04em;text-transform:uppercase">${escapeHtml((n.type || 'NORMA').toUpperCase())}</span>
+          <span style="font-size:11px;color:var(--text-2);font-weight:600">${escapeHtml(n.status || 'Vigente')}</span>
+        </div>
+        <div style="font-size:16px;font-weight:700;color:var(--text)">${escapeHtml(n.popularName || n.title)}</div>
+        <div style="font-size:12px;color:var(--text-2);line-height:1.4">${escapeHtml(n.title)}</div>
+        <div style="font-size:11px;color:var(--text-2);margin-top:auto;padding-top:8px;border-top:1px solid var(--border);display:flex;justify-content:space-between">
+          <span>Ano: ${escapeHtml(String(n.year || ''))}</span>
+          <span>Verificado: ${escapeHtml(n.lastVerifiedAt ? new Date(n.lastVerifiedAt).toLocaleDateString('pt-BR') : 'Recente')}</span>
+        </div>
+      </div>
+    `).join('');
+
+    $$('#vade-norms-grid .vade-norm-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const normId = card.dataset.normId;
+        openVadeNormReader(normId, 'root');
+      });
+    });
+  } catch (e) {
+    normsGrid.innerHTML = `<div style="color:var(--text-2);font-size:13px;grid-column:1/-1">Falha ao consultar API jurídica: ${escapeHtml(e?.message || String(e))}</div>`;
+  }
+}
+
+// Busca determinística global / na norma
+let vadeSearchDebounce = null;
+async function performVadeSearch(query) {
+  const q = query.trim();
+  const resultsWrapper = $('#vade-search-results-wrapper');
+  const resultsList = $('#vade-search-results-list');
+  const clearBtn = $('#vade-search-clear');
+
+  if (!q) {
+    resultsWrapper.classList.add('hidden');
+    resultsList.innerHTML = '';
+    clearBtn.style.display = 'none';
+    return;
+  }
+  clearBtn.style.display = 'block';
+  resultsWrapper.classList.remove('hidden');
+  resultsList.innerHTML = '<div style="color:var(--text-2);font-size:12px">Buscando unidades…</div>';
+
+  try {
+    const normParam = legalState.activeNormId ? `/norms/${encodeURIComponent(legalState.activeNormId)}/search` : '/search';
+    const results = await legalFetch(`${normParam}?q=${encodeURIComponent(q)}&limit=50`);
+
+    if (!Array.isArray(results) || results.length === 0) {
+      resultsList.innerHTML = '<div style="color:var(--text-2);font-size:13px;padding:12px;background:var(--elev);border-radius:8px">Nenhum resultado encontrado para essa consulta.</div>';
+      return;
+    }
+
+    resultsList.innerHTML = results.map(r => `
+      <div class="vade-search-item" data-norm-id="${escapeAttr(r.normId)}" data-cp="${escapeAttr(r.canonicalPath)}"
+           style="padding:12px 14px;border-radius:10px;background:var(--elev);border:1px solid var(--border);border-left:3px solid var(--orange);cursor:pointer;display:flex;flex-direction:column;gap:4px">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:11px;font-weight:700;color:var(--orange);text-transform:uppercase">${escapeHtml((r.kind || '').toUpperCase())}</span>
+          <span style="font-size:12px;font-weight:600;color:var(--text-2)">${escapeHtml(r.normId)} · ${escapeHtml(r.label || '')}</span>
+        </div>
+        ${r.heading ? `<div style="font-size:12px;font-weight:600;color:var(--text-2)">${escapeHtml(r.heading)}</div>` : ''}
+        <div style="font-size:14px;line-height:1.6;color:var(--text)">${escapeHtml(r.snippet || r.text || '')}</div>
+      </div>
+    `).join('');
+
+    $$('#vade-search-results-list .vade-search-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const normId = item.dataset.normId;
+        const cp = item.dataset.cp;
+        openVadeNormReader(normId, cp);
+      });
+    });
+  } catch (e) {
+    resultsList.innerHTML = `<div style="color:var(--text-2);font-size:13px">Erro na busca: ${escapeHtml(e?.message || String(e))}</div>`;
+  }
+}
+
+// Abrir Leitor Jurídico em uma Norma e Unidade específica
+async function openVadeNormReader(normId, canonicalPath = 'root') {
+  legalState.activeNormId = normId;
+  legalState.activeUnitCp = canonicalPath;
+
+  $('#vade-home-surface').classList.add('hidden');
+  $('#vade-reader-surface').classList.remove('hidden');
+
+  let norm = (legalState.allNorms || []).find(n => n.id === normId);
+  if (!norm) {
+    try { norm = await legalFetch(`/norms/${encodeURIComponent(normId)}`); } catch (e) {}
+  }
+  legalState.activeNorm = norm;
+
+  const isArticle = canonicalPath !== 'root' && (canonicalPath.startsWith('art') || canonicalPath.includes('art'));
+  if (!isArticle) {
+    await loadVadeTreeChildren(normId, canonicalPath);
+  } else {
+    await openVadeArticle(normId, canonicalPath);
+    await loadVadeTreeChildren(normId, 'root');
+  }
+}
+
+// Carregar nó da árvore estrutural (Painel Esquerdo)
+async function loadVadeTreeChildren(normId, parentCp = 'root') {
+  const treeChildrenEl = $('#vade-tree-children');
+  const breadcrumbEl = $('#vade-tree-breadcrumb');
+  const backBtn = $('#btn-vade-tree-back');
+
+  if (parentCp === 'root') {
+    legalState.breadcrumb = [{ kind: 'norm', id: 'root', label: legalState.activeNorm?.popularName || legalState.activeNorm?.title || normId }];
+  }
+  breadcrumbEl.textContent = legalState.breadcrumb.map(b => b.label || b.id).join(' › ');
+  backBtn.style.display = legalState.breadcrumb.length > 1 ? 'block' : 'none';
+
+  treeChildrenEl.innerHTML = '<div style="color:var(--text-2);font-size:12px">Carregando estrutura…</div>';
+
+  try {
+    const children = await legalFetch(`/norms/${encodeURIComponent(normId)}/children?parent=${encodeURIComponent(parentCp)}`);
+    if (!Array.isArray(children) || children.length === 0) {
+      treeChildrenEl.innerHTML = '<div style="color:var(--text-2);font-size:12px">Sem subunidades.</div>';
+      return;
+    }
+
+    treeChildrenEl.innerHTML = children.map(c => `
+      <button class="vade-tree-item-btn" data-cp="${escapeAttr(c.canonicalPath || c.canonical_path)}" data-kind="${escapeAttr(c.kind)}" data-label="${escapeAttr(c.label)}"
+              style="padding:8px 10px;border-radius:8px;background:var(--surface);color:var(--text);border:1px solid var(--border);text-align:left;cursor:pointer;font-size:13px;display:flex;flex-direction:column;gap:2px">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span style="color:var(--orange);font-size:11px;font-weight:700">${escapeHtml((c.kind || '').toUpperCase())}</span>
+          <span style="font-size:11px;color:var(--text-2)">${escapeHtml(c.label || '')}</span>
+        </div>
+        ${c.heading ? `<div style="font-size:11px;color:var(--text-2)">${escapeHtml(c.heading)}</div>` : ''}
       </button>
     `).join('');
-    $$('#legal-children .legal-child-btn').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
+
+    $$('#vade-tree-children .vade-tree-item-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
         const cp = btn.dataset.cp;
         const kind = btn.dataset.kind;
-        legalState.breadcrumb.push({ kind, id: cp });
-        if(kind === 'artigo' || kind === 'paragrafo' || kind === 'inciso' || kind === 'alinea' || kind === 'item'){
-          openLegalArticle(legalState.normId, cp);
+        const label = btn.dataset.label;
+        legalState.breadcrumb.push({ kind, id: cp, label });
+
+        $('#vade-tree-pane').classList.remove('vade-drawer-open');
+
+        if (['artigo', 'paragrafo', 'inciso', 'alinea', 'item'].includes(kind)) {
+          await openVadeArticle(normId, cp);
         } else {
-          loadLegalChildren(legalState.normId, cp);
+          await loadVadeTreeChildren(normId, cp);
         }
       });
     });
   } catch (e) {
-    status.textContent = 'Falha ao listar unidades: ' + (e?.message || e);
+    treeChildrenEl.innerHTML = `<div style="color:var(--text-2);font-size:12px">Erro ao carregar estrutura: ${escapeHtml(e?.message || String(e))}</div>`;
   }
 }
 
-async function openLegalArticle(normId, cp){
-  const articleEl = document.getElementById('legal-article');
-  const childrenEl = document.getElementById('legal-children');
-  const parentBtn = document.getElementById('btn-legal-back');
-  parentBtn.style.display = '';
-  childrenEl.innerHTML = '';
-  articleEl.classList.remove('hidden');
-  articleEl.innerHTML = '<div style="color:var(--text-2);font-size:12px">Carregando unidade…</div>';
+// Exibir Artigo no Painel Direito com formatação editorial
+async function openVadeArticle(normId, cp) {
+  const container = $('#vade-article-container');
+  container.innerHTML = '<div style="color:var(--text-2);font-size:13px">Carregando unidade jurídica…</div>';
+
   try {
     const [unit, kids] = await Promise.all([
       legalFetch(`/norms/${encodeURIComponent(normId)}/units/${encodeURIComponent(cp)}`),
       legalFetch(`/norms/${encodeURIComponent(normId)}/children?parent=${encodeURIComponent(cp)}`).catch(() => [])
     ]);
 
+    const norm = legalState.activeNorm || {};
+
     let kidsHtml = '';
     if (Array.isArray(kids) && kids.length > 0) {
       kidsHtml = `
-        <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:10px">
+        <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:10px">
           <div style="font-size:11px;font-weight:700;letter-spacing:.05em;color:var(--text-2)">DESDOBRAMENTOS (${kids.length})</div>
           ${kids.map(c => `
-            <div class="legal-grandchild-btn" data-cp="${escapeAttr(c.canonicalPath || c.canonical_path)}" data-kind="${escapeAttr(c.kind)}"
-                 style="padding:10px 14px;border-radius:8px;background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--orange);cursor:pointer;display:flex;flex-direction:column;gap:4px">
+            <div class="vade-sub-unit" data-cp="${escapeAttr(c.canonicalPath || c.canonical_path)}" data-kind="${escapeAttr(c.kind)}"
+                 style="padding:12px 16px;border-radius:10px;background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--orange);display:flex;flex-direction:column;gap:4px">
               <div style="display:flex;align-items:center;justify-content:space-between">
                 <span style="color:var(--orange);font-size:11px;font-weight:700;text-transform:uppercase">${escapeHtml(c.kind || '')}</span>
                 <span style="font-size:12px;font-weight:600;color:var(--text-2)">${escapeHtml(c.label || '')}</span>
               </div>
               ${c.heading ? `<div style="color:var(--text-2);font-size:12px;font-weight:500">${escapeHtml(c.heading)}</div>` : ''}
-              ${c.text ? `<div style="font-size:14px;line-height:1.65;color:var(--text);margin-top:2px">${escapeHtml(c.text)}</div>` : ''}
+              ${c.text ? `<div style="font-size:15px;line-height:1.7;color:var(--text);margin-top:2px">${escapeHtml(c.text)}</div>` : ''}
             </div>
           `).join('')}
         </div>
       `;
     }
 
-    articleEl.innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <span style="background:rgba(234,88,12,0.12);color:var(--orange);font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;letter-spacing:.04em;text-transform:uppercase">${escapeHtml((unit.kind || 'ARTIGO').toUpperCase())}</span>
-        <span style="color:var(--text-2);font-size:12px;font-weight:500">${escapeHtml(unit.label || '')}</span>
+    const editorialLabel = unit.label ? (unit.label.startsWith('ART') ? 'ART. ' + unit.label.replace(/^ART/i, '') : unit.label) : (unit.kind || 'UNIDADE').toUpperCase();
+    const referenceCitation = `${unit.text ? unit.text.slice(0, 80) + '...' : editorialLabel} da ${norm?.type || 'Lei'} nº ${norm?.number || ''}/${norm?.year || ''}.`;
+
+    container.innerHTML = `
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <span style="background:rgba(234,88,12,0.12);color:var(--orange);font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;letter-spacing:.04em;text-transform:uppercase">${escapeHtml((unit.kind || 'ARTIGO').toUpperCase())}</span>
+            <span style="color:var(--text-2);font-size:12px;font-weight:500">${escapeHtml(norm?.popularName || norm?.title || normId)}</span>
+          </div>
+          <h1 style="font-size:24px;font-weight:800;color:var(--text);margin:0">${escapeHtml(editorialLabel)}</h1>
+        </div>
+        <button id="btn-copy-legal-ref" data-ref="${escapeAttr(referenceCitation)}"
+                style="padding:8px 14px;border-radius:8px;background:var(--elev);color:var(--text);border:1px solid var(--border);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:6px">
+          📋 Copiar referência
+        </button>
       </div>
-      ${unit.heading ? `<div style="font-size:13px;font-weight:600;color:var(--orange);margin-bottom:8px">${escapeHtml(unit.heading)}</div>` : ''}
-      <div style="font-size:15px;line-height:1.75;color:var(--text);padding:14px 16px;background:var(--elev);border-radius:10px;border:1px solid var(--border);border-left:3px solid var(--orange);white-space:pre-wrap;margin-top:4px">${escapeHtml(unit.text || '(Sem texto textual nesta unidade)')}</div>
+
+      ${unit.heading ? `<div style="font-size:14px;font-weight:600;color:var(--orange);margin-top:2px">${escapeHtml(unit.heading)}</div>` : ''}
+
+      <div style="font-size:16px;line-height:1.8;color:var(--text);padding:18px 20px;background:var(--elev);border-radius:12px;border:1px solid var(--border);border-left:4px solid var(--orange);white-space:pre-wrap;margin-top:4px">${escapeHtml(unit.text || '(Sem texto constante na norma)')}</div>
+
       ${kidsHtml}
+
+      <div style="margin-top:24px;padding:14px;border-radius:10px;background:var(--surface);border:1px solid var(--border);font-size:11px;color:var(--text-2);display:flex;flex-direction:column;gap:4px">
+        <div><strong>Fonte Oficial:</strong> <a href="${escapeAttr(norm?.officialSourceUrl || 'https://www.camara.leg.br')}" target="_blank" rel="noopener noreferrer" style="color:var(--orange)">${escapeHtml(norm?.officialSourceUrl || 'Câmara dos Deputados (Corpus Oficial)')}</a></div>
+        <div><strong>Situação:</strong> ${escapeHtml(norm?.status || 'Vigente')}</div>
+        <div><strong>Data da Última Verificação:</strong> ${escapeHtml(norm?.lastVerifiedAt ? new Date(norm.lastVerifiedAt).toLocaleDateString('pt-BR') : '19/08/2026')}</div>
+        <div><strong>Versão:</strong> ${escapeHtml(unit.versionId || norm?.currentVersionId || 'v1.0')}</div>
+      </div>
     `;
 
-    $$('#legal-article .legal-grandchild-btn').forEach(b => {
-      b.addEventListener('click', () => {
-        const childCp = b.dataset.cp;
-        const childKind = b.dataset.kind;
-        if (childCp) {
-          legalState.breadcrumb.push({ kind: childKind, id: childCp });
-          openLegalArticle(normId, childCp);
+    const copyBtn = $('#btn-copy-legal-ref');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', async () => {
+        const textToCopy = copyBtn.dataset.ref;
+        try {
+          await navigator.clipboard.writeText(textToCopy);
+          toast('Referência copiada para a área de transferência!');
+        } catch (err) {
+          toast('Copie manualmente: ' + textToCopy);
         }
       });
-    });
+    }
 
-    // Persistir progresso do último artigo aberto
     try {
       const id = 'legal:' + normId + ':' + cp;
       const row = { id, kind: 'legal', normId, canonicalPath: cp, updated_at: Date.now() };
       await dbPut('progress', { book_id: id, cfi: null, page: null, scroll_top: null, percentage: 0, title: `${normId} · ${cp}`, updated_at: row.updated_at });
-    } catch (e) { /* falha silenciosa */ }
+    } catch (e) {}
+
   } catch (e) {
-    articleEl.innerHTML = '<div style="color:var(--text-2);font-size:12px">Falha ao carregar unidade: ' + escapeHtml(e?.message || String(e)) + '</div>';
+    console.error('[openVadeArticle error]', e);
+    container.innerHTML = `<div style="color:var(--text-2);font-size:13px">Falha ao carregar artigo: ${escapeHtml(e?.message || String(e))}</div>`;
   }
 }
 
@@ -2395,6 +2685,7 @@ async function _openBookCommon(metadata, buffer, storageId, sourceId, savedProgr
   const isLocal = sourceId === storageId;
   state.activeBook = { id: storageId, type: typeStr, title: metadata.title, author: metadata.author, toc: [], progress: 0, readerLocation: null, locationsGenerated: false, sourceId, isLocal };
 
+  closeVadeMecumView();
   $('#landing').classList.add('hidden');
   $('#reader').classList.remove('hidden');
   applyReaderModeClass(null);
@@ -2518,6 +2809,7 @@ async function closeBook(){
   try{ await flushPendingNotes(); }catch(e){ console.error('[Kódice] Falha ao salvar anotação pendente antes de fechar livro', e); toast('Não foi possível salvar a anotação neste aparelho.'); return; }
   await releaseActiveBookResources();
   setReaderChromeVisible(true);
+  closeVadeMecumView();
   $('#landing').classList.remove('hidden');
   $('#reader').classList.add('hidden');
   applyReaderModeClass(null);
@@ -4067,7 +4359,8 @@ function wire(){
 
   // Sidebar nav
   $$('#sidebar .nav-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
+    btn.addEventListener('click', (e)=>{
+      e.preventDefault();
       const k = btn.dataset.nav;
       if(k==='prev') nav('prev');
       else if(k==='next') nav('next');
@@ -4075,7 +4368,7 @@ function wire(){
       else if(k==='notebook') openPanel('notebook-panel');
       else if(k==='settings') openPanel('settings-panel');
       else if(k==='library') openPanel('library-panel');
-      else if(k==='legal') { openLegalPanel(); }
+      else if(k==='legal') { openVadeMecumView(); }
       else if(k==='add') $('#file-input').click();
       else if(k==='theme') applyTheme(state.theme==='night' ? 'day' : 'night');
       else if(k==='account'){ if(state.user) signOut(); else openAuth(); }
@@ -4084,21 +4377,48 @@ function wire(){
     });
   });
 
-  // Voltar na navegação jurídica
-  const btnLegalBack = document.getElementById('btn-legal-back');
-  if(btnLegalBack){
-    btnLegalBack.addEventListener('click', ()=>{
-      if(legalState.breadcrumb.length > 1){
+  // Vade Mecum Surface Listeners
+  const vadeSearchInput = $('#vade-search-input');
+  const vadeSearchClear = $('#vade-search-clear');
+  if (vadeSearchInput) {
+    vadeSearchInput.addEventListener('input', () => {
+      clearTimeout(vadeSearchDebounce);
+      vadeSearchDebounce = setTimeout(() => {
+        performVadeSearch(vadeSearchInput.value);
+      }, 250);
+    });
+  }
+  if (vadeSearchClear) {
+    vadeSearchClear.addEventListener('click', () => {
+      if (vadeSearchInput) vadeSearchInput.value = '';
+      performVadeSearch('');
+      if (vadeSearchInput) vadeSearchInput.focus();
+    });
+  }
+
+  const btnVadeTreeToggle = $('#btn-vade-tree-toggle');
+  if (btnVadeTreeToggle) {
+    btnVadeTreeToggle.addEventListener('click', () => {
+      $('#vade-tree-pane').classList.toggle('vade-drawer-open');
+    });
+  }
+  const btnVadeTreeClose = $('#btn-vade-tree-close');
+  if (btnVadeTreeClose) {
+    btnVadeTreeClose.addEventListener('click', () => {
+      $('#vade-tree-pane').classList.remove('vade-drawer-open');
+    });
+  }
+  const btnVadeTreeBack = $('#btn-vade-tree-back');
+  if (btnVadeTreeBack) {
+    btnVadeTreeBack.addEventListener('click', () => {
+      if (legalState.breadcrumb.length > 1) {
         legalState.breadcrumb.pop();
         const prev = legalState.breadcrumb[legalState.breadcrumb.length - 1];
-        if(prev.kind === 'norm'){
-          loadLegalNorm(prev.id);
-        } else {
-          loadLegalChildren(legalState.normId, prev.id);
-        }
+        loadVadeTreeChildren(legalState.activeNormId, prev.id);
       }
     });
   }
+
   const toggleRail = ()=>{ setReaderChromeVisible(true); document.getElementById('app').classList.toggle('rail-open'); };
   const railTopBtn = $('#btn-rail-toggle');
   if(railTopBtn) railTopBtn.addEventListener('click', toggleRail);

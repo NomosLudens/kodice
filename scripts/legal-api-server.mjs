@@ -111,7 +111,15 @@ export function createLegalApiHandler(db, options = {}) {
       // Resolve parent_id from parent canonical path if provided
       let parentId = null;
       if (parentCp && parentCp !== 'root') {
-        const parentRow = getUnitStmt.get(normId, parentCp);
+        let parentRow = getUnitStmt.get(normId, parentCp);
+        if (!parentRow) {
+          const fallbackPath = parentCp.replace(/[^a-zA-Z0-9-]/g, '');
+          parentRow = getUnitStmt.get(normId, fallbackPath);
+        }
+        if (!parentRow) {
+          const cleanNum = parentCp.replace(/[^0-9]/g, '');
+          if (cleanNum) parentRow = getUnitStmt.get(normId, 'art' + cleanNum);
+        }
         if (!parentRow) {
           res.statusCode = 404;
           res.setHeader('Content-Type', 'application/json');
@@ -146,13 +154,103 @@ export function createLegalApiHandler(db, options = {}) {
       return;
     }
 
+    // 2b. Global search: /api/legal/search?q=<query>&limit=<limit>
+    // 2c. Norm search: /api/legal/norms/:normId/search?q=<query>&limit=<limit>
+    const globalSearchMatch = pathname === '/api/legal/search';
+    const normSearchMatch = pathname.match(/^\/api\/legal\/norms\/([^/]+)\/search$/);
+
+    if (globalSearchMatch || normSearchMatch) {
+      const qRaw = (parsedUrl.searchParams.get('q') || '').trim();
+      let limit = parseInt(parsedUrl.searchParams.get('limit') || '50', 10);
+      if (isNaN(limit) || limit <= 0) limit = 50;
+      if (limit > 100) limit = 100;
+
+      if (!qRaw) {
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify([]));
+        return;
+      }
+
+      const targetNormId = normSearchMatch ? decodeURIComponent(normSearchMatch[1]) : null;
+
+      let qClean = qRaw.replace(/^art\.?\s*/i, '').trim();
+      qClean = qClean.replace(/^(cpc|cpc2015)\s*/i, '').trim();
+
+      const exactCpCandidate = targetNormId ? `${targetNormId}-art${qClean}` : `%art${qClean}`;
+      const exactLabelCandidate = `Art. ${qClean}%`;
+      const likePattern = `%${qRaw}%`;
+      const cleanLikePattern = `%${qClean}%`;
+
+      let rows = [];
+      if (targetNormId) {
+        const normSearchStmt = db.prepare(`
+          SELECT u.id, u.norm_id, u.version_id, u.parent_id, u.kind, u.label, u.canonical_path, u.heading, u.text, u.sort_order
+          FROM legal_units u
+          WHERE u.norm_id = ? AND (
+            u.canonical_path = ? OR
+            u.canonical_path LIKE ? OR
+            u.label LIKE ? OR
+            u.heading LIKE ? OR
+            u.text LIKE ?
+          )
+          ORDER BY (CASE WHEN u.canonical_path = ? THEN 0 WHEN u.label LIKE ? THEN 1 ELSE 2 END), u.sort_order ASC
+          LIMIT ?
+        `);
+        rows = normSearchStmt.all(targetNormId, exactCpCandidate, `%${qClean}`, exactLabelCandidate, likePattern, likePattern, exactCpCandidate, exactLabelCandidate, limit);
+      } else {
+        const globalSearchStmt = db.prepare(`
+          SELECT u.id, u.norm_id, u.version_id, u.parent_id, u.kind, u.label, u.canonical_path, u.heading, u.text, u.sort_order
+          FROM legal_units u
+          WHERE (
+            u.canonical_path = ? OR
+            u.canonical_path LIKE ? OR
+            u.label LIKE ? OR
+            u.heading LIKE ? OR
+            u.text LIKE ? OR
+            u.canonical_path LIKE ?
+          )
+          ORDER BY (CASE WHEN u.canonical_path = ? THEN 0 WHEN u.label LIKE ? THEN 1 ELSE 2 END), u.sort_order ASC
+          LIMIT ?
+        `);
+        rows = globalSearchStmt.all(exactCpCandidate, `%${qClean}`, exactLabelCandidate, likePattern, likePattern, cleanLikePattern, exactCpCandidate, exactLabelCandidate, limit);
+      }
+
+      const out = rows.map(r => ({
+        id: r.id,
+        normId: r.norm_id,
+        versionId: r.version_id,
+        parentId: r.parent_id,
+        kind: r.kind,
+        label: r.label,
+        canonicalPath: r.canonical_path,
+        heading: r.heading,
+        snippet: r.text ? (r.text.length > 160 ? r.text.slice(0, 160) + '…' : r.text) : '',
+        text: r.text
+      }));
+
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify(out));
+      return;
+    }
+
     // 3. Unit lookup: /api/legal/norms/:normId/units/:canonicalPath
     const unitMatch = pathname.match(/^\/api\/legal\/norms\/([^/]+)\/units\/([^/]+)$/);
     if (unitMatch) {
       const normId = decodeURIComponent(unitMatch[1]);
       const canonicalPath = decodeURIComponent(unitMatch[2]);
 
-      const unit = getUnitStmt.get(normId, canonicalPath);
+      let unit = getUnitStmt.get(normId, canonicalPath);
+      if (!unit) {
+        const fallbackPath = canonicalPath.replace(/[^a-zA-Z0-9-]/g, '');
+        unit = getUnitStmt.get(normId, fallbackPath);
+      }
+      if (!unit) {
+        const cleanNum = canonicalPath.replace(/[^0-9]/g, '');
+        if (cleanNum) unit = getUnitStmt.get(normId, 'art' + cleanNum);
+      }
+
       if (!unit) {
         res.statusCode = 404;
         res.setHeader('Content-Type', 'application/json');

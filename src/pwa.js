@@ -23,7 +23,10 @@ export function initPwa({ onUpdateAvailable, beforeReload } = {}) {
   }
   if (!window.isSecureContext || !('serviceWorker' in navigator)) return;
   let refreshing = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => { if (!refreshing) { refreshing = true; location.reload(); } });
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (window.KODICE_DISABLE_SW_RELOAD) return;
+    if (!refreshing) { refreshing = true; location.reload(); }
+  });
   navigator.serviceWorker.register('/sw.js').then((registration) => {
     registration.addEventListener('updatefound', () => {
       const worker = registration.installing;
