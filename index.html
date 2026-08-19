@@ -1906,7 +1906,13 @@ async function loadLegalHome() {
 
     $$('#legal-norms-list .vade-norm-row').forEach(card => {
       card.addEventListener('click', () => {
-        loadLegalUnit(card.dataset.normId, 'root');
+        const normId = card.dataset.normId;
+        const norm = (legalState.allNorms || []).find(n => n.id === normId);
+        legalState.activeNorm = norm;
+        legalState.activeNormId = normId;
+        legalState.activeUnitCp = null;
+        // Abre o tray de estrutura como ponto de entrada natural para a norma.
+        openLegalStructure();
       });
     });
   } catch (e) {
