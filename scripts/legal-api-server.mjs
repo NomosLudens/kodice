@@ -57,8 +57,13 @@ export function createLegalApiHandler(db, options = {}) {
     }
 
     const parsedUrl = new URL(req.url, `http://${req.headers.host || '127.0.0.1'}`);
-    const rawPath = parsedUrl.pathname;
-    const pathname = rawPath.startsWith('/api/legal') ? rawPath : ('/api/legal' + (rawPath.startsWith('/') ? rawPath : '/' + rawPath));
+    let cleanPath = parsedUrl.pathname.replace(/\/+/g, '/');
+    if (cleanPath.length > 1 && cleanPath.endsWith('/')) {
+      cleanPath = cleanPath.slice(0, -1);
+    }
+    const pathname = cleanPath.startsWith('/api/legal')
+      ? cleanPath
+      : ('/api/legal' + (cleanPath.startsWith('/') ? cleanPath : '/' + cleanPath));
 
     // 1. Health
     if (pathname === '/health' || pathname === '/api/legal/health') {

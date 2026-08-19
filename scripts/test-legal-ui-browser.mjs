@@ -76,17 +76,17 @@ try {
     return false;
   });
   check(legalBtnExists, 'Botão Jurídico acionado no sidebar');
-  await new Promise(r => setTimeout(r, 1200));
+  await page.waitForSelector('#legal-norms .legal-norm-btn', { timeout: 5000 }).catch(() => {});
 
-    const status = await page.$eval('#legal-status', el => el.textContent).catch(() => '');
-    const normsCount = await page.$$eval('#legal-norms .legal-norm-btn', els => els.length).catch(() => 0);
+  const status = await page.$eval('#legal-status', el => el.textContent).catch(() => '');
+  const normsCount = await page.$$eval('#legal-norms .legal-norm-btn', els => els.length).catch(() => 0);
 
     check(normsCount > 0, `Lista normas carregada (${normsCount} normas, status="${status}")`);
 
     if (normsCount > 0) {
       // Clica no CPC/2015
-      await page.click('[data-norm-id="cpc2015"]').catch(() => {});
-      await new Promise(r => setTimeout(r, 800));
+      await page.evaluate(() => document.querySelector('[data-norm-id="cpc2015"]')?.click());
+      await new Promise(r => setTimeout(r, 1500));
 
       const childCount = await page.$$eval('#legal-children .legal-child-btn', els => els.length).catch(() => 0);
       check(childCount > 0, `Filhos da raiz carregados (${childCount} unidades)`);
