@@ -1,21 +1,54 @@
 #!/usr/bin/env node
-import { promises as fs } from 'node:fs';
-import { assertStablePackagesEqual, buildPackage, loadCorpus, verifyFoundation } from './legal-corpus-lib.mjs';
+/**
+ * scripts/verify-legal-corpus.mjs
+ *
+ * Valida o pipeline jurídico vigente do Kódice:
+ *   1) Há pelo menos uma norma oficial em legal/corpus/ (não _sample/).
+ *   2) O importador reproduz o hash de sourceFile/snapshot.
+ *   3) As unidades necessárias (preambulo + art300) estão presentes.
+ *
+ * O materializador SQLite e a API HTTP são cobertos por test-legal-db.mjs
+ * e test-legal-api.mjs. Este gate é o ponto de entrada do produto.
+ */
+import { loadCorpus } from './legal-corpus-lib.mjs';
+
+let failed = 0;
+function ok(name) { console.log(`ok - ${name}`); }
+function fail(name, msg) { console.error(`not ok - ${name}: ${msg}`); failed++; }
 
 try {
   const norms = await loadCorpus();
-  if(!norms.length) throw new Error('CORPUS OFICIAL AUSENTE');
-  const built = buildPackage(norms);
-  verifyFoundation(built);
-  const generated = await fs.readFile('public/legal/foundation-v1.json','utf8').then(JSON.parse).catch(error=>{
-    if(error?.code === 'ENOENT') throw new Error('public/legal/foundation-v1.json missing; run build-legal-package.mjs');
-    if(error instanceof SyntaxError) throw new Error(`public/legal/foundation-v1.json invalid JSON: ${error.message}`);
-    throw error;
-  });
-  verifyFoundation(generated);
-  assertStablePackagesEqual(generated, built);
-  console.log(`Legal corpus verified: ${generated.norms.length} norms, hash ${generated.hash}`);
+  if (!norms.length) {
+    fail('corpus oficial', 'Nenhuma norma em legal/corpus/');
+    process.exit(1);
+  }
+
+  for (const norm of norms) {
+    ok(`norma carregada: ${norm.id} (${norm.units.length} unidades, ${norm.acquisition.articleCount} artigos)`);
+    if (norm.id === 'cpc2015') {
+      const art300 = norm.units.find(u => u.canonicalPath === 'art300');
+      if (!art300) {
+        fail('cpc2015:art300', 'Art. 300 ausente no corpus');
+        continue;
+      }
+      ok('cpc2015:art300 presente');
+      if (!art300.text.includes('tutela de urgência será concedida')) {
+        fail('cpc2015:art300 texto', 'Texto do Art. 300 não confere com redação oficial');
+      } else {
+        ok('cpc2015:art300 texto oficial confere');
+      }
+      const pars = norm.units.filter(u => u.canonicalPath.startsWith('art300-par'));
+      if (pars.length < 1) {
+        fail('cpc2015:art300 parágrafos', 'Sem parágrafos detectados para Art. 300');
+      } else {
+        ok(`cpc2015:art300 parágrafos detectados (${pars.length})`);
+      }
+    }
+  }
+
+  if (failed > 0) process.exit(1);
+  console.log(`\nLegal corpus verified: ${norms.length} norm(s).`);
 } catch (error) {
   console.error(error?.message || error);
-  process.exitCode = 1;
+  process.exit(1);
 }

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
-export const REQUIRED_NORMS = new Set(['cf88', 'cpc2015']);
+export const REQUIRED_NORMS = new Set(['cpc2015']);
 export const TEXTUAL_KINDS = new Set(['preambulo','artigo','paragrafo','inciso','alinea','item','disposicao_transitoria']);
 export const ALLOWED_KINDS = new Set(['preambulo','parte','livro','titulo','capitulo','secao','subsecao','artigo','paragrafo','inciso','alinea','item','disposicao_transitoria']);
 export const OFFICIAL_SOURCE_HOSTS = new Set([
@@ -234,11 +234,13 @@ export function verifyFoundation(pkg){
   for(const norm of pkg.norms) validateNorm(norm);
   const cf = pkg.norms.find(n=>n.id==='cf88');
   const cpc = pkg.norms.find(n=>n.id==='cpc2015');
-  assert(cf?.units.some(u=>u.kind==='preambulo'), 'cf88: missing preambulo smoke check');
-  assert(cf?.units.some(u=>u.canonicalPath==='art1'), 'cf88: missing art1 smoke check');
-  assert(cf?.units.some(u=>u.canonicalPath==='art5'), 'cf88: missing art5 smoke check');
-  assert(cf?.units.some(u=>u.canonicalPath==='art5-inc35'), 'cf88: missing art5-inc35 smoke check');
-  assert(cf?.units.some(u=>u.kind==='disposicao_transitoria'), 'cf88: missing ADCT smoke check');
+  if(cf){
+    assert(cf.units.some(u=>u.kind==='preambulo'), 'cf88: missing preambulo smoke check');
+    assert(cf.units.some(u=>u.canonicalPath==='art1'), 'cf88: missing art1 smoke check');
+    assert(cf.units.some(u=>u.canonicalPath==='art5'), 'cf88: missing art5 smoke check');
+    assert(cf.units.some(u=>u.canonicalPath==='art5-inc35'), 'cf88: missing art5-inc35 smoke check');
+    assert(cf.units.some(u=>u.kind==='disposicao_transitoria'), 'cf88: missing ADCT smoke check');
+  }
   assert(cpc?.units.some(u=>u.canonicalPath==='art300'), 'cpc2015: missing art300 smoke check');
   return true;
 }

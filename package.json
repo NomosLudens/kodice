@@ -5,14 +5,28 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/build-service-worker.mjs && node scripts/verify-product-boundaries.mjs && node scripts/test-station-auth.mjs && node scripts/test-pdf-engine.mjs",
+    "build": "vite build && node scripts/build-service-worker.mjs && node scripts/verify-product-boundaries.mjs && node scripts/test-station-auth.mjs && node scripts/test-pdf-engine.mjs && node scripts/test-p1-regressions.mjs && node scripts/test-p1-runtime.mjs && node scripts/test-reader-real.mjs && node scripts/test-backup-real.mjs",
     "build:epubs": "node scripts/build-legal-epubs.mjs",
     "preview": "vite preview",
     "verify:decoupling": "node scripts/verify-decoupling.mjs",
     "verify:pwa": "node scripts/verify-pwa.mjs",
     "verify:legal": "node scripts/verify-legal-corpus.mjs",
     "verify:boundaries": "node scripts/verify-product-boundaries.mjs",
+    "legal:import:cpc": "node scripts/import-cpc2015.mjs",
+    "legal:build:db": "node scripts/build-legal-db.mjs",
+    "legal:serve": "node scripts/legal-api-server.mjs",
+    "test:cpc": "node scripts/test-cpc-pipeline.mjs",
+    "test:legal:db": "node scripts/test-legal-db.mjs",
+    "test:legal:api": "node scripts/test-legal-api.mjs",
+    "test:legal:children": "node scripts/test-legal-api-children.mjs",
     "test:legal-gate": "node scripts/test-legal-gate.mjs",
+    "test:p1-regressions": "node scripts/test-p1-regressions.mjs",
+    "test:p1-runtime": "node scripts/test-p1-runtime.mjs",
+    "test:reader-real": "node scripts/test-reader-real.mjs",
+    "test:legal-ui-browser": "node scripts/test-legal-ui-browser.mjs",
+    "test:backup-real": "node scripts/test-backup-real.mjs",
+    "test:pagehide-notes": "node scripts/test-pagehide-notes.mjs",
+    "test:mobile-pointer-real": "node scripts/test-mobile-pointer-real.mjs",
     "test:station-auth": "node scripts/test-station-auth.mjs",
     "test:pdf-engine": "node scripts/test-pdf-engine.mjs"
   },
@@ -23,6 +37,8 @@
     "pdfjs-dist": "6.1.200"
   },
   "devDependencies": {
+    "jsdom": "30.0.1",
+    "puppeteer-core": "^25.8.0",
     "vite": "6.4.3"
   }
 }

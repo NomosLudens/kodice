@@ -421,6 +421,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h4v16H4zM10 4h4v16h-4zM16 6l4 1-3 15-4-1z"/></svg>
         <span class="lbl">Biblioteca do Kódice</span>
       </button>
+      <button class="nav-btn" data-nav="legal" aria-label="Jurídico">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 4-9 4-9-4 9-4zM3 11l9 4 9-4M3 17l9 4 9-4"/></svg>
+        <span class="lbl">Jurídico</span>
+      </button>
       <button class="nav-btn" data-nav="add" aria-label="Adicionar livro">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
         <span class="lbl">Adicionar livro</span>
@@ -585,6 +589,26 @@
   </div>
   <div class="nb-actions">
     <button id="btn-export-md" class="primary">Exportar Markdown</button>
+  </div>
+</aside>
+
+<!-- Legal Panel (Vade Mecum) -->
+<aside id="legal-panel" class="side-panel">
+  <div class="panel-header"><div class="grabber"></div>
+    <h3>Jurídico</h3>
+    <button class="panel-close" data-close-panel="legal-panel" aria-label="Fechar">✕</button>
+  </div>
+  <div class="panel-body" style="display:flex;flex-direction:column;gap:8px">
+    <div id="legal-status" style="color:var(--text-2);font-size:12px"></div>
+    <div id="legal-norms" style="display:flex;flex-direction:column;gap:6px"></div>
+    <button id="btn-legal-back" style="display:none;min-height:40px;border-radius:8px;background:var(--elev);color:var(--text);border:1px solid var(--border);font-size:13px;cursor:pointer">← Voltar</button>
+    <div id="legal-children" style="display:flex;flex-direction:column;gap:6px"></div>
+    <div id="legal-article" class="hidden" style="display:flex;flex-direction:column;gap:12px;padding:12px;background:var(--elev);border-radius:10px"></div>
+    <div style="color:var(--text-2);font-size:11px;line-height:1.4">
+      Fonte canônica: API privada do Vade Mecum, alimentada pelo corpus jurídico oficial
+      da Câmara dos Deputados. Esta interface exige que a VM Mini esteja acessível em
+      <code id="legal-api-host">…</code>.
+    </div>
   </div>
 </aside>
 
@@ -1130,7 +1154,182 @@ function closePanel(id){
   if(!anyOpen) $('#backdrop').classList.remove('show');
 }
 function closeAllPanels(){
-  ['library-panel','toc-panel','notebook-panel','settings-panel'].forEach(closePanel);
+  ['library-panel','toc-panel','notebook-panel','settings-panel','legal-panel'].forEach(closePanel);
+}
+
+/* =========================================================
+ * Vade Mecum — UI jurídica mínima
+ * =======================================================*/
+const LEGAL_API_URL = (import.meta.env.VITE_KODICE_LEGAL_API_URL?.trim()
+  || 'https://kaline-box.taildb6c11.ts.net/api/legal').replace(/\/$/, '');
+const LEGAL_API_TIMEOUT_MS = 8000;
+
+// Whitelist estrita: apenas endpoints da API jurídica privada do Kódice.
+// Mantém o padrão defensivo de stationFetch: nada é cacheado, sem credentials,
+// sem Authorization. Endpoint é GET-only.
+function legalFetch(path){
+  if(typeof path !== 'string' || !path.startsWith('/')){
+    return Promise.reject(new Error('legalFetch: path deve começar com /'));
+  }
+  const url = LEGAL_API_URL + path;
+  return new Promise((resolve, reject)=>{
+    const ctrl = new AbortController();
+    const timer = setTimeout(()=>{ ctrl.abort(); reject(new Error('legal-api-timeout')); }, LEGAL_API_TIMEOUT_MS);
+    fetch(url, {
+      method: 'GET',
+      credentials: 'omit',
+      cache: 'no-store',
+      redirect: 'error',
+      referrerPolicy: 'no-referrer',
+      signal: ctrl.signal,
+      headers: { Accept: 'application/json' },
+    }).then(r=>{
+      clearTimeout(timer);
+      if(!r.ok) return reject(new Error('legal-api-' + r.status));
+      return r.json().then(resolve, reject);
+    }, err=>{
+      clearTimeout(timer);
+      reject(err);
+    });
+  });
+}
+
+const legalState = { normId: null, parent: 'root', breadcrumb: [] };
+
+async function openLegalPanel(){
+  document.getElementById('legal-api-host').textContent = LEGAL_API_URL;
+  legalState.normId = null; legalState.parent = 'root'; legalState.breadcrumb = [];
+  document.getElementById('legal-children').innerHTML = '';
+  document.getElementById('legal-article').classList.add('hidden');
+  document.getElementById('legal-article').innerHTML = '';
+  document.getElementById('btn-legal-back').style.display = 'none';
+  openPanel('legal-panel');
+  const status = document.getElementById('legal-status');
+  const normsEl = document.getElementById('legal-norms');
+  status.textContent = 'Carregando normas…';
+  normsEl.innerHTML = '';
+  try {
+    const norms = await legalFetch('/norms');
+    status.textContent = `${norms.length} norma(s) disponível(eis).`;
+    normsEl.innerHTML = norms.map(n => `
+      <button class="legal-norm-btn" data-norm-id="${escapeAttr(n.id)}"
+              style="min-height:44px;padding:10px 12px;border-radius:10px;background:var(--elev);color:var(--text);border:1px solid var(--border);text-align:left;cursor:pointer;font-size:14px;font-weight:600">
+        <div>${escapeHtml(n.title)}</div>
+        <div style="font-size:11px;color:var(--text-2);font-weight:400;margin-top:2px">${escapeHtml(n.popularName)} · ${n.year} · ${escapeHtml(n.status)}</div>
+      </button>
+    `).join('');
+    $$('#legal-norms .legal-norm-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=> loadLegalNorm(btn.dataset.normId));
+    });
+  } catch (e) {
+    status.textContent = 'API jurídica indisponível: ' + (e?.message || e);
+    normsEl.innerHTML = '<div style="color:var(--text-2);font-size:12px">A VM Mini precisa estar acessível.</div>';
+  }
+}
+
+async function loadLegalNorm(normId){
+  legalState.normId = normId;
+  legalState.parent = 'root';
+  legalState.breadcrumb = [{ kind: 'norm', id: normId }];
+  document.getElementById('legal-article').classList.add('hidden');
+  document.getElementById('legal-article').innerHTML = '';
+  await loadLegalChildren(normId, 'root');
+}
+
+async function loadLegalChildren(normId, parentCp){
+  legalState.parent = parentCp;
+  const status = document.getElementById('legal-status');
+  const childrenEl = document.getElementById('legal-children');
+  status.textContent = 'Carregando…';
+  childrenEl.innerHTML = '';
+  const parentBtn = document.getElementById('btn-legal-back');
+  parentBtn.style.display = (parentCp === 'root' && legalState.breadcrumb.length <= 1) ? 'none' : '';
+  try {
+    const q = parentCp === 'root' ? '' : '?parent=' + encodeURIComponent(parentCp);
+    const children = await legalFetch(`/norms/${encodeURIComponent(normId)}/children${q}`);
+    if (!children.length) {
+      status.textContent = 'Sem unidades mais finas — abra um artigo diretamente.';
+      return;
+    }
+    status.textContent = `${children.length} unidade(s) em ${parentCp}.`;
+    childrenEl.innerHTML = children.map(c => `
+      <button class="legal-child-btn" data-cp="${escapeAttr(c.canonical_path)}" data-kind="${escapeAttr(c.kind)}"
+              style="min-height:40px;padding:8px 10px;border-radius:8px;background:var(--elev);color:var(--text);border:1px solid var(--border);text-align:left;cursor:pointer;font-size:13px">
+        <span style="color:var(--text-2);font-size:11px;font-weight:600;letter-spacing:.04em">${escapeHtml(c.kind.toUpperCase())}</span>
+        <span style="margin-left:8px">${escapeHtml(c.label)}</span>
+        ${c.heading ? `<div style="color:var(--text-2);font-size:11px;margin-top:2px">${escapeHtml(c.heading)}</div>` : ''}
+      </button>
+    `).join('');
+    $$('#legal-children .legal-child-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const cp = btn.dataset.cp;
+        const kind = btn.dataset.kind;
+        legalState.breadcrumb.push({ kind, id: cp });
+        if(kind === 'artigo' || kind === 'paragrafo' || kind === 'inciso' || kind === 'alinea' || kind === 'item'){
+          openLegalArticle(legalState.normId, cp);
+        } else {
+          loadLegalChildren(legalState.normId, cp);
+        }
+      });
+    });
+  } catch (e) {
+    status.textContent = 'Falha ao listar unidades: ' + (e?.message || e);
+  }
+}
+
+async function openLegalArticle(normId, cp){
+  const articleEl = document.getElementById('legal-article');
+  const childrenEl = document.getElementById('legal-children');
+  const parentBtn = document.getElementById('btn-legal-back');
+  parentBtn.style.display = '';
+  childrenEl.innerHTML = '';
+  articleEl.classList.remove('hidden');
+  articleEl.innerHTML = '<div style="color:var(--text-2);font-size:12px">Carregando unidade…</div>';
+  try {
+    const unit = await legalFetch(`/norms/${encodeURIComponent(normId)}/units/${encodeURIComponent(cp)}`);
+    articleEl.innerHTML = `
+      <div style="color:var(--text-2);font-size:11px;font-weight:600;letter-spacing:.05em">${escapeHtml(unit.kind.toUpperCase())} · ${escapeHtml(unit.id)}</div>
+      <div style="font-size:18px;font-weight:700;color:var(--text)">${escapeHtml(unit.label)}</div>
+      <div style="color:var(--text-2);font-size:12px">Origem: <a href="${escapeAttr(unit.normId ? '' : '')}" style="color:var(--orange)" rel="noopener noreferrer">${escapeHtml(normId)}</a></div>
+      <div style="font-size:15px;line-height:1.7;color:var(--text);margin-top:6px">${escapeHtml(unit.text)}</div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button id="btn-legal-child-load" style="flex:1;min-height:40px;border-radius:8px;background:var(--orange);color:#fff;border:0;font-weight:600;cursor:pointer;font-size:13px">Ver filhos (se houver)</button>
+      </div>
+    `;
+    const btn = document.getElementById('btn-legal-child-load');
+    if(btn){
+      btn.addEventListener('click', async ()=>{
+        const kids = await legalFetch(`/norms/${encodeURIComponent(normId)}/children?parent=${encodeURIComponent(cp)}`).catch(()=>[]);
+        if(!Array.isArray(kids) || !kids.length){
+          articleEl.querySelector('#btn-legal-child-load').textContent = 'Sem filhos';
+          return;
+        }
+        articleEl.insertAdjacentHTML('beforeend', '<div id="legal-article-kids" style="display:flex;flex-direction:column;gap:6px;margin-top:8px"></div>');
+        const kidsEl = articleEl.querySelector('#legal-article-kids');
+        kidsEl.innerHTML = kids.map(c => `
+          <button class="legal-grandchild-btn" data-cp="${escapeAttr(c.canonical_path)}" data-kind="${escapeAttr(c.kind)}"
+                  style="min-height:40px;padding:8px 10px;border-radius:8px;background:var(--surface);color:var(--text);border:1px solid var(--border);text-align:left;cursor:pointer;font-size:13px">
+            <span style="color:var(--text-2);font-size:11px;font-weight:600;letter-spacing:.04em">${escapeHtml(c.kind.toUpperCase())}</span>
+            <span style="margin-left:8px">${escapeHtml(c.label)}</span>
+          </button>
+        `).join('');
+        $$('#legal-article-kids .legal-grandchild-btn').forEach(b=>{
+          b.addEventListener('click', ()=>{
+            legalState.breadcrumb.push({ kind: b.dataset.kind, id: b.dataset.cp });
+            openLegalArticle(normId, b.dataset.cp);
+          });
+        });
+      });
+    }
+    // Persistir progresso do último artigo aberto
+    try {
+      const id = 'legal:' + normId + ':' + cp;
+      const row = { id, kind: 'legal', normId, canonicalPath: cp, updated_at: Date.now() };
+      await dbPut('progress', { book_id: id, cfi: null, page: null, scroll_top: null, percentage: 0, title: `${normId} · ${cp}`, updated_at: row.updated_at });
+    } catch (e) { /* falha silenciosa — não bloqueia leitura */ }
+  } catch (e) {
+    articleEl.innerHTML = '<div style="color:var(--text-2);font-size:12px">Falha ao carregar unidade: ' + escapeHtml(e?.message || String(e)) + '</div>';
+  }
 }
 
 function hasOpenPanel(){
@@ -1641,6 +1840,7 @@ function formatBytes(bytes) {
 }
 
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+function escapeAttr(s){ return String(s).replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
 
 /* =========================================================
  * File handling
@@ -1694,8 +1894,11 @@ function updateNoteKeySelectorOptions() {
   if (isLegal && b.toc && b.toc.length > 0) {
     container.classList.remove('hidden');
     b.toc.forEach(item => {
-      const hashIndex = item.href.indexOf('#');
-      const key = hashIndex !== -1 ? item.href.slice(hashIndex + 1) : null;
+      // PDF outline usa {label, dest, depth} (sem href); EPUB TOC usa {label, href}.
+      // O seletor de chaves só é válido para TOC EPUB com href contendo "#".
+      const href = typeof item.href === 'string' ? item.href : '';
+      const hashIndex = href.indexOf('#');
+      const key = hashIndex !== -1 ? href.slice(hashIndex + 1) : null;
       if (key) {
         const opt = document.createElement('option');
         opt.value = key;
@@ -2795,6 +2998,47 @@ async function flushPendingNotes(){
   await persistNotesSnapshot(snapshot, { notify:true });
 }
 
+// Versão síncrona: cancela o debounce de 500ms e escreve imediatamente no
+// IndexedDB. Projetada para ser chamada em pagehide/beforeunload, onde o
+// navegador não espera Promises. Se a transação IDB estiver indisponível
+// (modo privado, contexto inseguro), cai de volta para o flush assíncrono.
+function flushPendingNotesSync(){
+  if(!pendingNotesSave) return;
+  if(pendingNotesSave.timer){ clearTimeout(pendingNotesSave.timer); pendingNotesSave.timer = null; }
+  if(notesTimer) { clearTimeout(notesTimer); notesTimer = null; }
+  const snapshot = pendingNotesSave;
+  pendingNotesSave = null;
+  try{
+    const req = indexedDB.open(DB_NAME, DB_VER);
+    req.onsuccess = () => {
+      const db = req.result;
+      try {
+        const tx = db.transaction('notes', 'readwrite');
+        const store = tx.objectStore('notes');
+        const putReq = store.put({
+          book_id: snapshot.bookId,
+          content: snapshot.content,
+          updated_at: snapshot.updatedAt,
+        });
+        putReq.onsuccess = () => { try { db.close(); } catch {} };
+        putReq.onerror = () => { try { db.close(); } catch {} };
+      } catch (e) {
+        try { db.close(); } catch {}
+        // Cai para o caminho assíncrono como salvaguarda
+        persistNotesSnapshot(snapshot, { notify:false }).catch(err => console.warn('[Kódice] fallback assíncrono falhou', err));
+      }
+    };
+    req.onerror = () => {
+      // Sem IDB disponível (modo privado etc). Não há o que sincronizar; perdemos
+      // apenas esta anotação específica, sem corromper outras.
+    };
+  } catch (e) {
+    // Ambiente sem IndexedDB. Sem recurso síncrono alternativo; a anotação
+    // pendente desta aba será perdida, mas o usuário ainda recebe o caminho
+    // best-effort acima.
+  }
+}
+
 function persistCurrentNotesBestEffort(){
   flushPendingNotes().catch(e=>console.warn('[Kódice] Salvamento best-effort de anotação falhou', e));
 }
@@ -3347,6 +3591,17 @@ async function exportBackup(){
     }
     const mb = (json.length/1048576).toFixed(2);
     setBackupStatus(`${books.length} livro(s) · ${mb} MB`);
+    // Marca o backup manual como referência válida: limpa dueAt e fixa lastAt/lastSig.
+    // Se nada mudar no app até o próximo ciclo, runAutoBackup não vai sugerir novo download.
+    try {
+      const sig = await computeBackupSignature();
+      const now = Date.now();
+      const meta = autoBackupMeta();
+      saveAutoBackupMeta({ ...meta, lastAt: now, lastSig: sig, lastCheckedAt: now });
+      renderAutoBackupInfo();
+    } catch (e) {
+      console.warn('[Kódice] Não foi possível atualizar meta após backup manual', e);
+    }
     toast('Backup exportado');
   }catch(e){
     console.error(e); setBackupStatus('Falha ao exportar');
@@ -3807,6 +4062,7 @@ function wire(){
       else if(k==='notebook') openPanel('notebook-panel');
       else if(k==='settings') openPanel('settings-panel');
       else if(k==='library') openPanel('library-panel');
+      else if(k==='legal') { openLegalPanel(); }
       else if(k==='add') $('#file-input').click();
       else if(k==='theme') applyTheme(state.theme==='night' ? 'day' : 'night');
       else if(k==='account'){ if(state.user) signOut(); else openAuth(); }
@@ -3814,6 +4070,22 @@ function wire(){
       document.getElementById('app').classList.remove('rail-open');
     });
   });
+
+  // Voltar na navegação jurídica
+  const btnLegalBack = document.getElementById('btn-legal-back');
+  if(btnLegalBack){
+    btnLegalBack.addEventListener('click', ()=>{
+      if(legalState.breadcrumb.length > 1){
+        legalState.breadcrumb.pop();
+        const prev = legalState.breadcrumb[legalState.breadcrumb.length - 1];
+        if(prev.kind === 'norm'){
+          loadLegalNorm(prev.id);
+        } else {
+          loadLegalChildren(legalState.normId, prev.id);
+        }
+      }
+    });
+  }
   const toggleRail = ()=>{ setReaderChromeVisible(true); document.getElementById('app').classList.toggle('rail-open'); };
   const railTopBtn = $('#btn-rail-toggle');
   if(railTopBtn) railTopBtn.addEventListener('click', toggleRail);
@@ -3910,7 +4182,17 @@ function wire(){
       flushQueue();
     }
   });
-  window.addEventListener('pagehide', persistCurrentNotesBestEffort);
+  // pagehide dispara no fechamento da aba; o navegador não espera Promises
+  // de listeners pagehide, então disparamos o flush síncrono antes do app ser
+  // descartado. Mantemos persistCurrentNotesBestEffort para casos onde o flush
+  // síncrono não conseguir terminar (ex.: IndexedDB indisponível).
+  window.addEventListener('pagehide', () => {
+    try { flushPendingNotesSync(); } catch (e) { console.warn('[Kódice] flush síncrono falhou em pagehide', e); }
+    persistCurrentNotesBestEffort();
+  });
+  window.addEventListener('beforeunload', () => {
+    try { flushPendingNotesSync(); } catch (e) { /* beforeunload não permite await */ }
+  });
   window.addEventListener('focus', ()=>{
     if(navigator.onLine && state.user) flushQueue();
   });
