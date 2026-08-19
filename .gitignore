@@ -5,4 +5,4 @@
 .wrangler/
 dist/
 node_modules/
-*.db
+*.db*
