@@ -2561,22 +2561,54 @@ async function loadLegalStructureChildren(normId, parentCp = 'root') {
         const cp = btn.dataset.cp;
         const kind = btn.dataset.kind;
         const label = btn.dataset.label;
-        legalState.breadcrumb.push({ kind, id: cp, label });
 
-        // P1: artigos/incisos/parágrafos/alíneas/itens e unidades estruturais
-        // (Parte/Livro/Título/Capítulo) também existem no documento contínuo —
-        // rolar é mais útil do que abrir nova superfície.
+        // Folhas: fecham o tray e rolam até a unidade no documento contínuo.
         const leafKinds = ['artigo', 'paragrafo', 'inciso', 'alinea', 'item'];
-        const structuralKinds = ['parte', 'livro', 'titulo', 'capitulo', 'secao', 'subsecao'];
-        if (leafKinds.includes(kind) || structuralKinds.includes(kind)) {
+        if (leafKinds.includes(kind)) {
           closeLegalStructure();
           if (legalState.activeNormId !== normId || !legalState.units || legalState.units.length === 0) {
             await openLegalNorm(normId);
           }
           scrollToLegalUnit(cp);
-        } else {
-          await loadLegalStructureChildren(normId, cp);
+          return;
         }
+
+        // Estruturais (Parte/Livro/Título/Capítulo): navegam dentro do tray.
+        // Um clique longo na borda direita do botão rola direto no documento.
+        const structuralKinds = ['parte', 'livro', 'titulo', 'titulo-unico', 'capitulo', 'secao', 'subsecao'];
+        if (structuralKinds.includes(kind)) {
+          legalState.breadcrumb.push({ kind, id: cp, label });
+          // Duplo clique = rolar direto no documento contínuo (atalho)
+          if (btn.dataset.scrollOnce === '1') {
+            closeLegalStructure();
+            if (legalState.activeNormId !== normId || !legalState.units || legalState.units.length === 0) {
+              await openLegalNorm(normId);
+            }
+            scrollToLegalUnit(cp);
+            btn.dataset.scrollOnce = '';
+            return;
+          }
+          await loadLegalStructureChildren(normId, cp);
+          return;
+        }
+
+        // Outros tipos: navegar dentro do tray
+        legalState.breadcrumb.push({ kind, id: cp, label });
+        await loadLegalStructureChildren(normId, cp);
+      });
+
+      // Atalho: dblclick em estrutural rola direto no documento contínuo
+      btn.addEventListener('dblclick', (e) => {
+        const kind = btn.dataset.kind;
+        const cp = btn.dataset.cp;
+        const structuralKinds = ['parte', 'livro', 'titulo', 'titulo-unico', 'capitulo', 'secao', 'subsecao'];
+        if (!structuralKinds.includes(kind)) return;
+        e.preventDefault();
+        closeLegalStructure();
+        if (legalState.activeNormId !== normId || !legalState.units || legalState.units.length === 0) {
+          openLegalNorm(normId);
+        }
+        scrollToLegalUnit(cp);
       });
     });
   } catch (e) {
