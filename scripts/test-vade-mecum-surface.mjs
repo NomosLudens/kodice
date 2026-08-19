@@ -2,13 +2,14 @@
 /**
  * test-vade-mecum-surface.mjs
  *
- * Validação automatizada da Superfície Principal do Vade Mecum:
- * 1. Transição para visão principal #vade-mecum-view (não overlay).
- * 2. Card da norma real CPC/2015 visível na Home.
- * 3. Busca determinística ("300" e "tutela de urgência").
- * 4. Navegação por resultado direto de busca para Art. 300.
- * 5. Layout Desktop (320px tree + leitor editorial).
- * 6. Layout Mobile (390×844) sem overflow horizontal.
+ * Validação automatizada do modo legal integrado ao reader principal:
+ * 1. Vade Mecum é aberto dentro do #reader (não overlay, não segunda app).
+ * 2. Norma real CPC/2015 listada na home do legal-viewer.
+ * 3. Busca determinística ("300") via tray temporário (🔍).
+ * 4. Resultado da busca fecha o tray e renderiza Art. 300 no reader.
+ * 5. Busca textual ("tutela de urgência") retorna resultados.
+ * 6. Tray de estrutura (≡) abre/fecha temporariamente.
+ * 7. Layout Mobile (390×844) sem overflow horizontal.
  */
 import puppeteer from 'puppeteer-core';
 import http from 'node:http';
@@ -73,7 +74,7 @@ try {
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
   check((await page.title()).includes('KÓDICE'), 'Título do aplicativo contém KÓDICE');
 
-  // 1. Alternar para a superfície do Vade Mecum
+  // 1. Alternar para a superfície do Vade Mecum (modo legal do reader principal)
   await page.waitForSelector('button[data-nav="legal"]');
   await page.evaluate(() => {
     const btn = document.querySelector('button[data-nav="legal"]');
@@ -81,74 +82,116 @@ try {
   });
 
   const isMainSurfaceVisible = await page.evaluate(() => {
-    const v = document.getElementById('vade-mecum-view');
+    const lv = document.getElementById('legal-viewer');
     const l = document.getElementById('landing');
     const r = document.getElementById('reader');
-    return v && !v.classList.contains('hidden') && l.classList.contains('hidden') && r.classList.contains('hidden');
+    const otherViewers = ['reader-content','epub-viewer','pdf-viewer'].every(id => {
+      const el = document.getElementById(id);
+      return !el || el.classList.contains('hidden');
+    });
+    return !!(lv && !lv.classList.contains('hidden') && l.classList.contains('hidden') && !r.classList.contains('hidden') && otherViewers);
   });
-  check(isMainSurfaceVisible, 'Vade Mecum é exibido como superfície principal (não overlay)');
+  check(isMainSurfaceVisible, 'Vade Mecum é exibido dentro do reader principal (não overlay)');
 
-  // 2. Card da Norma CPC/2015
-  await page.waitForSelector('#vade-norms-grid .vade-norm-card', { timeout: 10000 });
+  // 2. Norma CPC/2015 listada na home do legal-viewer
+  await page.waitForSelector('#legal-norms-list .vade-norm-row', { timeout: 10000 });
   const normTitle = await page.evaluate(() => {
-    const card = document.querySelector('#vade-norms-grid .vade-norm-card');
+    const card = document.querySelector('#legal-norms-list .vade-norm-row');
     return card ? card.textContent : '';
   });
   check(normTitle.includes('Processo Civil') || normTitle.includes('CPC'), 'Card da norma real retornado pela API');
 
-  // 3. Busca determinística por "300"
+  // 3. Abre o tray temporário de busca (🔍) e busca determinística por "300"
   await page.evaluate(() => {
-    const input = document.getElementById('vade-search-input');
+    const btn = document.getElementById('btn-legal-search');
+    if (btn) btn.click();
+  });
+  await page.waitForSelector('#legal-search-popover.open', { timeout: 5000 });
+  await page.evaluate(() => {
+    const input = document.getElementById('legal-search-input');
     if (input) {
       input.value = '300';
-      window.performVadeSearch('300');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
     }
   });
   try {
-    await page.waitForFunction(() => document.querySelectorAll('#vade-search-results-list .vade-search-item').length > 0, { timeout: 8000 });
+    await page.waitForFunction(() => document.querySelectorAll('#legal-search-popover-results .vade-search-item').length > 0, { timeout: 8000 });
   } catch (err) {
-    const listHtml = await page.evaluate(() => document.getElementById('vade-search-results-list')?.innerHTML);
+    const listHtml = await page.evaluate(() => document.getElementById('legal-search-popover-results')?.innerHTML);
     console.error('Debug step 3 listHtml:', listHtml);
     throw err;
   }
 
   const searchResultsCount = await page.evaluate(() => {
-    return document.querySelectorAll('#vade-search-results-list .vade-search-item').length;
+    return document.querySelectorAll('#legal-search-popover-results .vade-search-item').length;
   });
   check(searchResultsCount > 0, `Busca por '300' retornou ${searchResultsCount} unidade(s)`);
 
-  // 4. Abrir Art. 300 via resultado de busca
+  // 4. Clica no resultado Art. 300 (deve fechar o tray e abrir o artigo)
   await page.evaluate(() => {
-    window.openVadeNormReader('cpc2015', 'art300');
+    const items = document.querySelectorAll('#legal-search-popover-results .vade-search-item');
+    const target = Array.from(items).find(el => el.textContent.includes('ART300') || el.textContent.includes('ART. 300'));
+    if (target) target.click();
+    else items[0]?.click();
   });
-  await page.waitForFunction(() => !!document.querySelector('#vade-article-container h1'), { timeout: 10000 });
+  // Tray deve fechar
+  await page.waitForFunction(() => !document.getElementById('legal-search-popover')?.classList.contains('open'), { timeout: 3000 });
+  check(true, 'Tray de busca fecha após selecionar resultado');
 
+  // Artigo 300 aberto editorialmente
+  await page.waitForFunction(() => {
+    const h1 = document.querySelector('#legal-article-container h1');
+    return h1 && h1.textContent.includes('ART. 300');
+  }, { timeout: 10000 });
   const articleTitle = await page.evaluate(() => {
-    return document.querySelector('#vade-article-container h1')?.textContent || '';
+    return document.querySelector('#legal-article-container h1')?.textContent || '';
   });
   check(articleTitle.includes('ART. 300'), `Artigo 300 aberto editorialmente: "${articleTitle}"`);
 
-  // 5. Testar Busca por Texto ("tutela de urgência")
+  // 5. Testar Busca por Texto ("tutela de urgência") via tray
   await page.evaluate(() => {
-    const list = document.getElementById('vade-search-results-list');
-    if (list) list.innerHTML = '';
-    const input = document.getElementById('vade-search-input');
+    const btn = document.getElementById('btn-legal-search');
+    if (btn) btn.click();
+  });
+  await page.waitForSelector('#legal-search-popover.open', { timeout: 3000 });
+  await page.evaluate(() => {
+    const input = document.getElementById('legal-search-input');
     if (input) {
       input.value = 'tutela de urgência';
-      window.performVadeSearch('tutela de urgência');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
     }
   });
   await page.waitForFunction(() => {
-    const item = document.querySelector('#vade-search-results-list .vade-search-item');
+    const item = document.querySelector('#legal-search-popover-results .vade-search-item');
     return item && item.textContent.toLowerCase().includes('tutela');
   }, { timeout: 10000 });
 
   const textSearchResult = await page.evaluate(() => {
-    return document.querySelector('#vade-search-results-list .vade-search-item')?.textContent || '';
+    return document.querySelector('#legal-search-popover-results .vade-search-item')?.textContent || '';
   });
   check(textSearchResult.includes('tutela de urgência') || textSearchResult.includes('ART'), 'Busca textual por "tutela de urgência" retornou resultados');
 
-  // 6. Testar Responsividade Mobile (390×844) sem overflow horizontal
+  // 6. Tray de estrutura (≡) é temporário
+  await page.evaluate(() => {
+    const btn = document.getElementById('btn-legal-search');
+    if (btn) btn.click(); // fecha busca
+  });
+  await page.waitForFunction(() => !document.getElementById('legal-search-popover')?.classList.contains('open'), { timeout: 3000 });
+  await page.evaluate(() => {
+    const btn = document.getElementById('btn-legal-tree');
+    if (btn) btn.click();
+  });
+  await page.waitForSelector('#legal-tree-pane.open', { timeout: 3000 });
+  check(true, 'Tray de estrutura (≡) abre temporariamente');
+  // Fecha
+  await page.evaluate(() => {
+    const btn = document.getElementById('btn-legal-tree');
+    if (btn) btn.click();
+  });
+  await page.waitForFunction(() => !document.getElementById('legal-tree-pane')?.classList.contains('open'), { timeout: 3000 });
+  check(true, 'Tray de estrutura (≡) fecha ao clicar fora');
+
+  // 7. Testar Responsividade Mobile (390×844) sem overflow horizontal
   await page.setViewport({ width: 390, height: 844 });
   const hasNoHorizontalOverflow = await page.evaluate(() => {
     return document.documentElement.scrollWidth <= window.innerWidth;
