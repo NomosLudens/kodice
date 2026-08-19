@@ -1007,7 +1007,7 @@
             <div id="legal-article-container"></div>
           </div>
         </div>
-        <div id="legal-tree-pane" class="hidden">
+        <div id="legal-tree-pane">
           <div class="vade-tree-section">
             <span>Estrutura</span>
             <button id="btn-legal-tree-close" aria-label="Fechar estrutura">✕</button>
@@ -1016,7 +1016,7 @@
           <button id="btn-legal-tree-back" class="vade-tree-back">← Voltar</button>
           <div id="legal-tree-children" class="vade-tree-children"></div>
         </div>
-        <div id="legal-search-popover" class="hidden">
+        <div id="legal-search-popover">
           <form onsubmit="event.preventDefault()" class="vade-search-row">
             <input id="legal-search-input" type="search" placeholder="Pesquisar norma, artigo ou texto (ex: 300, art 300, tutela de urgência)…" />
             <button id="legal-search-clear" type="button" class="vade-search-clear" aria-label="Limpar busca">✕</button>
@@ -1106,26 +1106,6 @@
   </div>
   <div class="nb-actions">
     <button id="btn-export-md" class="primary">Exportar Markdown</button>
-  </div>
-</aside>
-
-<!-- Legal Panel (Vade Mecum) -->
-<aside id="legal-panel" class="side-panel">
-  <div class="panel-header"><div class="grabber"></div>
-    <h3>Jurídico</h3>
-    <button class="panel-close" data-close-panel="legal-panel" aria-label="Fechar">✕</button>
-  </div>
-  <div class="panel-body" style="display:flex;flex-direction:column;gap:8px">
-    <div id="legal-status" style="color:var(--text-2);font-size:12px"></div>
-    <div id="legal-norms" style="display:flex;flex-direction:column;gap:6px"></div>
-    <button id="btn-legal-back" style="display:none;min-height:40px;border-radius:8px;background:var(--elev);color:var(--text);border:1px solid var(--border);font-size:13px;cursor:pointer">← Voltar</button>
-    <div id="legal-children" style="display:flex;flex-direction:column;gap:6px"></div>
-    <div id="legal-article" class="hidden" style="display:flex;flex-direction:column;gap:12px;padding:12px;background:var(--elev);border-radius:10px"></div>
-    <div style="color:var(--text-2);font-size:11px;line-height:1.4">
-      Fonte canônica: API privada do Vade Mecum, alimentada pelo corpus jurídico oficial
-      da Câmara dos Deputados. Esta interface exige que a VM Mini esteja acessível em
-      <code id="legal-api-host">…</code>.
-    </div>
   </div>
 </aside>
 
