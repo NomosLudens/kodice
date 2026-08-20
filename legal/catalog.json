@@ -580,6 +580,29 @@
       "versionDate": "2015-06-29",
       "officialSourceUrl": "https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2015/lei/l13140.htm",
       "acquisitionMode": "DOWNLOAD"
+    },
+    {
+      "id": "acp1985",
+      "title": "Lei da Ação Civil Pública",
+      "urn": "urn:lex:br:federal:lei:1985-07-24;7347",
+      "type": "lei",
+      "year": 1985,
+      "number": "7347",
+      "popularName": "ACP",
+      "aliases": [
+        "ACP",
+        "acp",
+        "Ação Civil Pública",
+        "Lei 7347",
+        "Lei 7.347",
+        "Lei da Ação Civil Pública"
+      ],
+      "ementa": "Disciplina a ação civil pública de responsabilidade por danos causados ao meio ambiente, ao consumidor, a bens e direitos de valor artístico, estético, histórico, turístico e paisagístico, ou a qualquer outro interesse difuso ou coletivo.",
+      "status": "vigente",
+      "publicationDate": "1985-07-25",
+      "versionDate": "1985-07-24",
+      "officialSourceUrl": "https://www2.camara.leg.br/legin/fed/lei/1980-1987/lei-7347-24-julho-1985-356939-normaatualizada-pl.html",
+      "acquisitionMode": "DOWNLOAD"
     }
   ]
 }

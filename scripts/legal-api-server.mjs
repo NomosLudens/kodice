@@ -183,6 +183,9 @@ export function createLegalApiHandler(db, options = {}) {
           loc1991: 'scripts/download-codigo.mjs',
           arb1996: 'scripts/download-codigo.mjs',
           med2015: 'scripts/download-codigo.mjs',
+          // ACP/1985 (L7347) — fonte oficial Câmara (texto atualizado).
+          // Host www2.camara.leg.br (migração de www) está na whitelist.
+          acp1985: 'scripts/download-camara.mjs',
           // ADCT não tem URL dedicada; vive dentro do snapshot do CF/88
           // (já baixado quando o CF/88 foi instalado).
           'cf88-adct': null,
@@ -236,6 +239,7 @@ export function createLegalApiHandler(db, options = {}) {
           loc1991: 'scripts/import-loc1991.mjs',
           arb1996: 'scripts/import-arb1996.mjs',
           med2015: 'scripts/import-med2015.mjs',
+          acp1985: 'scripts/import-acp1985.mjs',
         };
         const importer = importers[normId];
         if (!importer) { sendJson(res, 501, { error: 'importer_not_implemented', id: normId }); return; }

@@ -27,6 +27,7 @@ const OFFICIAL_HOSTS = new Set([
   'www.normas.leg.br',
   'camara.leg.br',
   'www.camara.leg.br',
+  'www2.camara.leg.br',
   'senado.leg.br',
   'www.senado.leg.br',
   'www25.senado.leg.br',

@@ -91,7 +91,7 @@ try {
   const r1 = await fetch(`${base}/api/legal/catalog`);
   check(r1.status === 200, `GET /api/legal/catalog status`);
   const catData = await r1.json();
-  check(catData.norms.length === 30, `catalog tem 30 normas (got ${catData.norms.length})`);
+  check(catData.norms.length === 31, `catalog tem 31 normas (got ${catData.norms.length})`);
   const allInstalled = catData.norms.every(n => n.installed === true);
   check(allInstalled, `CATALOG_PENDING=0: todas as ${catData.norms.length} normas instaladas`);
 
@@ -160,11 +160,25 @@ try {
   });
   check(r9.status === 404 || r9.status === 400, `unknown norm id rejected (${r9.status})`);
 
-  // 10. acp1985 NÃO está no catálogo (blocked)
+  // 10. acp1985 ESTÁ no catálogo (com snapshot oficial da Câmara)
   const acp = catalog.norms.find(x => x.id === 'acp1985');
-  check(!acp, `acp1985 NOT in catalog (blocked, no source)`);
+  check(!!acp, `acp1985 IS in catalog (não é mais BLOCKED)`);
+  if (acp) {
+    check(acp.aliases && acp.aliases.includes('ACP'), 'acp1985 has ACP alias');
+    check(acp.aliases && acp.aliases.includes('Lei 7347'), 'acp1985 has "Lei 7347" alias');
+  }
 
-  // 11. Regressão: as 21 normas anteriores continuam funcionando
+  // 11. Prova real do acp1985
+  const acpArt1 = await fetch(`${base}/api/legal/norms/acp1985/units/art1`);
+  check(acpArt1.status === 200, `acp1985/art1 funciona (prova real)`);
+  if (acpArt1.status === 200) {
+    const u = await acpArt1.json();
+    check(u.kind === 'artigo', `acp1985/art1 kind is artigo`);
+    check(u.text && /Regem-se pelas disposições desta Lei/.test(u.text),
+      `acp1985/art1 text matches snapshot (Regem-se...)`);
+  }
+
+  // 12. Regressão: as 30 normas anteriores continuam funcionando
   const cf88art5 = await fetch(`${base}/api/legal/norms/cf88/units/art5`);
   check(cf88art5.status === 200, `CF88/art5 ainda funciona (regressão)`);
   const cpc300 = await fetch(`${base}/api/legal/norms/cpc2015/units/art300`);
