@@ -23,15 +23,13 @@ jobs:
       - name: Install
         run: bun install --frozen-lockfile
 
+      - name: Rebuild legal corpus from scratch
+        run: |
+          rm -f ./legal.db ./legal.db-shm ./legal.db-wal
+          bun run legal:build:db
+
       - name: Build + run all bundled gates
         run: bun run build
-
-      - name: Rebuild legal corpus from scratch
-        env:
-          KODICE_LEGAL_DB: ./legal.db.ci
-        run: |
-          rm -f ./legal.db.ci ./legal.db.ci-shm ./legal.db.ci-wal
-          bun run legal:build:db
 
       - name: Verify legal corpus integrity
         run: bun run verify:legal
