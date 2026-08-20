@@ -64,8 +64,23 @@ export async function importPlanaltoCodigo(normId, config) {
   const sourceFileAbs = path.resolve(process.cwd(), config.sourceFile);
   const buffer = await fs.readFile(sourceFileAbs);
   const sourceHash = createHash('sha256').update(buffer).digest('hex');
-  // Planalto compila em ISO-8859-1.
-  const text = buffer.toString('latin1');
+  // Planalto publica em ISO-8859-1 (latin1) na maioria dos casos, mas algumas
+  // leis recentes (LMP/2006, LAI/2011, LBI/2015, LGPD/2018) saem em UTF-16
+  // LE com BOM. Detecta encoding pelo BOM para preservar o snapshot bruto.
+  // Node aceita 'utf16le' (sem hífen) e 'utf-8' mas não 'utf-16-le'.
+  let text;
+  if (buffer.length >= 2 && buffer[0] === 0xFF && buffer[1] === 0xFE) {
+    text = buffer.toString('utf16le');
+  } else if (buffer.length >= 3 && buffer[0] === 0xEF && buffer[1] === 0xBB && buffer[2] === 0xBF) {
+    text = buffer.toString('utf-8');
+  } else {
+    text = buffer.toString('latin1');
+  }
+  // Algum HTML do Planalto termina com whitespace ímpar que quebra o decoder
+  // UTF-16-LE. Mantém apenas os bytes válidos; o HTML ainda é parseável.
+  if (text.charCodeAt(text.length - 1) === 0xFFFD) {
+    text = text.replace(/\uFFFD+$/g, '').replace(/\s+$/, '');
+  }
 
   // Extrai parágrafos <p>. Planalto emite <p style="text-align: justify">,
   // <p style="text-align: center">, <p align="JUSTIFY">, etc.
@@ -75,24 +90,47 @@ export async function importPlanaltoCodigo(normId, config) {
     .filter(Boolean);
   assert(paras.length > 20, `${normId}: too few paragraphs (${paras.length})`);
 
-  // Localiza o preâmbulo — "O PRESIDENTE DA REPÚBLICA" + "faço saber".
-  const preambleIdx = paras.findIndex(p => /PRESIDENTE DA REP[ÚU]BLICA/i.test(p) || /Congresso Nacional decreta/i.test(p));
-  assert(preambleIdx >= 0, `${normId}: preamble not found`);
+  // Localiza o preâmbulo — "O PRESIDENTE DA REPÚBLICA" + "faço saber" /
+  // "Os Ministros ... decreta" (decretos-lei) / "Congresso Nacional decreta".
+  // Opt-out via config.noPreamble para normas-filhas (ex: ADCT dentro da CF)
+  // que compartilham o snapshot da norma-mãe e não têm preâmbulo próprio.
+  // O preâmbulo fica nos primeiros ~10 parágrafos do snapshot — busca
+  // restrita para não casar parágrafos internos que citam o nome.
+  let preambleIdx = -1;
+  if (!config.noPreamble) {
+    const P = Math.min(paras.length, 20);
+    preambleIdx = paras.slice(0, P).findIndex(p =>
+      /PRESIDENTE DA REP[ÚU]BLICA/i.test(p) ||
+      /Congresso Nacional decreta/i.test(p) ||
+      /decreta:/i.test(p) ||
+      (/usando/i.test(p) && /atribui/i.test(p) && /decreta/i.test(p)) ||
+      (/decreta/i.test(p) && /Lei n[º°]|Decreto-Lei n[º°]/i.test(p))
+    );
+    if (preambleIdx < 0) {
+      // Fallback: parágrafo que contenha "decreta" + o tipo da norma (CÓDIGO/LEI/ESTATUTO/DECRETO).
+      preambleIdx = paras.slice(0, P).findIndex(p => /decreta/i.test(p)
+        && /\bCÓDIGO\b|\bLEI\b|\bESTATUTO\b|\bDECRETO\b/i.test(p));
+    }
+    assert(preambleIdx >= 0, `${normId}: preamble not found`);
+  }
 
   // startMarker (opcional): marcador do início do conteúdo jurídico efetivo.
   // Necessário para normas com dois níveis (decreto-lei + consolidação) como
   // a CLT: o snapshot traz o DECRETO (Art. 1, Art. 2) e depois a Consolidação
   // (Art. 1º - ...). O conteúdo jurídico é a Consolidação, não o DECRETO.
-  // O marcador deve ser EXATAMENTE o parágrafo (igualdade após normalização),
-  // não substring — para não casar parágrafos longos que apenas citam o nome.
-  let contentStart = preambleIdx + 1;
+  // O marcador deve ser EXATAMENTE o parágrafo (igualdade após normalização
+  // de espaços), case-sensitive — para não casar parágrafos longos que
+  // apenas citam o nome (ex: ADCT dentro de CF, cujo sumário usa
+  // "Ato das Disposições..." em title case mas o cabeçalho da seção
+  // usa "ATO DAS DISPOSIÇÕES CONSTITUCIONAIS TRANSITÓRIAS" em CAPS).
+  let contentStart = config.noPreamble ? 0 : preambleIdx + 1;
   if (config.startMarker) {
-    const target = config.startMarker.toUpperCase().replace(/\s+/g, ' ').trim();
+    const target = config.startMarker.replace(/\s+/g, ' ').trim();
     const startIdx = paras.findIndex((p, i) => {
-      if (i < preambleIdx) return false;
-      return p.toUpperCase().replace(/\s+/g, ' ').trim() === target;
+      if (!config.noPreamble && i < preambleIdx) return false;
+      return p.replace(/\s+/g, ' ').trim() === target;
     });
-    if (startIdx > preambleIdx) {
+    if (startIdx >= 0) {
       contentStart = startIdx + 1;
     }
   }
@@ -153,18 +191,21 @@ export async function importPlanaltoCodigo(normId, config) {
     }
   }
 
-  // Preâmbulo
-  units.push({
-    id: `${normId}-preambulo`,
-    parentId: null,
-    kind: 'preambulo',
-    label: 'PREAMBULO',
-    canonicalPath: 'preambulo',
-    heading: null,
-    text: paras[preambleIdx],
-    sortOrder: sortOrder++,
-    status: 'vigente',
-  });
+  // Preâmbulo (opcional). Normas-filhas (ex: ADCT dentro de CF) não
+  // possuem preâmbulo próprio — o preâmbulo já pertence à norma-mãe.
+  if (!config.noPreamble) {
+    units.push({
+      id: `${normId}-preambulo`,
+      parentId: null,
+      kind: 'preambulo',
+      label: 'PREAMBULO',
+      canonicalPath: 'preambulo',
+      heading: null,
+      text: paras[preambleIdx],
+      sortOrder: sortOrder++,
+      status: 'vigente',
+    });
+  }
 
   // Estado corrente (containers já são tracked via stack; demais são "currentArticle").
   const currentArtigo = { id: null, children: null, flatChildren: null };

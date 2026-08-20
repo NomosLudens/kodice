@@ -161,9 +161,24 @@ export function createLegalApiHandler(db, options = {}) {
           ctn1966: 'scripts/download-codigo.mjs',
           eca1990: 'scripts/download-codigo.mjs',
           lgpd2018: 'scripts/download-codigo.mjs',
+          lindb: 'scripts/download-codigo.mjs',
+          lep1984: 'scripts/download-codigo.mjs',
+          ctb1997: 'scripts/download-codigo.mjs',
+          lai2011: 'scripts/download-codigo.mjs',
+          lia1992: 'scripts/download-codigo.mjs',
+          lbi2015: 'scripts/download-codigo.mjs',
+          lmp2006: 'scripts/download-codigo.mjs',
+          eaoab1994: 'scripts/download-codigo.mjs',
+          cpm1969: 'scripts/download-codigo.mjs',
+          cppm1969: 'scripts/download-codigo.mjs',
+          // ADCT não tem URL dedicada; vive dentro do snapshot do CF/88
+          // (já baixado quando o CF/88 foi instalado).
+          'cf88-adct': null,
         };
         const downloader = downloaders[normId];
-        if (downloader) {
+        if (downloader === null && normId === 'cf88-adct') {
+          // ADCT: reusa o snapshot do CF/88, não baixa nada.
+        } else if (downloader) {
           // Baixa snapshot oficial antes de importar (idempotente — reescreve
           // o arquivo com o conteúdo atual; validação posterior do importador
           // detecta mudanças de hash).
@@ -189,6 +204,17 @@ export function createLegalApiHandler(db, options = {}) {
           ctn1966: 'scripts/import-ctn1966.mjs',
           eca1990: 'scripts/import-eca1990.mjs',
           lgpd2018: 'scripts/import-lgpd2018.mjs',
+          'cf88-adct': 'scripts/import-cf88-adct.mjs',
+          lindb: 'scripts/import-lindb.mjs',
+          lep1984: 'scripts/import-lep1984.mjs',
+          ctb1997: 'scripts/import-ctb1997.mjs',
+          lai2011: 'scripts/import-lai2011.mjs',
+          lia1992: 'scripts/import-lia1992.mjs',
+          lbi2015: 'scripts/import-lbi2015.mjs',
+          lmp2006: 'scripts/import-lmp2006.mjs',
+          eaoab1994: 'scripts/import-eaoab1994.mjs',
+          cpm1969: 'scripts/import-cpm1969.mjs',
+          cppm1969: 'scripts/import-cppm1969.mjs',
         };
         const importer = importers[normId];
         if (!importer) { sendJson(res, 501, { error: 'importer_not_implemented', id: normId }); return; }

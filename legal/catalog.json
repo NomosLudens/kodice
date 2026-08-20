@@ -39,7 +39,7 @@
       "year": 1988,
       "sourceFamily": "constituicao",
       "acquisitionMode": "DOWNLOAD",
-      "officialSourceUrl": "https://www.planalto.gov.br/ccivil_03/constituicao/adct.htm",
+      "officialSourceUrl": "https://www.planalto.gov.br/ccivil_03/constituicao/constituicao.htm",
       "urn": "urn:lex:br:federal:ato.disposicoes.constitucionais.transitorias:1988-10-05;1988"
     },
     {
@@ -54,7 +54,8 @@
       "number": "4657",
       "year": 1942,
       "sourceFamily": "lei",
-      "acquisitionMode": "DOWNLOAD"
+      "acquisitionMode": "DOWNLOAD",
+      "officialSourceUrl": "https://www.planalto.gov.br/ccivil_03/decreto-lei/del4657compilado.htm"
     },
     {
       "id": "cc2002",
@@ -179,7 +180,8 @@
       "number": "7210",
       "year": 1984,
       "sourceFamily": "lei",
-      "acquisitionMode": "DOWNLOAD"
+      "acquisitionMode": "DOWNLOAD",
+      "officialSourceUrl": "https://www.planalto.gov.br/ccivil_03/leis/l7210compilado.htm"
     },
     {
       "id": "clt1943",
@@ -226,7 +228,8 @@
       "number": "9503",
       "year": 1997,
       "sourceFamily": "lei",
-      "acquisitionMode": "DOWNLOAD"
+      "acquisitionMode": "DOWNLOAD",
+      "officialSourceUrl": "https://www.planalto.gov.br/ccivil_03/leis/l9503.htm"
     },
     {
       "id": "eca1990",
@@ -273,7 +276,8 @@
       "number": "12527",
       "year": 2011,
       "sourceFamily": "lei",
-      "acquisitionMode": "DOWNLOAD"
+      "acquisitionMode": "DOWNLOAD",
+      "officialSourceUrl": "https://www.planalto.gov.br/ccivil_03/_ato2011-2014/2011/lei/l12527.htm"
     },
     {
       "id": "lia1992",
@@ -288,7 +292,8 @@
       "number": "8429",
       "year": 1992,
       "sourceFamily": "lei",
-      "acquisitionMode": "DOWNLOAD"
+      "acquisitionMode": "DOWNLOAD",
+      "officialSourceUrl": "https://www.planalto.gov.br/ccivil_03/leis/l8429.htm"
     },
     {
       "id": "lbi2015",
@@ -304,7 +309,8 @@
       "number": "13146",
       "year": 2015,
       "sourceFamily": "lei",
-      "acquisitionMode": "DOWNLOAD"
+      "acquisitionMode": "DOWNLOAD",
+      "officialSourceUrl": "https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2015/lei/l13146.htm"
     },
     {
       "id": "lmp2006",
@@ -320,7 +326,8 @@
       "number": "11340",
       "year": 2006,
       "sourceFamily": "lei",
-      "acquisitionMode": "DOWNLOAD"
+      "acquisitionMode": "DOWNLOAD",
+      "officialSourceUrl": "https://www.planalto.gov.br/ccivil_03/_ato2004-2006/2006/lei/l11340.htm"
     },
     {
       "id": "eaoab1994",
@@ -336,7 +343,8 @@
       "number": "8906",
       "year": 1994,
       "sourceFamily": "lei",
-      "acquisitionMode": "DOWNLOAD"
+      "acquisitionMode": "DOWNLOAD",
+      "officialSourceUrl": "https://www.planalto.gov.br/ccivil_03/leis/l8906.htm"
     },
     {
       "id": "cpm1969",
@@ -351,7 +359,8 @@
       "number": "1001",
       "year": 1969,
       "sourceFamily": "decreto-lei",
-      "acquisitionMode": "DOWNLOAD"
+      "acquisitionMode": "DOWNLOAD",
+      "officialSourceUrl": "https://www.planalto.gov.br/ccivil_03/decreto-lei/del1001.htm"
     },
     {
       "id": "cppm1969",
@@ -366,7 +375,8 @@
       "number": "1002",
       "year": 1969,
       "sourceFamily": "decreto-lei",
-      "acquisitionMode": "DOWNLOAD"
+      "acquisitionMode": "DOWNLOAD",
+      "officialSourceUrl": "https://www.planalto.gov.br/ccivil_03/decreto-lei/del1002.htm"
     }
   ]
 }

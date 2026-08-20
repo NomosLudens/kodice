@@ -33,6 +33,20 @@ const TARGETS = {
   ctn1966:  { url: 'https://www.planalto.gov.br/ccivil_03/leis/l5172compilado.htm',                   file: 'l5172compilado.htm' },
   eca1990:  { url: 'https://www.planalto.gov.br/ccivil_03/leis/l8069compilado.htm',                   file: 'l8069compilado.htm' },
   lgpd2018: { url: 'https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm',          file: 'l13709.htm' },
+  // Wave 2 — complemento do acervo federal.
+  lindb:    { url: 'https://www.planalto.gov.br/ccivil_03/decreto-lei/del4657compilado.htm',          file: 'del4657compilado.htm' },
+  lep1984:  { url: 'https://www.planalto.gov.br/ccivil_03/leis/l7210compilado.htm',                   file: 'l7210compilado.htm' },
+  ctb1997:  { url: 'https://www.planalto.gov.br/ccivil_03/leis/l9503.htm',                            file: 'l9503.htm' },
+  lai2011:  { url: 'https://www.planalto.gov.br/ccivil_03/_ato2011-2014/2011/lei/l12527.htm',          file: 'l12527.htm' },
+  lia1992:  { url: 'https://www.planalto.gov.br/ccivil_03/leis/l8429.htm',                            file: 'l8429.htm' },
+  lbi2015:  { url: 'https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2015/lei/l13146.htm',          file: 'l13146.htm' },
+  lmp2006:  { url: 'https://www.planalto.gov.br/ccivil_03/_ato2004-2006/2006/lei/l11340.htm',          file: 'l11340.htm' },
+  eaoab1994:{ url: 'https://www.planalto.gov.br/ccivil_03/leis/l8906.htm',                            file: 'l8906.htm' },
+  cpm1969:  { url: 'https://www.planalto.gov.br/ccivil_03/decreto-lei/del1001.htm',                  file: 'del1001.htm' },
+  cppm1969: { url: 'https://www.planalto.gov.br/ccivil_03/decreto-lei/del1002.htm',                  file: 'del1002.htm' },
+  // ADCT não tem URL dedicada em planalto.gov.br — vive dentro do snapshot
+  // do CF/88 (constituicao.htm). Capturado por import-cf88-adct.mjs usando
+  // startMarker + noPreamble. Veja scripts/import-cf88-adct.mjs.
 };
 
 function fail(m){ console.error(m); process.exit(1); }
