@@ -4358,7 +4358,18 @@ async function renderPdfPage(pageNumber){
   const horizontalPadding = parseFloat(viewerStyle.paddingLeft) + parseFloat(viewerStyle.paddingRight);
   const available = viewer.clientWidth - horizontalPadding;
   if(viewer.clientWidth <= 0 || available <= 0 || base.width <= 0) throw pdfError('PDF_CANVAS_LIMIT_EXCEEDED', 'A área de leitura do PDF não possui largura válida.');
-  const cssScale = Math.min(2.2, available / base.width);
+  const reader = $('#reader');
+  const readerStyle = getComputedStyle(reader);
+  const readerVerticalPadding = parseFloat(readerStyle.paddingTop) + parseFloat(readerStyle.paddingBottom);
+  const viewerVerticalPadding = parseFloat(viewerStyle.paddingTop) + parseFloat(viewerStyle.paddingBottom);
+  const controlsHeight = controls.getBoundingClientRect().height;
+  const viewerGap = parseFloat(viewerStyle.rowGap || viewerStyle.gap) || 0;
+  const availableHeight = reader.clientHeight - readerVerticalPadding - viewerVerticalPadding - controlsHeight - viewerGap;
+  // FIT_MODE=CONTAIN: a página PDF must fit both useful viewport dimensions.
+  // Width-only scaling made portrait pages grow beyond the visible viewport.
+  const widthScale = available / base.width;
+  const heightScale = availableHeight > 0 ? availableHeight / base.height : widthScale;
+  const cssScale = Math.min(2.2, widthScale, heightScale);
   const viewport = page.getViewport({ scale: cssScale });
   const outputScale = calculatePdfOutputScale(viewport.width, viewport.height);
   const canvas = document.createElement('canvas');
