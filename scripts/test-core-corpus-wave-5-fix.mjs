@@ -10,7 +10,7 @@
  *   - desarm2003 instalado com SHA-256 do PDF verificado
  *   - Art. 12, 14, 16 retornam o texto do PDF
  *   - Art. 7-A e Art. 11-A (com sufixo de letra) também
- *   - download endpoint é idempotente
+ *   - reinstalação usa o snapshot arquivado local e é idempotente
  *   - texto recuperado é do PDF (artefatos da reconstrução são
  *     preservados fielmente — sem invenção de conteúdo)
  *   - as 50 normas anteriores continuam funcionando

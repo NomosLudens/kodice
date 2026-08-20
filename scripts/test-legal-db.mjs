@@ -30,10 +30,11 @@ try {
   // 1. Prova de materialização inicial
   await test('CORPUS_TO_SQLITE: materializa corpus legal no SQLite', async () => {
     const { results } = await buildLegalDatabase(testDbPath);
-    assert(results.length === 1, 'Esperado 1 norma materializada');
-    assert(results[0].normId === 'cpc2015', 'Norma materializada deve ser cpc2015');
-    assert(results[0].unitCount === 4199, 'unitCount deve ser 4199');
-    assert(results[0].articleCount === 1075, 'articleCount deve ser 1075');
+    assert(results.length === 61, `Esperadas 61 normas materializadas, obtidas ${results.length}`);
+    const cpc = results.find((result) => result.normId === 'cpc2015');
+    assert(cpc, 'CPC2015 deve estar materializado');
+    assert(cpc.unitCount === 4199, 'unitCount do CPC2015 deve ser 4199');
+    assert(cpc.articleCount === 1075, 'articleCount do CPC2015 deve ser 1075');
   });
 
   // 2. Prova de integridade relacional e contagens
