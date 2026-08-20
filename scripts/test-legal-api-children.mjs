@@ -19,7 +19,9 @@ try {
   const r1 = await fetch(`${base}/api/legal/norms`);
   check(r1.status === 200, `GET /api/legal/norms status: ${r1.status}`);
   const norms = await r1.json();
-  check(Array.isArray(norms) && norms.length === 1 && norms[0].id === 'cpc2015', `Lista normas ok, got: ${JSON.stringify(norms)}`);
+  // O corpus cresceu: cf88 + cpc2015 + 8 códigos federais (CC/CP/CPP/CDC/CLT/CTN/ECA/LGPD).
+  // Esta assertion é apenas sobre cpc2015 estar disponível.
+  check(Array.isArray(norms) && norms.length >= 1 && norms.some(n => n.id === 'cpc2015'), `Lista normas inclui cpc2015 (got ${norms.length} norms)`);
 
   // Filhos da raiz
   const r2 = await fetch(`${base}/api/legal/norms/cpc2015/children`);

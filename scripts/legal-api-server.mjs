@@ -147,10 +147,48 @@ export function createLegalApiHandler(db, options = {}) {
         const exists = db.prepare('SELECT id FROM legal_norms WHERE id = ?').get(normId);
         if (exists) { sendJson(res, 200, { ok: true, alreadyInstalled: true, id: normId }); return; }
 
-        // Mapeia normId → importer. Apenas cf88 e cpc2015 estão implementados.
+        // Mapeia normId → importer. Apenas norms com importer escrito estão
+        // habilitados. cf88 e cpc2015 têm parsers específicos; os 8 códigos
+        // federais (CC, CP, CPP, CDC, CLT, CTN, ECA, LGPD) usam o parser
+        // genérico `import-planalto-codigo.mjs` via scripts/<id>.mjs.
+        const downloaders = {
+          cf88: 'scripts/download-cf88.mjs',
+          cc2002: 'scripts/download-codigo.mjs',
+          cp1940: 'scripts/download-codigo.mjs',
+          cpp1941: 'scripts/download-codigo.mjs',
+          cdc1990: 'scripts/download-codigo.mjs',
+          clt1943: 'scripts/download-codigo.mjs',
+          ctn1966: 'scripts/download-codigo.mjs',
+          eca1990: 'scripts/download-codigo.mjs',
+          lgpd2018: 'scripts/download-codigo.mjs',
+        };
+        const downloader = downloaders[normId];
+        if (downloader) {
+          // Baixa snapshot oficial antes de importar (idempotente — reescreve
+          // o arquivo com o conteúdo atual; validação posterior do importador
+          // detecta mudanças de hash).
+          const dlProc = spawnSync('node', [downloader, normId], {
+            cwd,
+            env: { ...process.env, KODICE_LEGAL_DB: path.resolve(cwd, 'legal.db') },
+            encoding: 'utf8',
+            timeout: 5 * 60 * 1000,
+          });
+          if (dlProc.status !== 0) {
+            sendJson(res, 500, { error: 'download_failed', id: normId, stderr: dlProc.stderr, stdout: dlProc.stdout });
+            return;
+          }
+        }
         const importers = {
           cpc2015: 'scripts/import-cpc2015.mjs',
-          cf88: 'scripts/import-cf88.mjs'
+          cf88: 'scripts/import-cf88.mjs',
+          cc2002: 'scripts/import-cc2002.mjs',
+          cp1940: 'scripts/import-cp1940.mjs',
+          cpp1941: 'scripts/import-cpp1941.mjs',
+          cdc1990: 'scripts/import-cdc1990.mjs',
+          clt1943: 'scripts/import-clt1943.mjs',
+          ctn1966: 'scripts/import-ctn1966.mjs',
+          eca1990: 'scripts/import-eca1990.mjs',
+          lgpd2018: 'scripts/import-lgpd2018.mjs',
         };
         const importer = importers[normId];
         if (!importer) { sendJson(res, 501, { error: 'importer_not_implemented', id: normId }); return; }

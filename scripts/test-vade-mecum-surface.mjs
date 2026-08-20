@@ -114,8 +114,16 @@ try {
   const normTitles = await page.evaluate(() => {
     return Array.from(document.querySelectorAll('#legal-norms-list .vade-norm-row')).map(c => c.textContent);
   });
-  const cpcOrCf = normTitles.some(t => /Processo Civil|CPC/.test(t)) || normTitles.some(t => /Constitui\u00e7\u00e3o|CF/.test(t));
-  check(cpcOrCf, `Card de norma real retornado pela API: ${normTitles.length} normas`);
+  // Pina o teste em CPC/2015 explicitamente — antes havia 1-2 normas; agora há 10.
+  // O restante do teste asssertiona em "Art. 300" do CPC (texto "tutela de urgência").
+  const cpcIndex = normTitles.findIndex(t => /Processo Civil|CPC/.test(t));
+  check(cpcIndex >= 0, `Card CPC/2015 presente: ${normTitles.length} normas listadas`);
+  // Clica na linha do CPC se ainda não estiver aberta
+  await page.evaluate((idx) => {
+    const rows = document.querySelectorAll('#legal-norms-list .vade-norm-row');
+    const cpcRow = rows[idx];
+    if (cpcRow && !cpcRow.classList.contains('open')) cpcRow.click();
+  }, cpcIndex);
 
   // 3. Abre o tray temporário de busca (🔍) e busca determinística por "300"
   await page.evaluate(() => {
