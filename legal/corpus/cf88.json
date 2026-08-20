@@ -19,7 +19,7 @@
   "officialSourceUrl": "https://www.planalto.gov.br/ccivil_03/constituicao/constituicao.htm",
   "sourceFile": "legal/sources/cf88/constituicao.htm",
   "sourceHash": "9bfea6c8858f713c9b74584f314483461aa00569d7140dd6c23439113dba1d8c",
-  "lastVerifiedAt": "2026-08-20T00:00:43.946Z",
+  "lastVerifiedAt": "2026-08-20T00:19:50.701Z",
   "acquisition": {
     "normId": "cf88",
     "sourceFile": "legal/sources/cf88/constituicao.htm",
@@ -28,7 +28,7 @@
     "articleCount": 275,
     "firstCanonicalPath": "preambulo",
     "lastCanonicalPath": "art250",
-    "verifiedAt": "2026-08-20T00:00:43.946Z",
+    "verifiedAt": "2026-08-20T00:19:50.701Z",
     "complete": true
   },
   "units": [

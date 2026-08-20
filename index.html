@@ -2622,13 +2622,15 @@ function wireCatalogSearchResult(catalogResolution) {
 
   const normId = item.dataset.normId;
   const article = item.dataset.article;
-  const input = $('#legal-search-input');
-  if (input) input.value = '';
-  closeLegalSearch();
+  // NÃO limpar input nem fechar popover aqui — o popover precisa
+  // permanecer visível com o card até o usuário clicar em Abrir/Baixar.
 
   if (openBtn) {
     openBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
+      const input = $('#legal-search-input');
+      if (input) input.value = '';
+      closeLegalSearch();
       if (legalState.activeNormId !== normId || !legalState.units || legalState.units.length === 0) {
         await openLegalNorm(normId);
       }
@@ -2638,11 +2640,17 @@ function wireCatalogSearchResult(catalogResolution) {
   if (downloadBtn) {
     downloadBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
+      const input = $('#legal-search-input');
+      if (input) input.value = '';
+      closeLegalSearch();
       await downloadAndOpenNorm(normId, article);
     });
   }
   // Click no card também aciona o botão visível
   item.addEventListener('click', async () => {
+    const input = $('#legal-search-input');
+    if (input) input.value = '';
+    closeLegalSearch();
     if (catalogResolution.installed) {
       if (legalState.activeNormId !== normId || !legalState.units || legalState.units.length === 0) {
         await openLegalNorm(normId);
