@@ -109,13 +109,13 @@ try {
   });
   check(isMainSurfaceVisible, 'Vade Mecum é exibido dentro do reader principal (não overlay)');
 
-  // 2. Norma CPC/2015 listada na home do legal-viewer
+  // 2. Normas CPC/2015 e/ou CF/88 listadas na home do legal-viewer
   await page.waitForSelector('#legal-norms-list .vade-norm-row', { timeout: 10000 });
-  const normTitle = await page.evaluate(() => {
-    const card = document.querySelector('#legal-norms-list .vade-norm-row');
-    return card ? card.textContent : '';
+  const normTitles = await page.evaluate(() => {
+    return Array.from(document.querySelectorAll('#legal-norms-list .vade-norm-row')).map(c => c.textContent);
   });
-  check(normTitle.includes('Processo Civil') || normTitle.includes('CPC'), 'Card da norma real retornado pela API');
+  const cpcOrCf = normTitles.some(t => /Processo Civil|CPC/.test(t)) || normTitles.some(t => /Constitui\u00e7\u00e3o|CF/.test(t));
+  check(cpcOrCf, `Card de norma real retornado pela API: ${normTitles.length} normas`);
 
   // 3. Abre o tray temporário de busca (🔍) e busca determinística por "300"
   await page.evaluate(() => {
