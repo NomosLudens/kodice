@@ -1,0 +1,43 @@
+name: ci
+
+on:
+  push:
+    branches: [master, feat/**, fix/**, chore/**, release/**]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build & gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Build + run all bundled gates
+        run: bun run build
+
+      - name: Rebuild legal corpus from scratch
+        env:
+          KODICE_LEGAL_DB: ./legal.db.ci
+        run: |
+          rm -f ./legal.db.ci ./legal.db.ci-shm ./legal.db.ci-wal
+          bun run legal:build:db
+
+      - name: Verify legal corpus integrity
+        run: bun run verify:legal
+
+      - name: Verify product boundaries
+        run: bun run verify:boundaries
+
+      - name: Verify PWA assets
+        run: bun run verify:pwa
