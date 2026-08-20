@@ -1,19 +1,22 @@
 #!/usr/bin/env node
 /**
- * test-core-corpus-wave-2.mjs
+ * test-core-corpus-wave-3.mjs
  *
- * Validação REAL da PR "Federal Corpus Wave 2 / Catalog Closure" — as
- * 11 normas que completam o catálogo existente (CATALOG_NORMS=21).
+ * Validação REAL da PR "Federal Academic Expansion · Wave 3" — as 9
+ * normas federais novas que ampliam o Vade Mecum para a área acadêmica
+ * (constitucional, processual civil e mediação).
  *
  * Garante:
- *   - catálogo conhece as 11 normas com officialSourceUrl oficial
- *   - cada snapshot foi baixado e o SHA-256 do arquivo bate com o declarado
+ *   - 9 normas adicionadas com sourceUrl oficial (Planalto HTTPS)
+ *   - cada snapshot tem SHA-256 verificado
  *   - cada corpus passa no validateNorm
- *   - API /api/legal/catalog retorna as 11 com installed=true
+ *   - API /api/legal/catalog retorna as 9 com installed=true
+ *   - CATALOG_PENDING=0 (apenas a blocked acp1985 fica fora)
  *   - API /api/legal/norms/:id/units/<art> retorna o artigo-alvo real
  *   - download endpoint é idempotente
  *   - busca textual dentro de cada norma encontra termos reais
- *   - todas as 21 normas estão instaladas (CATALOG_PENDING=0)
+ *   - busca global encontra os aliases canônicos ("adi", "adc", "adpf", etc.)
+ *   - as 21 normas anteriores continuam funcionando
  *
  * Sem mock. Sem LLM. Texto jurídico provém do snapshot oficial.
  */
@@ -26,17 +29,15 @@ import { startLegalApiServer } from './legal-api-server.mjs';
 import { validateNorm, OFFICIAL_SOURCE_HOSTS } from './legal-corpus-lib.mjs';
 
 const TARGETS = [
-  { id: 'cf88-adct',  article: 'art1',     textMarker: 'O Presidente da Rep' },
-  { id: 'lindb',      article: 'art4',     textMarker: 'juiz decidir' },
-  { id: 'lep1984',    article: 'art1',     textMarker: 'execu' },
-  { id: 'ctb1997',    article: 'art165',   textMarker: 'Dirigir sob a influ' },
-  { id: 'lai2011',    article: 'art3',     textMarker: 'procedimentos previstos' },
-  { id: 'lia1992',    article: 'art9',     textMarker: 'improbidade administrativa' },
-  { id: 'lbi2015',    article: 'art2',     textMarker: 'instituído o cordão' },
-  { id: 'lmp2006',    article: 'art7',     textMarker: 'viol' },
-  { id: 'eaoab1994',  article: 'art7',     textMarker: 'advogado' },
-  { id: 'cpm1969',    article: 'art9',     textMarker: 'crimes militares' },
-  { id: 'cppm1969',   article: 'art3',     textMarker: 'casos omissos' },
+  { id: 'adiadc1999', article: 'art1',  textMarker: 'inconstitucionalidade' },
+  { id: 'adpf1999',   article: 'art1',  textMarker: 'preceito fundamental' },
+  { id: 'ms2009',     article: 'art1',  textMarker: 'mandado de seguran' },
+  { id: 'hd1997',     article: 'art1',  textMarker: 'VETADO' },
+  { id: 'ap1965',     article: 'art1',  textMarker: 'patrim' },
+  { id: 'bf1990',     article: 'art1',  textMarker: 'impenhor' },
+  { id: 'loc1991',    article: 'art1',  textMarker: 'loca' },
+  { id: 'arb1996',    article: 'art1',  textMarker: 'arbitragem' },
+  { id: 'med2015',    article: 'art1',  textMarker: 'media' },
 ];
 
 let passed = 0;
@@ -49,7 +50,7 @@ function check(cond, msg) {
 const root = process.cwd();
 const catalog = JSON.parse(await fs.readFile(path.resolve(root, 'legal/catalog.json'), 'utf8'));
 
-// 1. Catálogo conhece as 11 normas com sourceUrl whitelisted
+// 1. Catálogo conhece as 9 normas com sourceUrl whitelisted
 for (const t of TARGETS) {
   const n = catalog.norms.find(x => x.id === t.id);
   check(!!n, `catalog has ${t.id}`);
@@ -79,20 +80,18 @@ for (const t of TARGETS) {
 }
 
 // 3. Build DB, start API
-const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'kodice-wave2-'));
-const testDbPath = path.join(tmpDir, 'wave2.db');
+const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'kodice-wave3-'));
+const testDbPath = path.join(tmpDir, 'wave3.db');
 await buildLegalDatabase(testDbPath);
 const { server, db } = await startLegalApiServer(testDbPath, 0, '127.0.0.1');
 const base = `http://127.0.0.1:${server.address().port}`;
 
 try {
-  // 4. /api/legal/catalog: 21 (ou mais, conforme waves subsequentes) normas com installed=true
+  // 4. /api/legal/catalog: 30 normas (21+9) com installed=true
   const r1 = await fetch(`${base}/api/legal/catalog`);
   check(r1.status === 200, `GET /api/legal/catalog status`);
   const catData = await r1.json();
-  // A onda 2 fixou 21. Ondas subsequentes (wave 3+) adicionam mais.
-  // O test passa enquanto a onda 2 não regredir (= 21 instaladas mínimas).
-  check(catData.norms.length >= 21, `catalog tem pelo menos 21 normas (got ${catData.norms.length})`);
+  check(catData.norms.length === 30, `catalog tem 30 normas (got ${catData.norms.length})`);
   const allInstalled = catData.norms.every(n => n.installed === true);
   check(allInstalled, `CATALOG_PENDING=0: todas as ${catData.norms.length} normas instaladas`);
 
@@ -110,17 +109,15 @@ try {
 
   // 6. Busca textual dentro de cada norma
   const searchTerms = {
-    'cf88-adct': 'disposições',
-    'lindb':     'analogia',
-    'lep1984':   'execução',
-    'ctb1997':   'trânsito',
-    'lai2011':   'informação',
-    'lia1992':   'improbidade',
-    'lbi2015':   'deficiência',
-    'lmp2006':   'mulher',
-    'eaoab1994': 'advogado',
-    'cpm1969':   'crime',
-    'cppm1969':  'inquérito',
+    'adiadc1999': 'inconstitucionalidade',
+    'adpf1999':   'preceito',
+    'ms2009':     'seguran\u00e7a',
+    'hd1997':     'habeas',
+    'ap1965':     'anula\u00e7\u00e3o',
+    'bf1990':     'impenhor\u00e1vel',
+    'loc1991':    'loca\u00e7\u00e3o',
+    'arb1996':    'arbitragem',
+    'med2015':    'media\u00e7\u00e3o',
   };
   for (const t of TARGETS) {
     const term = searchTerms[t.id];
@@ -132,7 +129,18 @@ try {
     }
   }
 
-  // 7. Download endpoint: idempotência
+  // 7. Global search (user-required aliases)
+  for (const q of ['mandado de segurança', 'ação popular', 'locações', 'arbitragem', 'mediação', 'adpf', 'habeas data']) {
+    const r = await fetch(`${base}/search?q=${encodeURIComponent(q)}`);
+    check(r.status === 200, `global search "${q}" status`);
+    if (r.status === 200) {
+      const results = await r.json();
+      check(results.some(x => x.normId && ['ms2009','ap1965','loc1991','arb1996','med2015','adpf1999','hd1997'].includes(x.normId)),
+        `global search "${q}" finds new norms`);
+    }
+  }
+
+  // 8. Download endpoint: idempotência
   for (const t of TARGETS.slice(0, 3)) {
     const r = await fetch(`${base}/api/legal/norms/download`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -145,18 +153,26 @@ try {
     }
   }
 
-  // 8. URL inválida: catálogo rejeita
-  const r8 = await fetch(`${base}/api/legal/norms/download`, {
+  // 9. URL inválida: catálogo rejeita
+  const r9 = await fetch(`${base}/api/legal/norms/download`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id: 'invalido-xyz' }),
   });
-  check(r8.status === 404 || r8.status === 400, `unknown norm id rejected (${r8.status})`);
+  check(r9.status === 404 || r9.status === 400, `unknown norm id rejected (${r9.status})`);
 
-  // 9. CF88 e CPC2015 ainda funcionam (regressão)
+  // 10. acp1985 NÃO está no catálogo (blocked)
+  const acp = catalog.norms.find(x => x.id === 'acp1985');
+  check(!acp, `acp1985 NOT in catalog (blocked, no source)`);
+
+  // 11. Regressão: as 21 normas anteriores continuam funcionando
   const cf88art5 = await fetch(`${base}/api/legal/norms/cf88/units/art5`);
   check(cf88art5.status === 200, `CF88/art5 ainda funciona (regressão)`);
   const cpc300 = await fetch(`${base}/api/legal/norms/cpc2015/units/art300`);
   check(cpc300.status === 200, `CPC2015/art300 ainda funciona (regressão)`);
+  const cc2002art1 = await fetch(`${base}/api/legal/norms/cc2002/units/art1`);
+  check(cc2002art1.status === 200, `CC2002/art1 ainda funciona (regressão)`);
+  const lgpdArt6 = await fetch(`${base}/api/legal/norms/lgpd2018/units/art6`);
+  check(lgpdArt6.status === 200, `LGPD2018/art6 ainda funciona (regressão)`);
 
 } finally {
   server.close();

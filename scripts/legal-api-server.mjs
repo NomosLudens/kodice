@@ -171,6 +171,18 @@ export function createLegalApiHandler(db, options = {}) {
           eaoab1994: 'scripts/download-codigo.mjs',
           cpm1969: 'scripts/download-codigo.mjs',
           cppm1969: 'scripts/download-codigo.mjs',
+          // Wave 3 — Federal academic expansion. L7347 (Ação Civil Pública) é
+          // oficialmente indisponível (404 em todas as variações Planalto/Câmara;
+          // 403 em Senado; sem snapshot utilizável). Não está no catálogo.
+          adiadc1999: 'scripts/download-codigo.mjs',
+          adpf1999: 'scripts/download-codigo.mjs',
+          ms2009: 'scripts/download-codigo.mjs',
+          hd1997: 'scripts/download-codigo.mjs',
+          ap1965: 'scripts/download-codigo.mjs',
+          bf1990: 'scripts/download-codigo.mjs',
+          loc1991: 'scripts/download-codigo.mjs',
+          arb1996: 'scripts/download-codigo.mjs',
+          med2015: 'scripts/download-codigo.mjs',
           // ADCT não tem URL dedicada; vive dentro do snapshot do CF/88
           // (já baixado quando o CF/88 foi instalado).
           'cf88-adct': null,
@@ -215,6 +227,15 @@ export function createLegalApiHandler(db, options = {}) {
           eaoab1994: 'scripts/import-eaoab1994.mjs',
           cpm1969: 'scripts/import-cpm1969.mjs',
           cppm1969: 'scripts/import-cppm1969.mjs',
+          adiadc1999: 'scripts/import-adiadc1999.mjs',
+          adpf1999: 'scripts/import-adpf1999.mjs',
+          ms2009: 'scripts/import-ms2009.mjs',
+          hd1997: 'scripts/import-hd1997.mjs',
+          ap1965: 'scripts/import-ap1965.mjs',
+          bf1990: 'scripts/import-bf1990.mjs',
+          loc1991: 'scripts/import-loc1991.mjs',
+          arb1996: 'scripts/import-arb1996.mjs',
+          med2015: 'scripts/import-med2015.mjs',
         };
         const importer = importers[normId];
         if (!importer) { sendJson(res, 501, { error: 'importer_not_implemented', id: normId }); return; }

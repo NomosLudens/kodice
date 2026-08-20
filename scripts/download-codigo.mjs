@@ -47,6 +47,23 @@ const TARGETS = {
   // ADCT não tem URL dedicada em planalto.gov.br — vive dentro do snapshot
   // do CF/88 (constituicao.htm). Capturado por import-cf88-adct.mjs usando
   // startMarker + noPreamble. Veja scripts/import-cf88-adct.mjs.
+  // Wave 3 — Federal academic expansion.
+  // L7347 (Ação Civil Pública) está oficialmente indisponível: 404 em todas
+  // as variações Planalto (ccivil_03/leis/l7347.htm, _Ato1985-1988/lei/L7347.htm,
+  // leis_ant/lei7347.htm); 404 em Câmara (todas variações); 403 em Senado
+  // sileg; 404 também em Wayback Machine (Planalto nunca serviu a URL).
+  // A Lei 7.347/85 foi removida do repositório público do Planalto sem
+  // redirecionamento oficial. NORM=acp1985 STATUS=BLOCKED. Nenhuma
+  // substituição por JusBrasil/blogs/IA foi feita.
+  adiadc1999: { url: 'https://www.planalto.gov.br/ccivil_03/leis/l9868.htm',                          file: 'l9868.htm' },
+  adpf1999:   { url: 'https://www.planalto.gov.br/ccivil_03/leis/l9882.htm',                          file: 'l9882.htm' },
+  ms2009:     { url: 'https://www.planalto.gov.br/ccivil_03/_ato2007-2010/2009/lei/l12016.htm',         file: 'l12016.htm' },
+  hd1997:     { url: 'https://www.planalto.gov.br/ccivil_03/leis/l9507.htm',                           file: 'l9507.htm' },
+  ap1965:     { url: 'https://www.planalto.gov.br/ccivil_03/leis/l4717.htm',                           file: 'l4717.htm' },
+  bf1990:     { url: 'https://www.planalto.gov.br/ccivil_03/leis/l8009.htm',                           file: 'l8009.htm' },
+  loc1991:    { url: 'https://www.planalto.gov.br/ccivil_03/leis/l8245compilado.htm',                 file: 'l8245compilado.htm' },
+  arb1996:    { url: 'https://www.planalto.gov.br/ccivil_03/leis/l9307.htm',                           file: 'l9307.htm' },
+  med2015:    { url: 'https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2015/lei/l13140.htm',         file: 'l13140.htm' },
 };
 
 function fail(m){ console.error(m); process.exit(1); }
