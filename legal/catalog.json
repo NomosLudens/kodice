@@ -837,6 +837,208 @@
       "versionDate": "1990-12-11",
       "officialSourceUrl": "https://www.planalto.gov.br/ccivil_03/leis/l8112compilado.htm",
       "acquisitionMode": "DOWNLOAD"
+    },
+    {
+      "id": "drogas2006",
+      "title": "Lei de Drogas",
+      "urn": "urn:lex:br:federal:lei:2006-08-23;11343",
+      "type": "lei",
+      "year": 2006,
+      "number": "11343",
+      "popularName": "DROGAS",
+      "aliases": [
+        "DROGAS",
+        "drogas",
+        "Lei de Drogas",
+        "Lei 11343",
+        "Lei 11.343",
+        "Tráfico de Drogas",
+        "Entorpecentes"
+      ],
+      "ementa": "Institui o Sistema Nacional de Políticas Públicas sobre Drogas - SISNAD; prescreve medidas para prevenção do uso indevido, atenção e reinserção social de usuários e dependentes de drogas; estabelece normas para repressão da produção não autorizada e do tráfico ilícito de drogas; define crimes e dá outras providências.",
+      "status": "vigente",
+      "publicationDate": "2006-08-24",
+      "versionDate": "2006-08-23",
+      "officialSourceUrl": "https://www.planalto.gov.br/ccivil_03/_ato2004-2006/2006/lei/l11343.htm",
+      "acquisitionMode": "DOWNLOAD"
+    },
+    {
+      "id": "hediondos1990",
+      "title": "Lei dos Crimes Hediondos",
+      "urn": "urn:lex:br:federal:lei:1990-07-25;8072",
+      "type": "lei",
+      "year": 1990,
+      "number": "8072",
+      "popularName": "HEDIONDOS",
+      "aliases": [
+        "HEDIONDOS",
+        "hediondos",
+        "Crimes Hediondos",
+        "Lei 8072",
+        "Lei 8.072",
+        "Hediondo"
+      ],
+      "ementa": "Dispõe sobre os crimes hediondos, nos termos do art. 5º, inciso XLIII, da Constituição Federal, e determina outras providências.",
+      "status": "vigente",
+      "publicationDate": "1990-07-26",
+      "versionDate": "1990-07-25",
+      "officialSourceUrl": "https://www.planalto.gov.br/ccivil_03/leis/l8072.htm",
+      "acquisitionMode": "DOWNLOAD"
+    },
+    {
+      "id": "orcrim2013",
+      "title": "Lei das Organizações Criminosas",
+      "urn": "urn:lex:br:federal:lei:2013-08-02;12850",
+      "type": "lei",
+      "year": 2013,
+      "number": "12850",
+      "popularName": "ORCRIM",
+      "aliases": [
+        "ORCRIM",
+        "orcrim",
+        "Organização Criminosa",
+        "Organizações Criminosas",
+        "Lei 12850",
+        "Lei 12.850"
+      ],
+      "ementa": "Define organização criminosa e dispõe sobre a investigação criminal, os meios de obtenção da prova, infrações penais correlatas e o procedimento criminal a ser aplicado.",
+      "status": "vigente",
+      "publicationDate": "2013-08-05",
+      "versionDate": "2013-08-02",
+      "officialSourceUrl": "https://www.planalto.gov.br/ccivil_03/_ato2011-2014/2013/lei/l12850.htm",
+      "acquisitionMode": "DOWNLOAD"
+    },
+    {
+      "id": "lavagem1998",
+      "title": "Lei de Lavagem de Dinheiro",
+      "urn": "urn:lex:br:federal:lei:1998-03-03;9613",
+      "type": "lei",
+      "year": 1998,
+      "number": "9613",
+      "popularName": "LAVAGEM",
+      "aliases": [
+        "LAVAGEM",
+        "lavagem",
+        "Lavagem de Dinheiro",
+        "Lei 9613",
+        "Lei 9.613"
+      ],
+      "ementa": "Dispõe sobre os crimes de \"lavagem\" ou ocultação de bens, direitos e valores; a prevenção da utilização do sistema financeiro para os ilícitos previstos nesta Lei; cria o Conselho de Controle de Atividades Financeiras - COAF, e dá outras providências.",
+      "status": "vigente",
+      "publicationDate": "1998-03-04",
+      "versionDate": "1998-03-03",
+      "officialSourceUrl": "https://www.planalto.gov.br/ccivil_03/leis/l9613.htm",
+      "acquisitionMode": "DOWNLOAD"
+    },
+    {
+      "id": "intercept1996",
+      "title": "Lei da Interceptação Telefônica",
+      "urn": "urn:lex:br:federal:lei:1996-07-24;9296",
+      "type": "lei",
+      "year": 1996,
+      "number": "9296",
+      "popularName": "INTERCEPT",
+      "aliases": [
+        "INTERCEPT",
+        "intercept",
+        "Interceptação Telefônica",
+        "Lei 9296",
+        "Lei 9.296"
+      ],
+      "ementa": "Regula a interceptação das comunicações telefônicas, de qualquer natureza, para fins de investigação criminal ou instrução processual penal.",
+      "status": "vigente",
+      "publicationDate": "1996-07-25",
+      "versionDate": "1996-07-24",
+      "officialSourceUrl": "https://www.planalto.gov.br/ccivil_03/leis/l9296.htm",
+      "acquisitionMode": "DOWNLOAD"
+    },
+    {
+      "id": "abuso2019",
+      "title": "Lei de Abuso de Autoridade",
+      "urn": "urn:lex:br:federal:lei:2019-09-05;13869",
+      "type": "lei",
+      "year": 2019,
+      "number": "13869",
+      "popularName": "ABUSO",
+      "aliases": [
+        "ABUSO",
+        "abuso",
+        "Abuso de Autoridade",
+        "Lei 13869",
+        "Lei 13.869"
+      ],
+      "ementa": "Dispõe sobre os crimes de abuso de autoridade; altera a Lei nº 7.960, de 21 de dezembro de 1989, a Lei nº 9.296, de 24 de julho de 1996, a Lei nº 8.069, de 13 de julho de 1990 (Estatuto da Criança e do Adolescente), a Lei nº 10.741, de 1º de outubro de 2003 (Estatuto do Idoso), a Lei nº 13.105, de 16 de março de 2015 (Código de Processo Civil), e o Decreto-Lei nº 2.848, de 7 de dezembro de 1940 (Código Penal); e revoga dispositivo da Lei nº 4.898, de 9 de dezembro de 1965.",
+      "status": "vigente",
+      "publicationDate": "2019-09-05",
+      "versionDate": "2019-09-05",
+      "officialSourceUrl": "https://www.planalto.gov.br/ccivil_03/_ato2019-2022/2019/lei/l13869.htm",
+      "acquisitionMode": "DOWNLOAD"
+    },
+    {
+      "id": "pt1989",
+      "title": "Lei da Prisão Temporária",
+      "urn": "urn:lex:br:federal:lei:1989-12-21;7960",
+      "type": "lei",
+      "year": 1989,
+      "number": "7960",
+      "popularName": "PT",
+      "aliases": [
+        "PT",
+        "pt",
+        "Prisão Temporária",
+        "Lei 7960",
+        "Lei 7.960"
+      ],
+      "ementa": "Dispõe sobre a prisão temporária de suspeitos e acusados de prática de crimes hediondos ou equiparados.",
+      "status": "vigente",
+      "publicationDate": "1989-12-22",
+      "versionDate": "1989-12-21",
+      "officialSourceUrl": "https://www.planalto.gov.br/ccivil_03/leis/l7960.htm",
+      "acquisitionMode": "DOWNLOAD"
+    },
+    {
+      "id": "tortura1997",
+      "title": "Lei de Tortura",
+      "urn": "urn:lex:br:federal:lei:1997-04-07;9455",
+      "type": "lei",
+      "year": 1997,
+      "number": "9455",
+      "popularName": "TORTURA",
+      "aliases": [
+        "TORTURA",
+        "tortura",
+        "Lei de Tortura",
+        "Lei 9455",
+        "Lei 9.455"
+      ],
+      "ementa": "Define os crimes de tortura e dá outras providências.",
+      "status": "vigente",
+      "publicationDate": "1997-04-08",
+      "versionDate": "1997-04-07",
+      "officialSourceUrl": "https://www.planalto.gov.br/ccivil_03/leis/l9455.htm",
+      "acquisitionMode": "DOWNLOAD"
+    },
+    {
+      "id": "idcriminal2009",
+      "title": "Lei da Identificação Criminal",
+      "urn": "urn:lex:br:federal:lei:2009-08-11;12037",
+      "type": "lei",
+      "year": 2009,
+      "number": "12037",
+      "popularName": "IDCRIMINAL",
+      "aliases": [
+        "IDCRIMINAL",
+        "idcriminal",
+        "Identificação Criminal",
+        "Lei 12037",
+        "Lei 12.037"
+      ],
+      "ementa": "Dispõe sobre a identificação criminal do civilmente identificado, regulamentando o art. 5º, inciso LVIII, da Constituição Federal.",
+      "status": "vigente",
+      "publicationDate": "2009-08-12",
+      "versionDate": "2009-08-11",
+      "officialSourceUrl": "https://www.planalto.gov.br/ccivil_03/_ato2007-2010/2009/lei/l12037.htm",
+      "acquisitionMode": "DOWNLOAD"
     }
   ]
 }

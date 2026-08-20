@@ -103,7 +103,8 @@ try {
   const r1 = await fetch(`${base}/api/legal/catalog`);
   check(r1.status === 200, `GET /api/legal/catalog status`);
   const catData = await r1.json();
-  check(catData.norms.length === 41, `catalog tem 41 normas (got ${catData.norms.length})`);
+  check(catData.norms.length >= 41, `catalog tem pelo menos 41 normas (got ${catData.norms.length})`);
+  // Wave 5 adicionou mais. A onda 4 continua íntegra.
   const allInstalled = catData.norms.every(n => n.installed === true);
   check(allInstalled, `CATALOG_PENDING=0: todas as 41 normas instaladas`);
 

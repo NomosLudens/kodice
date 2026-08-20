@@ -93,6 +93,7 @@ try {
   // A onda 2 fixou 21. Ondas subsequentes (wave 3+) adicionam mais.
   // O test passa enquanto a onda 2 não regredir (= 21 instaladas mínimas).
   check(catData.norms.length >= 21, `catalog tem pelo menos 21 normas (got ${catData.norms.length})`);
+  // Wave 4 e 5 adicionaram mais. A onda 2 continua íntegra.
   // Wave 4 não deve regredir wave 2 (corpus da onda 2 continua presente).
   // Já que o build só adiciona e nunca deleta, >= 21 é suficiente.
   const allInstalled = catData.norms.every(n => n.installed === true);

@@ -76,6 +76,24 @@ const TARGETS = {
   lrf2000:        { url: 'https://www.planalto.gov.br/ccivil_03/leis/lcp/lcp101.htm',                   file: 'lcp101.htm' },
   anticorrup2013: { url: 'https://www.planalto.gov.br/ccivil_03/_ato2011-2014/2013/lei/l12846.htm',      file: 'l12846.htm' },
   rju1990:        { url: 'https://www.planalto.gov.br/ccivil_03/leis/l8112compilado.htm',              file: 'l8112compilado.htm' },
+  // Wave 5 — Special Criminal Law core.
+  // desarm2003 (L10826 — Estatuto do Desarmamento) está oficialmente
+  // indisponível em fontes primárias: 301→404 em todas as variações
+  // Planalto (ccivil_03/_Ato2003-2003/2003/Lei/l10826.htm,
+  // leis/LEIS_2003/l10826.htm, leis_2003/l10826.htm); 404 em todas as
+  // variações Câmara (Câmara ID 490580 e 538377); Senado SPA sem
+  // texto extraível; normas.leg.br JS-only; LexML URN resolve mas
+  // aponta para Câmara 404. NORM=desarm2003 STATUS=BLOCKED.
+  // Nenhuma substituição por JusBrasil, blogs ou IA foi feita.
+  drogas2006:    { url: 'https://www.planalto.gov.br/ccivil_03/_ato2004-2006/2006/lei/l11343.htm',    file: 'l11343.htm' },
+  hediondos1990: { url: 'https://www.planalto.gov.br/ccivil_03/leis/l8072.htm',                     file: 'l8072.htm' },
+  orcrim2013:     { url: 'https://www.planalto.gov.br/ccivil_03/_ato2011-2014/2013/lei/l12850.htm',     file: 'l12850.htm' },
+  lavagem1998:   { url: 'https://www.planalto.gov.br/ccivil_03/leis/l9613.htm',                      file: 'l9613.htm' },
+  intercept1996:  { url: 'https://www.planalto.gov.br/ccivil_03/leis/l9296.htm',                      file: 'l9296.htm' },
+  abuso2019:     { url: 'https://www.planalto.gov.br/ccivil_03/_ato2019-2022/2019/lei/l13869.htm',    file: 'l13869.htm' },
+  pt1989:         { url: 'https://www.planalto.gov.br/ccivil_03/leis/l7960.htm',                     file: 'l7960.htm' },
+  tortura1997:   { url: 'https://www.planalto.gov.br/ccivil_03/leis/l9455.htm',                      file: 'l9455.htm' },
+  idcriminal2009: { url: 'https://www.planalto.gov.br/ccivil_03/_ato2007-2010/2009/lei/l12037.htm',   file: 'l12037.htm' },
 };
 
 function fail(m){ console.error(m); process.exit(1); }

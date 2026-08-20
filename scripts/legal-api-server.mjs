@@ -197,6 +197,19 @@ export function createLegalApiHandler(db, options = {}) {
           lrf2000: 'scripts/download-codigo.mjs',
           anticorrup2013: 'scripts/download-codigo.mjs',
           rju1990: 'scripts/download-codigo.mjs',
+          // Wave 5 — Special Criminal Law core.
+          // desarm2003 (L10826) está oficialmente indisponível (301→404 em
+          // todas as variações Planalto, 404 em todas as variações Câmara,
+          // Senado SPA, normas.leg.br JS-only). NORM=desarm2003 STATUS=BLOCKED.
+          drogas2006: 'scripts/download-codigo.mjs',
+          hediondos1990: 'scripts/download-codigo.mjs',
+          orcrim2013: 'scripts/download-codigo.mjs',
+          lavagem1998: 'scripts/download-codigo.mjs',
+          intercept1996: 'scripts/download-codigo.mjs',
+          abuso2019: 'scripts/download-codigo.mjs',
+          pt1989: 'scripts/download-codigo.mjs',
+          tortura1997: 'scripts/download-codigo.mjs',
+          idcriminal2009: 'scripts/download-codigo.mjs',
           // ADCT não tem URL dedicada; vive dentro do snapshot do CF/88
           // (já baixado quando o CF/88 foi instalado).
           'cf88-adct': null,
@@ -261,6 +274,15 @@ export function createLegalApiHandler(db, options = {}) {
           lrf2000: 'scripts/import-lrf2000.mjs',
           anticorrup2013: 'scripts/import-anticorrup2013.mjs',
           rju1990: 'scripts/import-rju1990.mjs',
+          drogas2006: 'scripts/import-drogas2006.mjs',
+          hediondos1990: 'scripts/import-hediondos1990.mjs',
+          orcrim2013: 'scripts/import-orcrim2013.mjs',
+          lavagem1998: 'scripts/import-lavagem1998.mjs',
+          intercept1996: 'scripts/import-intercept1996.mjs',
+          abuso2019: 'scripts/import-abuso2019.mjs',
+          pt1989: 'scripts/import-pt1989.mjs',
+          tortura1997: 'scripts/import-tortura1997.mjs',
+          idcriminal2009: 'scripts/import-idcriminal2009.mjs',
         };
         const importer = importers[normId];
         if (!importer) { sendJson(res, 501, { error: 'importer_not_implemented', id: normId }); return; }
