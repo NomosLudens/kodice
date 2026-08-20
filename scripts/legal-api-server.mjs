@@ -2,6 +2,8 @@
 import http from 'node:http';
 import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
+import { promises as fs } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 
 /**
  * scripts/legal-api-server.mjs
@@ -12,6 +14,9 @@ import path from 'node:path';
 
 export function createLegalApiHandler(db, options = {}) {
   const allowedOrigins = options.allowedOrigins || ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5273', 'http://127.0.0.1:5273', 'https://mini.taildb6c11.ts.net', 'https://kodice.nomosludens.ia.br'];
+  const catalogPath = options.catalogPath || path.resolve(process.cwd(), 'legal/catalog.json');
+  const corpusPath = options.corpusPath || path.resolve(process.cwd(), 'legal/corpus');
+  const sourcesPath = options.sourcesPath || path.resolve(process.cwd(), 'legal/sources');
 
   const getNormStmt = db.prepare(`
     SELECT n.*, v.id as version_id, v.version_date, v.source_hash
@@ -34,7 +39,12 @@ export function createLegalApiHandler(db, options = {}) {
     ORDER BY n.id
   `);
 
-  return (req, res) => {
+  return async (req, res) => {
+    function sendJson(r, status, payload) {
+      r.statusCode = status;
+      r.setHeader('Content-Type', 'application/json');
+      r.end(JSON.stringify(payload));
+    }
     const origin = req.headers.origin;
     const cleanOrigin = origin ? origin.replace(/\/+$/, '') : null;
     const isAllowed = cleanOrigin && (allowedOrigins.includes(cleanOrigin) || allowedOrigins.includes('*') || allowedOrigins.some(o => o.replace(/\/+$/, '') === cleanOrigin));
@@ -56,13 +66,6 @@ export function createLegalApiHandler(db, options = {}) {
       return;
     }
 
-    if (req.method !== 'GET') {
-      res.statusCode = 405;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ error: 'Method Not Allowed' }));
-      return;
-    }
-
     const parsedUrl = new URL(req.url, `http://${req.headers.host || '127.0.0.1'}`);
     let cleanPath = parsedUrl.pathname.replace(/\/+/g, '/');
     if (cleanPath.length > 1 && cleanPath.endsWith('/')) {
@@ -72,11 +75,113 @@ export function createLegalApiHandler(db, options = {}) {
       ? cleanPath
       : ('/api/legal' + (cleanPath.startsWith('/') ? cleanPath : '/' + cleanPath));
 
+    // Method allowlist por pathname
+    const allowedMethod = (pathname === '/api/legal/norms/download' && req.method === 'POST') || req.method === 'GET';
+    if (!allowedMethod) {
+      res.statusCode = 405;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+      return;
+    }
+
     // 1. Health
     if (pathname === '/health' || pathname === '/api/legal/health') {
       res.statusCode = 200;
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify({ status: 'ok', service: 'kodice-legal-api' }));
+      return;
+    }
+
+    // 1a. Catalog (deterministic, read-only)
+    if (pathname === '/api/legal/catalog') {
+      try {
+        const raw = await fs.readFile(catalogPath, 'utf8');
+        const parsed = JSON.parse(raw);
+        // Marca quais normas já estão instaladas
+        const installedRows = db.prepare('SELECT id FROM legal_norms').all();
+        const installedIds = new Set(installedRows.map(r => r.id));
+        const norms = (parsed.norms || []).map(n => ({
+          ...n,
+          installed: installedIds.has(n.id)
+        }));
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ schemaVersion: parsed.schemaVersion, generatedAt: parsed.generatedAt, norms }));
+        return;
+      } catch (e) {
+        res.statusCode = 500;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ error: 'catalog_unavailable', detail: e?.message || String(e) }));
+        return;
+      }
+    }
+
+    // 1b. Download a norm from official source and import (only for norms
+    // in the catalog with acquisitionMode DOWNLOAD and an officialSourceUrl).
+    if (pathname === '/api/legal/norms/download' && req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => { body += chunk; if (body.length > 1024) req.destroy(); });
+      req.on('end', async () => {
+        let payload;
+        try { payload = JSON.parse(body); } catch { payload = {}; }
+        const normId = payload?.id;
+        if (!normId) {
+          sendJson(res, 400, { error: 'missing_norm_id' });
+          return;
+        }
+        // Lê catálogo para validar que a norma existe e tem acquisitionMode DOWNLOAD
+        let catalog;
+        try {
+          const raw = await fs.readFile(catalogPath, 'utf8');
+          catalog = JSON.parse(raw);
+        } catch (e) {
+          sendJson(res, 500, { error: 'catalog_unavailable', detail: e?.message || String(e) });
+          return;
+        }
+        const catalogNorm = (catalog.norms || []).find(n => n.id === normId);
+        if (!catalogNorm) { sendJson(res, 404, { error: 'norm_not_in_catalog', id: normId }); return; }
+        if (catalogNorm.acquisitionMode !== 'DOWNLOAD') { sendJson(res, 400, { error: 'not_download_mode', id: normId }); return; }
+        if (!catalogNorm.officialSourceUrl) { sendJson(res, 400, { error: 'no_source_url', id: normId }); return; }
+
+        // Verifica se já está instalado
+        const exists = db.prepare('SELECT id FROM legal_norms WHERE id = ?').get(normId);
+        if (exists) { sendJson(res, 200, { ok: true, alreadyInstalled: true, id: normId }); return; }
+
+        // Mapeia normId → importer. Apenas cf88 e cpc2015 estão implementados.
+        const importers = {
+          cpc2015: 'scripts/import-cpc2015.mjs',
+          cf88: 'scripts/import-cf88.mjs'
+        };
+        const importer = importers[normId];
+        if (!importer) { sendJson(res, 501, { error: 'importer_not_implemented', id: normId }); return; }
+
+        // Dispara importador local (em background ou foreground)
+        const cwd = process.cwd();
+        const proc = spawnSync('node', [importer], {
+          cwd,
+          env: { ...process.env, KODICE_LEGAL_DB: path.resolve(cwd, 'legal.db') },
+          encoding: 'utf8',
+          timeout: 5 * 60 * 1000
+        });
+        if (proc.status !== 0) {
+          sendJson(res, 500, { error: 'import_failed', id: normId, stderr: proc.stderr, stdout: proc.stdout });
+          return;
+        }
+
+        // Rebuild DB local (Mini)
+        const buildProc = spawnSync('node', ['scripts/build-legal-db.mjs'], {
+          cwd,
+          env: { ...process.env, KODICE_LEGAL_DB: path.resolve(cwd, 'legal.db') },
+          encoding: 'utf8',
+          timeout: 5 * 60 * 1000
+        });
+        if (buildProc.status !== 0) {
+          sendJson(res, 500, { error: 'build_failed', id: normId, stderr: buildProc.stderr });
+          return;
+        }
+
+        sendJson(res, 200, { ok: true, id: normId, importLog: proc.stdout });
+      });
       return;
     }
 

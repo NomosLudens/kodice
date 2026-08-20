@@ -11,6 +11,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="format-detection" content="telephone=no" />
 <link rel="manifest" href="/manifest.webmanifest" />
+<script src="./legal-catalog-frontend.js"></script>
 <link rel="apple-touch-icon" sizes="192x192" href="/icon-maskable-192.png" />
 <link rel="icon" href="/192x192.png" type="image/png" />
 <title>KÓDICE — Leitura local</title>
@@ -862,6 +863,65 @@
     padding: 16px 0;
     font-size: 13px;
     color: var(--text-2);
+  }
+  /* Card de catálogo jurídico (Etapa C) */
+  #legal-search-popover-results .vade-catalog-item {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+  }
+  #legal-search-popover-results .vade-catalog-item:hover {
+    background: rgba(0, 0, 0, 0.03);
+  }
+  html[data-theme="night"] #legal-search-popover-results .vade-catalog-item:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  #legal-search-popover-results .vade-catalog-item-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-2);
+  }
+  #legal-search-popover-results .vade-catalog-status.installed {
+    color: #2e7d32;
+    font-weight: 700;
+  }
+  #legal-search-popover-results .vade-catalog-status.absent {
+    color: var(--orange);
+    font-weight: 700;
+  }
+  #legal-search-popover-results .vade-catalog-source {
+    color: var(--text-2);
+  }
+  #legal-search-popover-results .vade-catalog-item-title {
+    font-family: 'Iowan Old Style', 'Charter', 'Georgia', 'Cambria', 'Times New Roman', serif;
+    font-size: 16px;
+    color: var(--text);
+    line-height: 1.4;
+  }
+  #legal-search-popover-results .vade-catalog-open,
+  #legal-search-popover-results .vade-catalog-download {
+    align-self: flex-start;
+    background: var(--orange);
+    color: #fff;
+    border: 0;
+    border-radius: 0;
+    padding: 8px 14px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+  }
+  #legal-search-popover-results .vade-catalog-download {
+    background: var(--text);
+    color: var(--bg);
   }
 
   /* Quando o modo legal está ativo, esconda progress e o chrome pertencente a livros */
@@ -1852,7 +1912,10 @@ const legalState = {
   // === P1: documento contínuo ===
   // units: array ordenado de unidades da norma carregada (sortOrder ASC)
   units: [],
-  unitByCp: {}
+  unitByCp: {},
+  // === Catálogo jurídico determinístico ===
+  // catalog: { schemaVersion, generatedAt, norms: [{id, kind, title, shortTitle, aliases, installed, ...}] }
+  catalog: null
 };
 
 // Entrar no modo legal do reader (sem overlay, sem segunda surface)
@@ -2465,6 +2528,16 @@ async function doLegalSearch(query) {
 
   results.innerHTML = '<div class="vade-search-loading">Buscando unidades…</div>';
 
+  // ETAPA C: tentar resolver pelo catálogo jurídico primeiro. Se houver
+  // match estrutural inequívoco, exibimos o card de catálogo (com Baixar
+  // ou Abrir) ANTES de cair no motor textual.
+  const catalogResolution = await resolveCatalogInLegalSearch(q);
+  if (catalogResolution) {
+    results.innerHTML = catalogResolution.html;
+    wireCatalogSearchResult(catalogResolution);
+    return;
+  }
+
   try {
     const normParam = legalState.activeNormId ? `/norms/${encodeURIComponent(legalState.activeNormId)}/search` : '/search';
     const data = await legalFetch(`${normParam}?q=${encodeURIComponent(q)}&limit=50`);
@@ -2503,6 +2576,121 @@ async function doLegalSearch(query) {
     });
   } catch (e) {
     results.innerHTML = `<div class="vade-search-empty">Erro na busca: ${escapeHtml(e?.message || String(e))}</div>`;
+  }
+}
+
+// Resolve a query via catálogo determinístico. Retorna null se não for
+// uma referência reconhecida (cai no motor textual).
+async function resolveCatalogInLegalSearch(query) {
+  if (!legalState.catalog) {
+    try {
+      legalState.catalog = await legalFetch('/catalog');
+    } catch (e) {
+      return null;
+    }
+  }
+  if (!legalState.catalog || !window.resolveCatalogFrontend) return null;
+  const r = window.resolveCatalogFrontend(query, legalState.catalog);
+  if (!r.match) return null;
+
+  const norm = r.match;
+  const article = r.article;
+  const installed = !!norm.installed;
+  const articleLabel = article ? `Art. ${article}` : null;
+
+  const html = `
+    <div class="vade-results-title">${escapeHtml(norm.shortTitle || norm.title)}${articleLabel ? ' · ' + escapeHtml(articleLabel) : ''}</div>
+    <div class="vade-catalog-item" data-norm-id="${escapeAttr(norm.id)}" ${article ? `data-article="${escapeAttr(article)}"` : ''}>
+      <div class="vade-catalog-item-meta">
+        <span class="vade-catalog-status ${installed ? 'installed' : 'absent'}">${installed ? 'Instalada' : 'Não instalada'}</span>
+        <span class="vade-catalog-source">${escapeHtml(installed ? 'Corpus local' : (norm.officialSourceUrl ? 'Fonte oficial' : 'Catálogo'))}</span>
+      </div>
+      <div class="vade-catalog-item-title">${escapeHtml(norm.title)}${articleLabel ? ' — ' + escapeHtml(articleLabel) : ''}</div>
+      ${installed
+        ? `<button class="vade-catalog-open" type="button">Abrir${articleLabel ? ' ' + escapeHtml(articleLabel) : ''}</button>`
+        : `<button class="vade-catalog-download" type="button">${norm.acquisitionMode === 'DOWNLOAD' ? '↓ Baixar' : 'Adquirir'}</button>`}
+    </div>
+  `;
+  return { html, norm, article, installed };
+}
+
+function wireCatalogSearchResult(catalogResolution) {
+  const item = $('#legal-search-popover-results .vade-catalog-item');
+  if (!item) return;
+  const openBtn = $('#legal-search-popover-results .vade-catalog-open');
+  const downloadBtn = $('#legal-search-popover-results .vade-catalog-download');
+
+  const normId = item.dataset.normId;
+  const article = item.dataset.article;
+  // NÃO limpar input nem fechar popover aqui — o popover precisa
+  // permanecer visível com o card até o usuário clicar em Abrir/Baixar.
+
+  if (openBtn) {
+    openBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const input = $('#legal-search-input');
+      if (input) input.value = '';
+      closeLegalSearch();
+      if (legalState.activeNormId !== normId || !legalState.units || legalState.units.length === 0) {
+        await openLegalNorm(normId);
+      }
+      if (article) scrollToLegalUnit(article);
+    });
+  }
+  if (downloadBtn) {
+    downloadBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const input = $('#legal-search-input');
+      if (input) input.value = '';
+      closeLegalSearch();
+      await downloadAndOpenNorm(normId, article);
+    });
+  }
+  // Click no card também aciona o botão visível
+  item.addEventListener('click', async () => {
+    const input = $('#legal-search-input');
+    if (input) input.value = '';
+    closeLegalSearch();
+    if (catalogResolution.installed) {
+      if (legalState.activeNormId !== normId || !legalState.units || legalState.units.length === 0) {
+        await openLegalNorm(normId);
+      }
+      if (article) scrollToLegalUnit(article);
+    } else {
+      await downloadAndOpenNorm(normId, article);
+    }
+  });
+}
+
+async function downloadAndOpenNorm(normId, articleCp) {
+  const input = $('#legal-search-input');
+  if (input) input.value = '';
+  closeLegalSearch();
+  toast('Baixando ' + normId + '…');
+  try {
+    const res = await fetch(getLegalApiUrl() + '/norms/download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: normId })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      toast('Falha no download: ' + (data?.error || res.status));
+      return;
+    }
+    toast(normId + ' instalado.');
+    // Atualiza catálogo em cache
+    if (legalState.catalog) {
+      const n = legalState.catalog.norms.find(x => x.id === normId);
+      if (n) n.installed = true;
+    }
+    // Abre a norma
+    if (legalState.activeNormId !== normId || !legalState.units || legalState.units.length === 0) {
+      await openLegalNorm(normId);
+    }
+    if (articleCp) scrollToLegalUnit(articleCp);
+  } catch (e) {
+    toast('Erro de rede: ' + (e?.message || String(e)));
   }
 }
 
