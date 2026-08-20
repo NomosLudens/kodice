@@ -38,6 +38,13 @@ const TARGETS = {
     url: 'https://www2.camara.leg.br/legin/fed/lei/2003/lei-10826-22-dezembro-2003-490580-normaatualizada-pl.pdf',
     file: 'lei-10826-22-dezembro-2003-490580-normaatualizada-pl.pdf',
   },
+  // L8036/1990 (FGTS) — texto consolidado oficial hospedado pela Câmara.
+  // O Planalto não serve a URL (404 em todas as variações). A Câmara
+  // hospeda como HTML texto-atualizado. Reutiliza o padrão Câmara.
+  fgts1990: {
+    url: 'https://www2.camara.leg.br/legin/fed/lei/1990/lei-8036-11-maio-1990-365155-normaatualizada-pl.html',
+    file: 'lei-8036-11-maio-1990-365155-normaatualizada-pl.html',
+  },
 };
 
 function fail(m) { console.error(m); process.exit(1); }

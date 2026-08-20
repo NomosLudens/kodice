@@ -53,7 +53,7 @@ const TARGETS = {
   // leis_ant/lei7347.htm); 404 em Câmara (todas variações); 403 em Senado
   // sileg; 404 também em Wayback Machine (Planalto nunca serviu a URL).
   // A Lei 7.347/85 foi removida do repositório público do Planalto sem
-  // redirecionamento oficial. NORM=acp1985 STATUS=BLOCKED. Nenhuma
+  // redirecionamento oficial. Nenhuma
   // substituição por JusBrasil/blogs/IA foi feita.
   adiadc1999: { url: 'https://www.planalto.gov.br/ccivil_03/leis/l9868.htm',                          file: 'l9868.htm' },
   adpf1999:   { url: 'https://www.planalto.gov.br/ccivil_03/leis/l9882.htm',                          file: 'l9882.htm' },
@@ -83,7 +83,7 @@ const TARGETS = {
   // leis/LEIS_2003/l10826.htm, leis_2003/l10826.htm); 404 em todas as
   // variações Câmara (Câmara ID 490580 e 538377); Senado SPA sem
   // texto extraível; normas.leg.br JS-only; LexML URN resolve mas
-  // aponta para Câmara 404. NORM=desarm2003 STATUS=BLOCKED.
+  // aponta para Câmara 404; o snapshot arquivado é usado localmente.
   // Nenhuma substituição por JusBrasil, blogs ou IA foi feita.
   drogas2006:    { url: 'https://www.planalto.gov.br/ccivil_03/_ato2004-2006/2006/lei/l11343.htm',    file: 'l11343.htm' },
   hediondos1990: { url: 'https://www.planalto.gov.br/ccivil_03/leis/l8072.htm',                     file: 'l8072.htm' },
@@ -94,6 +94,18 @@ const TARGETS = {
   pt1989:         { url: 'https://www.planalto.gov.br/ccivil_03/leis/l7960.htm',                     file: 'l7960.htm' },
   tortura1997:   { url: 'https://www.planalto.gov.br/ccivil_03/leis/l9455.htm',                      file: 'l9455.htm' },
   idcriminal2009: { url: 'https://www.planalto.gov.br/ccivil_03/_ato2007-2010/2009/lei/l12037.htm',   file: 'l12037.htm' },
+  // Wave 6 — Previdenciário & Trabalho Complementar.
+  // NOTA: Lei 8.036/1990 (FGTS) está hospedada como texto consolidado na
+  // Câmara dos Deputados, não no Planalto. Está em download-camara.mjs.
+  prev-custeio1991: { url: 'https://www.planalto.gov.br/ccivil_03/leis/l8212compilado.htm', file: 'l8212compilado.htm' },
+  prev-benef1991:   { url: 'https://www.planalto.gov.br/ccivil_03/leis/l8213compilado.htm', file: 'l8213compilado.htm' },
+  loas1993:         { url: 'https://www.planalto.gov.br/ccivil_03/leis/l8742compilado.htm', file: 'l8742compilado.htm' },
+  seguro-desemp1990: { url: 'https://www.planalto.gov.br/ccivil_03/leis/l7998compilado.htm', file: 'l7998compilado.htm' },
+  greve1989:        { url: 'https://www.planalto.gov.br/ccivil_03/leis/l7783.htm',              file: 'l7783.htm' },
+  trab-rural1973:   { url: 'https://www.planalto.gov.br/ccivil_03/leis/l5889.htm',              file: 'l5889.htm' },
+  domestica2015:     { url: 'https://www.planalto.gov.br/ccivil_03/leis/lcp/lcp150.htm',         file: 'lcp150.htm' },
+  trab-temp1974:  { url: 'https://www.planalto.gov.br/ccivil_03/leis/l6019compilado.htm', file: 'l6019compilado.htm' },
+  vt1985:           { url: 'https://www.planalto.gov.br/ccivil_03/leis/l7418compilado.htm', file: 'l7418compilado.htm' },
 };
 
 function fail(m){ console.error(m); process.exit(1); }

@@ -66,15 +66,28 @@ export async function importPlanaltoCodigo(normId, config) {
   const sourceHash = createHash('sha256').update(buffer).digest('hex');
   // Planalto publica em ISO-8859-1 (latin1) na maioria dos casos, mas algumas
   // leis recentes (LMP/2006, LAI/2011, LBI/2015, LGPD/2018) saem em UTF-16
-  // LE com BOM. Detecta encoding pelo BOM para preservar o snapshot bruto.
-  // Node aceita 'utf16le' (sem hífen) e 'utf-8' mas não 'utf-16-le'.
+  // LE com BOM. A Câmara publica o texto consolidado em UTF-8 (com ou sem
+  // BOM). Detecta encoding pelo BOM primeiro, depois por uma heurística
+  // simples: se o buffer decodificado como UTF-8 contém sequências inválidas
+  // (caractere de substituição U+FFFD), assume que NÃO é UTF-8 e usa
+  // latin1 (compatível com Planalto).
   let text;
   if (buffer.length >= 2 && buffer[0] === 0xFF && buffer[1] === 0xFE) {
+    // UTF-16 LE com BOM
     text = buffer.toString('utf16le');
-  } else if (buffer.length >= 3 && buffer[0] === 0xEF && buffer[1] === 0xBB && buffer[2] === 0xBF) {
-    text = buffer.toString('utf-8');
   } else {
-    text = buffer.toString('latin1');
+    // Tenta UTF-8 primeiro (Câmara, normas modernas). Se produzir
+    // U+FFFD (caractere de substituição), volta para latin1 (Planalto).
+    try {
+      const utf8 = buffer.toString('utf-8');
+      if (utf8.includes('\uFFFD')) {
+        text = buffer.toString('latin1');
+      } else {
+        text = utf8;
+      }
+    } catch {
+      text = buffer.toString('latin1');
+    }
   }
   // Algum HTML do Planalto termina com whitespace ímpar que quebra o decoder
   // UTF-16-LE. Mantém apenas os bytes válidos; o HTML ainda é parseável.
@@ -136,10 +149,23 @@ export async function importPlanaltoCodigo(normId, config) {
   }
 
   // Encontra fim do conteúdo (Brasília, ou fim do arquivo).
-  const endMarkers = config.endMarkers || ['Brasília,'];
+  // endMarkers: lista de padrões que marcam o FIM do conteúdo jurídico.
+  // O matching é restrito:
+  //   1. A linha inteira deve COMEÇAR com o marker (e não conter);
+  //   2. Para "Brasília," + assinatura (data), exige o formato típico
+  //      "Brasília, <data>".
+  // O "DOU" foi removido do default porque é citado inline em várias
+  // leis como "Diário Oficial da União" — o matching do default antigo
+  // (includes 'DOU ') parava o parser em p[39] da Câmara-FGTS.
+  // A nova heurística usa apenas "Brasília," + data (assinatura).
+  const endMarkers = config.endMarkers || [/^Brasília,?\s+[0-9]/];
   let endIdx = paras.length;
   for (let i = contentStart; i < paras.length; i++) {
-    if (endMarkers.some(m => paras[i].startsWith(m) || paras[i].includes(m + ' '))) {
+    const matched = endMarkers.some(m => {
+      if (m instanceof RegExp) return m.test(paras[i]);
+      return paras[i].startsWith(m);
+    });
+    if (matched) {
       endIdx = i;
       break;
     }

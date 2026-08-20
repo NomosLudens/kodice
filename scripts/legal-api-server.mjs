@@ -198,9 +198,9 @@ export function createLegalApiHandler(db, options = {}) {
           anticorrup2013: 'scripts/download-codigo.mjs',
           rju1990: 'scripts/download-codigo.mjs',
           // Wave 5 — Special Criminal Law core.
-          // desarm2003 (L10826) está oficialmente indisponível (301→404 em
-          // todas as variações Planalto, 404 em todas as variações Câmara,
-          // Senado SPA, normas.leg.br JS-only). NORM=desarm2003 STATUS=BLOCKED.
+          // desarm2003 usa exclusivamente o snapshot oficial arquivado local.
+          // Não requer download de rede para reinstalação limpa.
+          desarm2003: null,
           drogas2006: 'scripts/download-codigo.mjs',
           hediondos1990: 'scripts/download-codigo.mjs',
           orcrim2013: 'scripts/download-codigo.mjs',
@@ -283,8 +283,29 @@ export function createLegalApiHandler(db, options = {}) {
           pt1989: 'scripts/import-pt1989.mjs',
           tortura1997: 'scripts/import-tortura1997.mjs',
           idcriminal2009: 'scripts/import-idcriminal2009.mjs',
-          desarm2003: 'scripts/download-camara.mjs',
+          // Wave 6 — Previdenciário & Trabalho Complementar.
+          'prev-custeio1991': 'scripts/download-codigo.mjs',
+          'prev-benef1991': 'scripts/download-codigo.mjs',
+          'loas1993': 'scripts/download-codigo.mjs',
+          'fgts1990': 'scripts/download-camara.mjs',
+          'seguro-desemp1990': 'scripts/download-codigo.mjs',
+          'greve1989': 'scripts/download-codigo.mjs',
+          'trab-rural1973': 'scripts/download-codigo.mjs',
+          'domestica2015': 'scripts/download-codigo.mjs',
+          'trab-temp1974': 'scripts/download-codigo.mjs',
+          'vt1985': 'scripts/download-codigo.mjs',
           desarm2003: 'scripts/import-desarm2003.mjs',
+          // Wave 6 — Previdenciário & Trabalho Complementar.
+          'prev-custeio1991': 'scripts/import-prev-custeio1991.mjs',
+          'prev-benef1991': 'scripts/import-prev-benef1991.mjs',
+          'loas1993': 'scripts/import-loas1993.mjs',
+          'fgts1990': 'scripts/import-fgts1990.mjs',
+          'seguro-desemp1990': 'scripts/import-seguro-desemp1990.mjs',
+          'greve1989': 'scripts/import-greve1989.mjs',
+          'trab-rural1973': 'scripts/import-trab-rural1973.mjs',
+          'domestica2015': 'scripts/import-domestica2015.mjs',
+          'trab-temp1974': 'scripts/import-trab-temp1974.mjs',
+          'vt1985': 'scripts/import-vt1985.mjs',
         };
         const importer = importers[normId];
         if (!importer) { sendJson(res, 501, { error: 'importer_not_implemented', id: normId }); return; }
@@ -480,18 +501,22 @@ export function createLegalApiHandler(db, options = {}) {
         const globalSearchStmt = db.prepare(`
           SELECT u.id, u.norm_id, u.version_id, u.parent_id, u.kind, u.label, u.canonical_path, u.heading, u.text, u.sort_order
           FROM legal_units u
+          JOIN legal_norms n ON n.id = u.norm_id
           WHERE (
             u.canonical_path = ? OR
             u.canonical_path LIKE ? OR
             u.label LIKE ? OR
             u.heading LIKE ? OR
             u.text LIKE ? OR
-            u.canonical_path LIKE ?
+            u.canonical_path LIKE ? OR
+            n.title LIKE ? OR
+            n.popular_name LIKE ? OR
+            n.ementa LIKE ?
           )
           ORDER BY (CASE WHEN u.canonical_path = ? THEN 0 WHEN u.label LIKE ? THEN 1 ELSE 2 END), u.sort_order ASC
           LIMIT ?
         `);
-        rows = globalSearchStmt.all(exactCpCandidate, `%${qClean}`, exactLabelCandidate, likePattern, likePattern, cleanLikePattern, exactCpCandidate, exactLabelCandidate, limit);
+        rows = globalSearchStmt.all(exactCpCandidate, `%${qClean}`, exactLabelCandidate, likePattern, likePattern, cleanLikePattern, likePattern, likePattern, likePattern, exactCpCandidate, exactLabelCandidate, limit);
       }
 
       const out = rows.map(r => ({
