@@ -1,9 +1,22 @@
 <!doctype html>
-<html lang="pt-BR" data-theme="night">
+<html lang="pt-BR" data-theme="dark">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<meta name="theme-color" content="#0B0C0F" />
+<meta name="theme-color" content="#030206" />
+<script>
+  // Resolve initial theme: localStorage → prefers-color-scheme → dark
+  (function(){
+    try{
+      var saved = localStorage.getItem('codice.theme');
+      var t = (saved === 'dark' || saved === 'light') ? saved
+        : (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+      document.documentElement.dataset.theme = t;
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if(meta) meta.setAttribute('content', t === 'dark' ? '#030206' : '#E9E7EA');
+    }catch(e){}
+  })();
+</script>
 <meta name="color-scheme" content="dark light" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -16,20 +29,62 @@
 <link rel="icon" href="/192x192.png" type="image/png" />
 <title>KÓDICE — Leitura local</title>
 <style>
-  :root{
-    --bg:#0B0C0F; --surface:#14161B; --elev:#1B1E24;
-    --orange:#FF4C1F; --amber:#D89A5B;
-    --text:#F5F1EA; --text-2:#A9A6A1;
-    --border:rgba(255,255,255,.06);
+  :root, [data-theme="dark"]{
+    /* Kódice — dark palette */
+    --bg-black:#030206;
+    --bg-deep:#0B090E;
+    --panel-dark:#131015;
+    --panel:#1A171C;
+    --panel-light:#231F23;
+    --border:#2B272B;
+    --purple-muted:#423747;
+    --purple-glow:#826590;
+    --text-primary:#F2F2F3;
+    --text-muted:#A7A3AA;
+    --text-dim:#7E7880;
+    --ok:#8FBFA4;
+    --warn:#D8B473;
+    --bad:#D08585;
+    --unknown:#8A848F;
+
+    /* semantic aliases (preserves existing rules) */
+    --bg:var(--bg-deep);
+    --surface:var(--panel-dark);
+    --elev:var(--panel-light);
+    --orange:var(--purple-glow);
+    --amber:var(--purple-muted);
+    --text:var(--text-primary);
+    --text-2:var(--text-muted);
+
     --reader-font-size:19px; --reader-line:1.7; --reader-width:64ch; --reader-zoom:1;
     --safe-t:env(safe-area-inset-top); --safe-b:env(safe-area-inset-bottom);
     --safe-l:env(safe-area-inset-left); --safe-r:env(safe-area-inset-right);
   }
-  [data-theme="day"]{
-    --bg:#F5F0E7; --surface:#FFFDF8; --elev:#FFFDF8;
-    --orange:#D8431D; --amber:#B07A3E;
-    --text:#211E1A; --text-2:#6F6961;
-    --border:rgba(0,0,0,.08);
+  [data-theme="light"]{
+    /* Kódice — light palette (same product, not a second identity) */
+    --bg-black:#E9E7EA;
+    --bg-deep:#E2DFE4;
+    --panel-dark:#F2F0F3;
+    --panel:#EBE8EC;
+    --panel-light:#F7F5F8;
+    --border:#D2CDD5;
+    --purple-muted:#B4A6BC;
+    --purple-glow:#6E5379;
+    --text-primary:#191519;
+    --text-muted:#4E4952;
+    --text-dim:#6E6873;
+    --ok:#3F7256;
+    --warn:#8A6520;
+    --bad:#8E3B3B;
+    --unknown:#6E6873;
+
+    --bg:var(--bg-deep);
+    --surface:var(--panel-dark);
+    --elev:var(--panel-light);
+    --orange:var(--purple-glow);
+    --amber:var(--purple-muted);
+    --text:var(--text-primary);
+    --text-2:var(--text-muted);
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
   html,body{height:100%;height:100dvh;overflow:hidden;overscroll-behavior:none;-webkit-text-size-adjust:100%;max-width:100%}
@@ -38,6 +93,26 @@
     background:var(--bg); color:var(--text);
     font-size:15px; line-height:1.5;
     -webkit-font-smoothing:antialiased;
+  }
+  [data-theme="dark"] body{
+    background-color:var(--bg-black);
+    background-image:
+      linear-gradient(rgba(3,2,6,.55), rgba(3,2,6,.55)),
+      url("./kodice-background-dark.png");
+    background-attachment:fixed,fixed;
+    background-size:cover,cover;
+    background-position:center,center;
+    background-repeat:no-repeat,no-repeat;
+  }
+  [data-theme="light"] body{
+    background-color:var(--bg-black);
+    background-image:
+      linear-gradient(rgba(240,238,242,.62), rgba(240,238,242,.62)),
+      url("./kodice-background-light.png");
+    background-attachment:fixed,fixed;
+    background-size:cover,cover;
+    background-position:center,center;
+    background-repeat:no-repeat,no-repeat;
   }
   button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;touch-action:manipulation}
   a{color:var(--orange);text-decoration:none}
@@ -62,10 +137,12 @@
   /* ---------- Top bar ---------- */
   #topbar{
     display:flex;align-items:center;gap:10px;
-    padding:10px 14px; background:var(--surface);
-    border-bottom:1px solid var(--border);
+    padding:10px 14px; background:rgba(10,8,12,.62);
+    border-bottom:1px solid rgba(130,101,144,.14);
+    backdrop-filter:blur(8px);
     min-height:56px;
   }
+  [data-theme="light"] #topbar{background:rgba(247,245,248,.7);border-bottom-color:rgba(110,83,121,.16)}
   #topbar .icon{width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;border-radius:10px}
   #topbar .icon:hover{background:var(--elev)}
   #topbar .title-wrap{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center}
@@ -74,6 +151,22 @@
   #topbar .brand{display:flex;align-items:center;gap:10px}
   #topbar .brand img{width:28px;height:28px}
   #topbar .brand-name{font-weight:700;letter-spacing:.14em;font-size:13px}
+
+  /* ---------- Lockup (topbar) ---------- */
+  .lockup{display:inline-flex;align-items:center;gap:10px;min-width:0}
+  .lockup .mark{width:28px;height:28px;flex-shrink:0;display:block}
+  .lockup .sep{width:1px;height:22px;background:var(--border);flex-shrink:0}
+  .lockup .word{height:18px;width:auto;flex-shrink:0;display:block;opacity:.92}
+  @media(max-width:520px){
+    .lockup{gap:8px}
+    .lockup .mark{width:24px;height:24px}
+    .lockup .word{height:14px}
+    .lockup .sep{height:18px}
+  }
+  @media(max-width:380px){
+    .lockup .word{display:none}
+    .lockup .sep{display:none}
+  }
   #progress{
     position:absolute;left:0;right:0;top:calc(56px + var(--safe-t));height:2px;background:transparent;pointer-events:none;
   }
@@ -121,7 +214,7 @@
     height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;
     padding:32px 20px;text-align:center;gap:18px;
   }
-  #landing img.logo{width:96px;height:96px;filter:drop-shadow(0 4px 20px rgba(255,76,31,.35))}
+  #landing img.logo{width:96px;height:96px;filter:drop-shadow(0 4px 20px rgba(130,101,144,.22))}
   #landing h1{font-size:34px;letter-spacing:.24em;font-weight:700}
   #landing .subtitle{color:var(--amber);letter-spacing:.2em;font-size:12px;text-transform:uppercase}
   #landing p.lead{color:var(--text-2);max-width:44ch;font-family:Georgia,serif;font-size:17px;line-height:1.6}
@@ -144,15 +237,26 @@
   #status.show{opacity:1}
 
   /* Auth overlay */
-  #auth-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(6px);
+  #auth-overlay{position:fixed;inset:0;background:rgba(3,2,6,.55);backdrop-filter:blur(8px);
     display:none;align-items:center;justify-content:center;z-index:100;padding:16px;
     padding-top:calc(16px + var(--safe-t));padding-bottom:calc(16px + var(--safe-b));}
   #auth-overlay.show{display:flex}
-  .auth-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;
+  [data-theme="light"] #auth-overlay{background:rgba(240,238,242,.55)}
+  .auth-card{
+    background:rgba(10,8,12,.78);
+    border:1px solid rgba(130,101,144,.14);
+    backdrop-filter:blur(8px);
+    border-radius:16px;
     width:min(420px,100%);max-height:100%;overflow:auto;padding:20px;
-    box-shadow:0 20px 60px rgba(0,0,0,.5);}
-  .auth-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
-  .auth-head h3{font-family:Georgia,serif;font-size:22px;font-weight:600}
+    box-shadow:0 20px 60px rgba(0,0,0,.5);
+  }
+  [data-theme="light"] .auth-card{background:rgba(247,245,248,.86);border-color:rgba(110,83,121,.18)}
+  .auth-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px}
+  .auth-head h3{font-family:Georgia,serif;font-size:22px;font-weight:600;flex:1;min-width:0}
+  .auth-lockup{display:inline-flex;align-items:center;gap:8px;flex-shrink:0}
+  .auth-lockup .mark{width:24px;height:24px;display:block}
+  .auth-lockup .sep{width:1px;height:18px;background:rgba(130,101,144,.3)}
+  .auth-lockup .word{height:14px;display:block;opacity:.92}
   .auth-tabs{display:flex;gap:4px;background:var(--elev);border-radius:10px;padding:4px;margin-bottom:16px}
   .auth-tabs button{flex:1;min-height:40px;border-radius:8px;color:var(--text-2);font-weight:500;font-size:14px}
   .auth-tabs button.active{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.2)}
@@ -177,10 +281,9 @@
     width:var(--rail-open); max-width:86vw;
     transform:translateX(-100%);
     overflow:hidden;
-    background:
-      radial-gradient(120% 60% at 0% 0%, color-mix(in oklab, var(--orange) 10%, transparent), transparent 60%),
-      linear-gradient(180deg, var(--surface), color-mix(in oklab, var(--surface) 90%, black));
-    border-right:1px solid var(--border);
+    background:rgba(10,8,12,.78);
+    border-right:1px solid rgba(130,101,144,.14);
+    backdrop-filter:blur(8px);
     padding: 10px 0 calc(10px + var(--safe-b));
     padding-left:var(--safe-l);
     display:flex; flex-direction:column;
@@ -188,10 +291,11 @@
     z-index:60;
     box-shadow:0 20px 60px rgba(0,0,0,.5);
   }
+  [data-theme="light"] #sidebar{background:rgba(247,245,248,.86);border-right-color:rgba(110,83,121,.18)}
   #sidebar::before{
     content:"";position:absolute;inset:0 auto 0 0;width:1px;
-    background:linear-gradient(180deg,transparent, color-mix(in oklab, var(--orange) 40%, transparent), transparent);
-    opacity:.5;pointer-events:none;
+    background:linear-gradient(180deg,transparent, rgba(130,101,144,.35), transparent);
+    opacity:.55;pointer-events:none;
   }
   #app.rail-open #sidebar{ transform:translateX(0); }
   #sidebar .brand{
@@ -200,7 +304,7 @@
     border-bottom:1px solid var(--border);
     margin:0 8px 10px;
   }
-  #sidebar .brand img{width:34px;height:34px;flex-shrink:0;filter:drop-shadow(0 2px 10px rgba(255,76,31,.35))}
+  #sidebar .brand img{width:34px;height:34px;flex-shrink:0;filter:drop-shadow(0 2px 10px rgba(130,101,144,.25))}
   #sidebar .brand-text{
     display:flex;flex-direction:column;min-width:0;overflow:hidden;
     opacity:0;transform:translateX(-6px);transition:.28s;
@@ -557,7 +661,7 @@
   #legal-norms-list .vade-norm-row:hover {
     background: rgba(0,0,0,0.03);
   }
-  html[data-theme="night"] #legal-norms-list .vade-norm-row:hover {
+  html[data-theme="dark"] #legal-norms-list .vade-norm-row:hover {
     background: rgba(255,255,255,0.04);
   }
   #legal-norms-list .vade-norm-row .vade-norm-row-meta {
@@ -630,7 +734,7 @@
   #legal-search-results-list .vade-search-item:hover {
     background: rgba(0,0,0,0.03);
   }
-  html[data-theme="night"] #legal-search-results-list .vade-search-item:hover {
+  html[data-theme="dark"] #legal-search-results-list .vade-search-item:hover {
     background: rgba(255,255,255,0.04);
   }
   #legal-search-results-list .vade-search-item .vade-search-item-meta {
@@ -739,7 +843,7 @@
   #legal-tree-pane .vade-tree-item-btn:hover {
     background: rgba(0,0,0,0.04);
   }
-  html[data-theme="night"] #legal-tree-pane .vade-tree-item-btn:hover {
+  html[data-theme="dark"] #legal-tree-pane .vade-tree-item-btn:hover {
     background: rgba(255,255,255,0.04);
   }
   #legal-tree-pane .vade-tree-item-btn .vade-tree-kind {
@@ -838,7 +942,7 @@
   #legal-search-popover-results .vade-search-item:hover {
     background: rgba(0,0,0,0.03);
   }
-  html[data-theme="night"] #legal-search-popover-results .vade-search-item:hover {
+  html[data-theme="dark"] #legal-search-popover-results .vade-search-item:hover {
     background: rgba(255,255,255,0.04);
   }
   #legal-search-popover-results .vade-search-item .vade-search-item-meta {
@@ -876,7 +980,7 @@
   #legal-search-popover-results .vade-catalog-item:hover {
     background: rgba(0, 0, 0, 0.03);
   }
-  html[data-theme="night"] #legal-search-popover-results .vade-catalog-item:hover {
+  html[data-theme="dark"] #legal-search-popover-results .vade-catalog-item:hover {
     background: rgba(255, 255, 255, 0.04);
   }
   #legal-search-popover-results .vade-catalog-item-meta {
@@ -1080,7 +1184,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
     </button>
     <div class="brand">
-      <img src="./192x192.png" alt="" />
+      <img src="./kodice-logo.png" alt="Kódice" />
       <div class="brand-text">
         <span class="n">KÓDICE</span>
         <span class="s">Leitura local</span>
@@ -1147,6 +1251,11 @@
   </aside>
   <div id="sidebar-scrim"></div>
   <header id="topbar">
+    <div class="lockup" aria-label="Kódice">
+      <img class="mark" src="./kodice-logo.png" alt="Kódice" />
+      <span class="sep" aria-hidden="true"></span>
+      <img class="word" src="./kodice-wordmark.png" alt="" />
+    </div>
     <button class="icon hidden" id="btn-back" title="Voltar" aria-label="Voltar" style="display:none">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
     </button>
@@ -1172,7 +1281,7 @@
 
   <main id="main">
     <section id="landing">
-      <img src="./192x192.png" alt="" class="logo" />
+      <img src="./kodice-logo.png" alt="Kódice" class="logo" />
       <div class="subtitle">Leitura local</div>
       <h1>KÓDICE</h1>
       <p class="lead">Kaline acolhe.<br>Kuan atende.<br>Klio constrói.<br>Kódice estuda.<br>Héstia sustenta.<br>Kairós conecta.</p>
@@ -1322,8 +1431,8 @@
     <div class="setting">
       <div class="setting-label"><b>Tema</b></div>
       <div class="seg" id="theme-seg">
-        <button data-theme="night" class="active">Noite</button>
-        <button data-theme="day">Dia</button>
+        <button data-theme="dark" class="active">Escuro</button>
+        <button data-theme="light">Claro</button>
       </div>
     </div>
     <div class="setting">
@@ -1447,6 +1556,11 @@
 <div id="auth-overlay" role="dialog" aria-modal="true" aria-label="Entrar no Kódice">
   <div class="auth-card">
     <div class="auth-head">
+      <div class="auth-lockup" aria-label="Kódice">
+        <img class="mark" src="./kodice-logo.png" alt="Kódice" />
+        <span class="sep" aria-hidden="true"></span>
+        <img class="word" src="./kodice-wordmark.png" alt="" />
+      </div>
       <h3 id="auth-title">Entrar</h3>
       <button class="panel-close" id="auth-close" aria-label="Fechar">✕</button>
     </div>
@@ -1538,7 +1652,7 @@ const initialStation = getInitialStationConfig();
 const state = {
   books: [],           // {id,title,author,type,addedAt,progress}
   activeBook: null,    // {id,type,title,author,data,rendition?,pdf?,toc?,progress}
-  theme: localStorage.getItem('codice.theme') || 'night',
+  theme: ((s)=> s==='dark'||s==='light' ? s : (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'))(localStorage.getItem('codice.theme')),
   settings: JSON.parse(localStorage.getItem('codice.settings') || '{}'),
   readingMode: localStorage.getItem('codice.readingMode') || 'paginated',
   epubAlignment: localStorage.getItem('codice.epubAlignment') === 'editorial' ? 'editorial' : 'left',
@@ -2830,7 +2944,7 @@ function applyTheme(t){
   state.theme = t; document.documentElement.dataset.theme = t;
   localStorage.setItem('codice.theme', t); // fallback for first paint
   $$('#theme-seg button').forEach(b=>b.classList.toggle('active', b.dataset.theme===t));
-  document.querySelector('meta[name=theme-color]').setAttribute('content', t==='night' ? '#0B0C0F' : '#F5F0E7');
+  document.querySelector('meta[name=theme-color]').setAttribute('content', t==='dark' ? '#030206' : '#E9E7EA');
   persistSettings();
   if(typeof updateRail==='function') updateRail();
 }
@@ -4084,8 +4198,8 @@ async function createEpubRendition(book, target){
   const modeTheme = mode === 'paginated'
     ? { ...containedTheme, 'html':{'box-sizing':'border-box !important'}, 'body':{'box-sizing':'border-box !important','overflow-wrap':'anywhere !important'}, 'table':{'max-width':'100% !important'} }
     : { ...containedTheme, 'html':{'max-width':'100% !important','min-width':'0 !important','box-sizing':'border-box !important','overflow-x':'hidden !important'}, 'body':{'max-width':'100% !important','min-width':'0 !important','overflow-x':'hidden !important','overflow-wrap':'anywhere !important'}, 'table':{'max-width':'100% !important','display':'block !important','overflow-x':'auto !important'} };
-  rendition.themes.register('night', { ...modeTheme, 'body':{ ...modeTheme.body, 'background':'#0B0C0F !important','color':'#F5F1EA !important','font-family':'Georgia, serif !important', ...(mode === 'scrolled' ? { 'padding':'16px clamp(14px, 4vw, 24px) !important' } : {}) }, 'a':{'color':'#FF4C1F !important'} });
-  rendition.themes.register('day', { ...modeTheme, 'body':{ ...modeTheme.body, 'background':'#F5F0E7 !important','color':'#211E1A !important','font-family':'Georgia, serif !important', ...(mode === 'scrolled' ? { 'padding':'16px clamp(14px, 4vw, 24px) !important' } : {}) }, 'a':{'color':'#D8431D !important'} });
+  rendition.themes.register('dark', { ...modeTheme, 'body':{ ...modeTheme.body, 'background':'#030206 !important','color':'#F2F2F3 !important','font-family':'Georgia, serif !important', ...(mode === 'scrolled' ? { 'padding':'16px clamp(14px, 4vw, 24px) !important' } : {}) }, 'a':{'color':'#826590 !important'} });
+  rendition.themes.register('light', { ...modeTheme, 'body':{ ...modeTheme.body, 'background':'#E9E7EA !important','color':'#191519 !important','font-family':'Georgia, serif !important', ...(mode === 'scrolled' ? { 'padding':'16px clamp(14px, 4vw, 24px) !important' } : {}) }, 'a':{'color':'#6E5379 !important'} });
   rendition.themes.select(state.theme);
   applyCurrentEpubTypography(rendition);
   rendition.hooks.content.register(contents=>{
@@ -4693,9 +4807,9 @@ function updateRail(){
   // Theme & account button labels
   const tLbl = document.getElementById('nav-theme-lbl');
   const tIcon = document.getElementById('nav-theme-icon');
-  if(tLbl) tLbl.textContent = state.theme==='night' ? 'Tema: Noite' : 'Tema: Dia';
+  if(tLbl) tLbl.textContent = state.theme==='dark' ? 'Tema: Escuro' : 'Tema: Claro';
   if(tIcon){
-    tIcon.innerHTML = state.theme==='night'
+    tIcon.innerHTML = state.theme==='dark'
       ? '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>'
       : '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>';
   }
@@ -5555,7 +5669,7 @@ function wire(){
       else if(k==='library') openPanel('library-panel');
       else if(k==='legal') { openVadeMecumView(); }
       else if(k==='add') $('#file-input').click();
-      else if(k==='theme') applyTheme(state.theme==='night' ? 'day' : 'night');
+      else if(k==='theme') applyTheme(state.theme==='dark' ? 'light' : 'dark');
       else if(k==='account'){ if(state.user) signOut(); else openAuth(); }
       // Sidebar is an overlay — collapse after tap
       document.getElementById('app').classList.remove('rail-open');

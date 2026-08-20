@@ -1,18 +1,21 @@
 {
   "id": "/",
-  "name": "Kódice — Leitura local",
-  "short_name": "Kódice",
+  "name": "K\u00f3dice \u2014 Leitura local",
+  "short_name": "K\u00f3dice",
   "description": "Leitor local de EPUB, PDF e TXT.",
   "lang": "pt-BR",
   "dir": "ltr",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#0B0C0F",
-  "theme_color": "#0B0C0F",
+  "background_color": "#030206",
+  "theme_color": "#030206",
   "orientation": "any",
   "prefer_related_applications": false,
-  "categories": ["books", "education"],
+  "categories": [
+    "books",
+    "education"
+  ],
   "icons": [
     {
       "src": "/192x192.png",
