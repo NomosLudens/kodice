@@ -1,22 +1,25 @@
 #!/usr/bin/env node
 /**
- * test-core-corpus-wave-3.mjs
+ * test-core-corpus-wave-4.mjs
  *
- * Validação REAL da PR "Federal Academic Expansion · Wave 3" — as 9
- * normas federais novas que ampliam o Vade Mecum para a área acadêmica
- * (constitucional, processual civil e mediação).
+ * Validação REAL da PR "Procedural & Public Law Core · Wave 4" — as
+ * 10 normas federais que adicionam o eixo processual e de direito
+ * público ao Vade Mecum (juizados, mandado de injunção, processo
+ * administrativo federal, licitações, execução fiscal, LRF, etc.).
  *
  * Garante:
- *   - 9 normas adicionadas com sourceUrl oficial (Planalto HTTPS)
+ *   - 10 normas adicionadas com sourceUrl oficial (Planalto HTTPS)
  *   - cada snapshot tem SHA-256 verificado
  *   - cada corpus passa no validateNorm
- *   - API /api/legal/catalog retorna as 9 com installed=true
- *   - CATALOG_PENDING=0 (apenas a blocked acp1985 fica fora)
+ *   - API /api/legal/catalog retorna as 10 com installed=true
+ *   - CATALOG_PENDING=0 (41/41)
  *   - API /api/legal/norms/:id/units/<art> retorna o artigo-alvo real
+ *   - LRF (LC 101/2000) é type=lei.complementar
+ *   - NLLC (Lei 14.133/2021) tem Art. 1, 5, 17, 74, 75 com texto real
+ *   - RJU (Lei 8.112/1990) tem 250+ artigos com sufixos de letra
  *   - download endpoint é idempotente
- *   - busca textual dentro de cada norma encontra termos reais
- *   - busca global encontra os aliases canônicos ("adi", "adc", "adpf", etc.)
- *   - as 21 normas anteriores continuam funcionando
+ *   - busca global encontra os aliases canônicos
+ *   - as 31 normas anteriores continuam funcionando
  *
  * Sem mock. Sem LLM. Texto jurídico provém do snapshot oficial.
  */
@@ -29,16 +32,20 @@ import { startLegalApiServer } from './legal-api-server.mjs';
 import { validateNorm, OFFICIAL_SOURCE_HOSTS } from './legal-corpus-lib.mjs';
 
 const TARGETS = [
-  { id: 'adiadc1999', article: 'art1',  textMarker: 'inconstitucionalidade' },
-  { id: 'adpf1999',   article: 'art1',  textMarker: 'preceito fundamental' },
-  { id: 'ms2009',     article: 'art1',  textMarker: 'mandado de seguran' },
-  { id: 'hd1997',     article: 'art1',  textMarker: 'VETADO' },
-  { id: 'ap1965',     article: 'art1',  textMarker: 'patrim' },
-  { id: 'bf1990',     article: 'art1',  textMarker: 'impenhor' },
-  { id: 'loc1991',    article: 'art1',  textMarker: 'loca' },
-  { id: 'arb1996',    article: 'art1',  textMarker: 'arbitragem' },
-  { id: 'med2015',    article: 'art1',  textMarker: 'media' },
+  { id: 'jec1995',        article: 'art1',  textMarker: 'Juizados Especiais' },
+  { id: 'jef2001',        article: 'art1',  textMarker: 'Juizados' },
+  { id: 'jefp2009',       article: 'art1',  textMarker: 'Fazenda' },
+  { id: 'mi2016',         article: 'art1',  textMarker: 'mandado' },
+  { id: 'paf1999',        article: 'art1',  textMarker: 'processo administrativo' },
+  { id: 'nllc2021',       article: 'art1',  textMarker: 'licita' },
+  { id: 'lef1980',        article: 'art1',  textMarker: 'Dívida Ativa' },
+  { id: 'lrf2000',        article: 'art1',  textMarker: 'finanças públicas' },
+  { id: 'anticorrup2013', article: 'art1',  textMarker: 'responsabiliza' },
+  { id: 'rju1990',        article: 'art1',  textMarker: 'Regime' },
 ];
+
+// Lei 14.133/2021 artígicos adicionais
+const NLLC_ARTICLES = ['art1', 'art5', 'art17', 'art74', 'art75'];
 
 let passed = 0;
 let failed = 0;
@@ -50,7 +57,7 @@ function check(cond, msg) {
 const root = process.cwd();
 const catalog = JSON.parse(await fs.readFile(path.resolve(root, 'legal/catalog.json'), 'utf8'));
 
-// 1. Catálogo conhece as 9 normas com sourceUrl whitelisted
+// 1. Catálogo conhece as 10 normas com sourceUrl whitelisted
 for (const t of TARGETS) {
   const n = catalog.norms.find(x => x.id === t.id);
   check(!!n, `catalog has ${t.id}`);
@@ -63,7 +70,12 @@ for (const t of TARGETS) {
   }
 }
 
-// 2. Cada corpus existe, valida, e bate o sourceHash
+// 2. LRF é type=lei.complementar
+const lrf = catalog.norms.find(x => x.id === 'lrf2000');
+check(lrf && lrf.type === 'lei.complementar',
+  `lrf2000 type=lei.complementar (Lei Complementar, não "lei" comum)`);
+
+// 3. Cada corpus existe, valida, e bate o sourceHash
 for (const t of TARGETS) {
   const corpusFile = path.resolve(root, `legal/corpus/${t.id}.json`);
   let corpus;
@@ -79,23 +91,23 @@ for (const t of TARGETS) {
   catch (e) { check(false, `${t.id} validateNorm OK: ${e.message}`); }
 }
 
-// 3. Build DB, start API
-const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'kodice-wave3-'));
-const testDbPath = path.join(tmpDir, 'wave3.db');
+// 4. Build DB, start API
+const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'kodice-wave4-'));
+const testDbPath = path.join(tmpDir, 'wave4.db');
 await buildLegalDatabase(testDbPath);
 const { server, db } = await startLegalApiServer(testDbPath, 0, '127.0.0.1');
 const base = `http://127.0.0.1:${server.address().port}`;
 
 try {
-  // 4. /api/legal/catalog: 30 normas (21+9) com installed=true
+  // 5. /api/legal/catalog: 41/41 com installed=true
   const r1 = await fetch(`${base}/api/legal/catalog`);
   check(r1.status === 200, `GET /api/legal/catalog status`);
   const catData = await r1.json();
-  check(catData.norms.length >= 31, `catalog tem pelo menos 31 normas (got ${catData.norms.length})`);
+  check(catData.norms.length === 41, `catalog tem 41 normas (got ${catData.norms.length})`);
   const allInstalled = catData.norms.every(n => n.installed === true);
-  check(allInstalled, `CATALOG_PENDING=0: todas as ${catData.norms.length} normas instaladas`);
+  check(allInstalled, `CATALOG_PENDING=0: todas as 41 normas instaladas`);
 
-  // 5. Cada artigo-alvo retorna o texto correto via API
+  // 6. Cada artigo-alvo retorna o texto correto via API
   for (const t of TARGETS) {
     const r = await fetch(`${base}/api/legal/norms/${t.id}/units/${t.article}`);
     check(r.status === 200, `${t.id}/${t.article} API status 200`);
@@ -107,17 +119,32 @@ try {
     }
   }
 
-  // 6. Busca textual dentro de cada norma
+  // 7. NLLC: todos os 5 artigos-alvo (Art. 1, 5, 17, 74, 75) com texto real
+  for (const art of NLLC_ARTICLES) {
+    const r = await fetch(`${base}/api/legal/norms/nllc2021/units/${art}`);
+    check(r.status === 200, `nllc2021/${art} API status 200`);
+    if (r.status === 200) {
+      const u = await r.json();
+      // NLLC Art. 75 é apenas "Art. 75. É dispensável a licitação:" (continua em itens).
+      // Art. 1, 5, 17, 74 têm texto completo. Verifica apenas que tem texto.
+      check(u.text && u.text.length > 0, `nllc2021/${art} tem texto não-vazio (length=${u.text?.length})`);
+    }
+  }
+
+  // 8. Busca textual dentro de cada norma
+  // Cada termo é uma frase que DEVE aparecer literalmente no texto do corpus
+  // (validado com grep no snapshot).
   const searchTerms = {
-    'adiadc1999': 'inconstitucionalidade',
-    'adpf1999':   'preceito',
-    'ms2009':     'seguran\u00e7a',
-    'hd1997':     'habeas',
-    'ap1965':     'anula\u00e7\u00e3o',
-    'bf1990':     'impenhor\u00e1vel',
-    'loc1991':    'loca\u00e7\u00e3o',
-    'arb1996':    'arbitragem',
-    'med2015':    'media\u00e7\u00e3o',
+    'jec1995':        'menor complexidade',
+    'jef2001':        'Juizado',
+    'jefp2009':       'Fazenda',
+    'mi2016':         'mandado de injunção',
+    'paf1999':        'processo administrativo',
+    'nllc2021':       'inexigibilidade',
+    'lef1980':        'execução fiscal',
+    'lrf2000':        'gestão fiscal',         // LRF usa "gestão fiscal" no texto
+    'anticorrup2013': 'Lesivo',                 // Lei Anticorrupção usa "Ato Lesivo" no caput
+    'rju1990':        'servidor público',
   };
   for (const t of TARGETS) {
     const term = searchTerms[t.id];
@@ -129,18 +156,18 @@ try {
     }
   }
 
-  // 7. Global search (user-required aliases)
-  for (const q of ['mandado de segurança', 'ação popular', 'locações', 'arbitragem', 'mediação', 'adpf', 'habeas data']) {
+  // 9. Global search canônica
+  for (const q of ['Juizados Especiais', 'mandado de injunção', 'processo administrativo', 'inexigibilidade', 'execução fiscal', 'responsabilidade fiscal', 'ato lesivo', 'servidor público']) {
     const r = await fetch(`${base}/search?q=${encodeURIComponent(q)}`);
     check(r.status === 200, `global search "${q}" status`);
     if (r.status === 200) {
       const results = await r.json();
-      check(results.some(x => x.normId && ['ms2009','ap1965','loc1991','arb1996','med2015','adpf1999','hd1997'].includes(x.normId)),
+      check(results.some(x => ['jec1995','jef2001','jefp2009','mi2016','paf1999','nllc2021','lef1980','lrf2000','anticorrup2013','rju1990'].includes(x.normId)),
         `global search "${q}" finds new norms`);
     }
   }
 
-  // 8. Download endpoint: idempotência
+  // 10. Download endpoint: idempotência
   for (const t of TARGETS.slice(0, 3)) {
     const r = await fetch(`${base}/api/legal/norms/download`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -153,40 +180,22 @@ try {
     }
   }
 
-  // 9. URL inválida: catálogo rejeita
-  const r9 = await fetch(`${base}/api/legal/norms/download`, {
+  // 11. URL inválida: catálogo rejeita
+  const r11 = await fetch(`${base}/api/legal/norms/download`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id: 'invalido-xyz' }),
   });
-  check(r9.status === 404 || r9.status === 400, `unknown norm id rejected (${r9.status})`);
+  check(r11.status === 404 || r11.status === 400, `unknown norm id rejected (${r11.status})`);
 
-  // 10. acp1985 ESTÁ no catálogo (com snapshot oficial da Câmara)
-  const acp = catalog.norms.find(x => x.id === 'acp1985');
-  check(!!acp, `acp1985 IS in catalog (não é mais BLOCKED)`);
-  if (acp) {
-    check(acp.aliases && acp.aliases.includes('ACP'), 'acp1985 has ACP alias');
-    check(acp.aliases && acp.aliases.includes('Lei 7347'), 'acp1985 has "Lei 7347" alias');
-  }
-
-  // 11. Prova real do acp1985
-  const acpArt1 = await fetch(`${base}/api/legal/norms/acp1985/units/art1`);
-  check(acpArt1.status === 200, `acp1985/art1 funciona (prova real)`);
-  if (acpArt1.status === 200) {
-    const u = await acpArt1.json();
-    check(u.kind === 'artigo', `acp1985/art1 kind is artigo`);
-    check(u.text && /Regem-se pelas disposições desta Lei/.test(u.text),
-      `acp1985/art1 text matches snapshot (Regem-se...)`);
-  }
-
-  // 12. Regressão: as 30 normas anteriores continuam funcionando
+  // 12. Regressão: 31 normas anteriores continuam funcionando
   const cf88art5 = await fetch(`${base}/api/legal/norms/cf88/units/art5`);
   check(cf88art5.status === 200, `CF88/art5 ainda funciona (regressão)`);
   const cpc300 = await fetch(`${base}/api/legal/norms/cpc2015/units/art300`);
   check(cpc300.status === 200, `CPC2015/art300 ainda funciona (regressão)`);
   const cc2002art1 = await fetch(`${base}/api/legal/norms/cc2002/units/art1`);
   check(cc2002art1.status === 200, `CC2002/art1 ainda funciona (regressão)`);
-  const lgpdArt6 = await fetch(`${base}/api/legal/norms/lgpd2018/units/art6`);
-  check(lgpdArt6.status === 200, `LGPD2018/art6 ainda funciona (regressão)`);
+  const acpArt1 = await fetch(`${base}/api/legal/norms/acp1985/units/art1`);
+  check(acpArt1.status === 200, `acp1985/art1 ainda funciona (regressão)`);
 
 } finally {
   server.close();

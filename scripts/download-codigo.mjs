@@ -64,6 +64,18 @@ const TARGETS = {
   loc1991:    { url: 'https://www.planalto.gov.br/ccivil_03/leis/l8245compilado.htm',                 file: 'l8245compilado.htm' },
   arb1996:    { url: 'https://www.planalto.gov.br/ccivil_03/leis/l9307.htm',                           file: 'l9307.htm' },
   med2015:    { url: 'https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2015/lei/l13140.htm',         file: 'l13140.htm' },
+  // Wave 4 — Procedural & Public Law core.
+  // L10259 (JEF) tem URL com pasta leis_2001 (legado).
+  jec1995:        { url: 'https://www.planalto.gov.br/ccivil_03/leis/l9099.htm',                       file: 'l9099.htm' },
+  jef2001:        { url: 'https://www.planalto.gov.br/ccivil_03/leis/leis_2001/l10259.htm',              file: 'l10259.htm' },
+  jefp2009:       { url: 'https://www.planalto.gov.br/ccivil_03/_ato2007-2010/2009/lei/l12153.htm',      file: 'l12153.htm' },
+  mi2016:         { url: 'https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2016/lei/l13300.htm',      file: 'l13300.htm' },
+  paf1999:        { url: 'https://www.planalto.gov.br/ccivil_03/leis/l9784.htm',                        file: 'l9784.htm' },
+  nllc2021:       { url: 'https://www.planalto.gov.br/ccivil_03/_ato2019-2022/2021/lei/l14133.htm',      file: 'l14133.htm' },
+  lef1980:        { url: 'https://www.planalto.gov.br/ccivil_03/leis/l6830.htm',                        file: 'l6830.htm' },
+  lrf2000:        { url: 'https://www.planalto.gov.br/ccivil_03/leis/lcp/lcp101.htm',                   file: 'lcp101.htm' },
+  anticorrup2013: { url: 'https://www.planalto.gov.br/ccivil_03/_ato2011-2014/2013/lei/l12846.htm',      file: 'l12846.htm' },
+  rju1990:        { url: 'https://www.planalto.gov.br/ccivil_03/leis/l8112compilado.htm',              file: 'l8112compilado.htm' },
 };
 
 function fail(m){ console.error(m); process.exit(1); }

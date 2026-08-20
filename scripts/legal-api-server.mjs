@@ -186,6 +186,17 @@ export function createLegalApiHandler(db, options = {}) {
           // ACP/1985 (L7347) — fonte oficial Câmara (texto atualizado).
           // Host www2.camara.leg.br (migração de www) está na whitelist.
           acp1985: 'scripts/download-camara.mjs',
+          // Wave 4 — Procedural & Public Law core.
+          jec1995: 'scripts/download-codigo.mjs',
+          jef2001: 'scripts/download-codigo.mjs',
+          jefp2009: 'scripts/download-codigo.mjs',
+          mi2016: 'scripts/download-codigo.mjs',
+          paf1999: 'scripts/download-codigo.mjs',
+          nllc2021: 'scripts/download-codigo.mjs',
+          lef1980: 'scripts/download-codigo.mjs',
+          lrf2000: 'scripts/download-codigo.mjs',
+          anticorrup2013: 'scripts/download-codigo.mjs',
+          rju1990: 'scripts/download-codigo.mjs',
           // ADCT não tem URL dedicada; vive dentro do snapshot do CF/88
           // (já baixado quando o CF/88 foi instalado).
           'cf88-adct': null,
@@ -240,6 +251,16 @@ export function createLegalApiHandler(db, options = {}) {
           arb1996: 'scripts/import-arb1996.mjs',
           med2015: 'scripts/import-med2015.mjs',
           acp1985: 'scripts/import-acp1985.mjs',
+          jec1995: 'scripts/import-jec1995.mjs',
+          jef2001: 'scripts/import-jef2001.mjs',
+          jefp2009: 'scripts/import-jefp2009.mjs',
+          mi2016: 'scripts/import-mi2016.mjs',
+          paf1999: 'scripts/import-paf1999.mjs',
+          nllc2021: 'scripts/import-nllc2021.mjs',
+          lef1980: 'scripts/import-lef1980.mjs',
+          lrf2000: 'scripts/import-lrf2000.mjs',
+          anticorrup2013: 'scripts/import-anticorrup2013.mjs',
+          rju1990: 'scripts/import-rju1990.mjs',
         };
         const importer = importers[normId];
         if (!importer) { sendJson(res, 501, { error: 'importer_not_implemented', id: normId }); return; }
