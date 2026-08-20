@@ -283,6 +283,8 @@ export function createLegalApiHandler(db, options = {}) {
           pt1989: 'scripts/import-pt1989.mjs',
           tortura1997: 'scripts/import-tortura1997.mjs',
           idcriminal2009: 'scripts/import-idcriminal2009.mjs',
+          desarm2003: 'scripts/download-camara.mjs',
+          desarm2003: 'scripts/import-desarm2003.mjs',
         };
         const importer = importers[normId];
         if (!importer) { sendJson(res, 501, { error: 'importer_not_implemented', id: normId }); return; }

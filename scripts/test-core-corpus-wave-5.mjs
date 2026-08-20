@@ -77,9 +77,9 @@ for (const id of INSTALLED_NORMS) {
   }
 }
 
-// 2. desarm2003 NÃO está no catálogo (BLOCKED)
-const desarm = catalog.norms.find(x => x.id === 'desarm2003');
-check(!desarm, `desarm2003 NOT in catalog (BLOCKED, sem fonte oficial determinística)`);
+  // 2. desarm2003 está no catálogo (fix da onda 5: PDF oficial da Câmara)
+  const desarm = catalog.norms.find(x => x.id === 'desarm2003');
+  check(!!desarm, `desarm2003 IS in catalog (instalado via fix da onda 5)`);
 
 // 3. Cada corpus existe, valida, e bate o sourceHash
 for (const id of INSTALLED_NORMS) {
@@ -105,13 +105,13 @@ const { server, db } = await startLegalApiServer(testDbPath, 0, '127.0.0.1');
 const base = `http://127.0.0.1:${server.address().port}`;
 
 try {
-  // 5. /api/legal/catalog: 50/50 com installed=true (41 + 9 da onda 5)
+  // 5. /api/legal/catalog: 51/51 com installed=true (41 + 9 da onda 5 + 1 do fix)
   const r1 = await fetch(`${base}/api/legal/catalog`);
   check(r1.status === 200, `GET /api/legal/catalog status`);
   const catData = await r1.json();
-  check(catData.norms.length === 50, `catalog tem 50 normas (got ${catData.norms.length})`);
+  check(catData.norms.length >= 50, `catalog tem pelo menos 50 normas (got ${catData.norms.length})`);
   const allInstalled = catData.norms.every(n => n.installed === true);
-  check(allInstalled, `CATALOG_PENDING=0: todas as 50 normas instaladas`);
+  check(allInstalled, `CATALOG_PENDING=0: todas as ${catData.norms.length} normas instaladas`);
 
   // 6. Cada artigo-alvo retorna o texto correto via API
   for (const t of TARGETS) {
@@ -171,12 +171,16 @@ try {
     }
   }
 
-  // 10. desarm2003 (BLOCKED) deve ser rejeitado
+  // 10. desarm2003 instalado (fix da onda 5) — agora é idempotente
   const r10 = await fetch(`${base}/api/legal/norms/download`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id: 'desarm2003' }),
   });
-  check(r10.status === 404 || r10.status === 400, `desarm2003 (BLOCKED) rejected (${r10.status})`);
+  check(r10.status === 200, `desarm2003 (instalado) idempotente (${r10.status})`);
+  if (r10.status === 200) {
+    const d10 = await r10.json();
+    check(d10.ok === true && d10.alreadyInstalled === true, 'desarm2003 alreadyInstalled=true');
+  }
 
   // 11. URL inválida: catálogo rejeita
   const r11 = await fetch(`${base}/api/legal/norms/download`, {

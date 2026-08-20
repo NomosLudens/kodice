@@ -24,6 +24,20 @@ const TARGETS = {
     url: 'https://www2.camara.leg.br/legin/fed/lei/1980-1987/lei-7347-24-julho-1985-356939-normaatualizada-pl.html',
     file: 'lei7347-24julho1985-normaatualizada.htm',
   },
+  // L10826 (Estatuto do Desarmamento) — texto consolidado oficial
+  // hospedado pela Câmara dos Deputados como PDF (Câmara ID 490580).
+  // NOTA: A Câmara removeu este PDF do acesso público (URL retorna
+  // 404 em 2026-08-20). O snapshot local foi preservado a partir do
+  // Internet Archive / Wayback Machine. O arquivo `download-camara.mjs`
+  // tentará a URL oficial; se a Câmara ainda retornar 404, a
+  // aquisição fica bloqueada e o snapshot local é usado como
+  // fonte canônica. A aquisição é IDEMPOTENTE — após a primeira
+  // materialização, snapshots subsequentes caem no caminho
+  // "alreadyInstalled" sem necessidade de rede.
+  desarm2003: {
+    url: 'https://www2.camara.leg.br/legin/fed/lei/2003/lei-10826-22-dezembro-2003-490580-normaatualizada-pl.pdf',
+    file: 'lei-10826-22-dezembro-2003-490580-normaatualizada-pl.pdf',
+  },
 };
 
 function fail(m) { console.error(m); process.exit(1); }

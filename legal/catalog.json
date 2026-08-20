@@ -1039,6 +1039,30 @@
       "versionDate": "2009-08-11",
       "officialSourceUrl": "https://www.planalto.gov.br/ccivil_03/_ato2007-2010/2009/lei/l12037.htm",
       "acquisitionMode": "DOWNLOAD"
+    },
+    {
+      "id": "desarm2003",
+      "title": "Estatuto do Desarmamento",
+      "urn": "urn:lex:br:federal:lei:2003-12-22;10826",
+      "type": "lei",
+      "year": 2003,
+      "number": "10826",
+      "popularName": "DESARM",
+      "aliases": [
+        "DESARM",
+        "desarm",
+        "desarmamento",
+        "Estatuto do Desarmamento",
+        "Lei 10826",
+        "Lei 10.826",
+        "Lei 10.826/2003"
+      ],
+      "ementa": "Dispõe sobre registro, posse e comercialização de armas de fogo e munição, sobre o Sistema Nacional de Armas — Sinarm, define crimes e dá outras providências.",
+      "status": "vigente",
+      "publicationDate": "2003-12-23",
+      "versionDate": "2003-12-22",
+      "officialSourceUrl": "https://www2.camara.leg.br/legin/fed/lei/2003/lei-10826-22-dezembro-2003-490580-normaatualizada-pl.pdf",
+      "acquisitionMode": "DOWNLOAD"
     }
   ]
 }
