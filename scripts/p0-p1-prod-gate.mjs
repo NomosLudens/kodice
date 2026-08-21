@@ -31,7 +31,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { createLegalApiHandler } from './legal-api-server.mjs';
 
 const APP_URL = 'https://kodice.nomosludens.ia.br';
-const PROD_API = 'https://mini.taildb6c11.ts.net/api/legal';
+const PROD_API = 'https://mellon.taildb6c11.ts.net/api/legal';
 const LOCAL_URL = 'http://127.0.0.1:5273';
 const LOCAL_API = 'http://127.0.0.1:5273/api/legal';
 const SHOTS = '/tmp/p0p1-shots';

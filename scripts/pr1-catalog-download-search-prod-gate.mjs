@@ -30,7 +30,7 @@ import { promises as fsAsync } from 'node:fs';
 import crypto from 'node:crypto';
 
 const APP_URL = 'https://kodice.nomosludens.ia.br';
-const PROD_API = 'https://mini.taildb6c11.ts.net/api/legal';
+const PROD_API = 'https://mellon.taildb6c11.ts.net/api/legal';
 const LOCAL_URL = 'http://127.0.0.1:5273';
 const LOCAL_API = 'http://127.0.0.1:5273/api/legal';
 const SHOTS = '/tmp/pr1-shots';
@@ -139,7 +139,7 @@ if (cfSnapExists) {
 
     // CF_FULL_NORM_API via Mini (Node fetch, sem browser)
     try {
-      const apiUnits = await fetch('https://mini.taildb6c11.ts.net/api/legal/norms/cf88/units');
+      const apiUnits = await fetch('https://mellon.taildb6c11.ts.net/api/legal/norms/cf88/units');
       const arr = await apiUnits.json();
       const hasArt1 = arr.some(u => u.canonicalPath === 'art1');
       const hasArt5 = arr.some(u => u.canonicalPath === 'art5');
@@ -512,21 +512,21 @@ try {
   }
 
   // ===========================================
-  // MINI_API live
+  // MELLON_API live
   // ===========================================
-  console.log('--- J. Mini API live ---');
-  let miniHealth, miniCORS;
+  console.log('--- J. Mellon API live ---');
+  let mellonHealth, mellonCORS;
   try {
-    const r = await fetch('https://mini.taildb6c11.ts.net/api/legal/health');
-    miniHealth = { status: r.status, body: await r.json() };
-  } catch (e) { miniHealth = { error: e.message }; }
+    const r = await fetch('https://mellon.taildb6c11.ts.net/api/legal/health');
+    mellonHealth = { status: r.status, body: await r.json() };
+  } catch (e) { mellonHealth = { error: e.message }; }
   try {
-    const r = await fetch('https://mini.taildb6c11.ts.net/api/legal/norms', { headers: { 'Origin': 'https://kodice.nomosludens.ia.br' } });
-    miniCORS = { status: r.status, acao: r.headers.get('access-control-allow-origin') };
-  } catch (e) { miniCORS = { error: e.message }; }
-  if (miniHealth.status === 200) ok('MINI_API', `health=${miniHealth.body?.status} @ ${miniHealth.body?.service}`);
-  else bad('MINI_API', JSON.stringify(miniHealth));
-  if (miniCORS.acao) ok('MINI_CORS', `ACAO=${miniCORS.acao}`);
+    const r = await fetch('https://mellon.taildb6c11.ts.net/api/legal/norms', { headers: { 'Origin': 'https://kodice.nomosludens.ia.br' } });
+    mellonCORS = { status: r.status, acao: r.headers.get('access-control-allow-origin') };
+  } catch (e) { mellonCORS = { error: e.message }; }
+  if (mellonHealth.status === 200) ok('MELLON_API', `health=${mellonHealth.body?.status} @ ${mellonHealth.body?.service}`);
+  else bad('MELLON_API', JSON.stringify(mellonHealth));
+  if (mellonCORS.acao) ok('MELLON_CORS', `ACAO=${mellonCORS.acao}`);
   else bad('MINI_CORS', JSON.stringify(miniCORS));
 
   // ===========================================

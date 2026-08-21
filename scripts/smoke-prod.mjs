@@ -95,7 +95,7 @@ console.log('VADE:', JSON.stringify({ open: r.vadeOpen, surface: r.vadeSurface }
 // 5. CATÁLOGO via mesmo pattern do app (targetAddressSpace: private)
 r.catalog = await page.evaluate(async () => {
   try {
-    const res = await fetch('https://mini.taildb6c11.ts.net/api/legal/catalog', {
+    const res = await fetch('https://mellon.taildb6c11.ts.net/api/legal/catalog', {
       method: 'GET',
       credentials: 'omit',
       cache: 'no-store',
@@ -115,7 +115,7 @@ console.log('CATALOG:', JSON.stringify(r.catalog));
 // 6. CF ART 5
 r.cfArt5 = await page.evaluate(async () => {
   try {
-    const res = await fetch('https://mini.taildb6c11.ts.net/api/legal/norms/cf88/units/art5', {
+    const res = await fetch('https://mellon.taildb6c11.ts.net/api/legal/norms/cf88/units/art5', {
       credentials: 'omit', cache: 'no-store', redirect: 'error',
       targetAddressSpace: 'private', headers: { Accept: 'application/json' },
     });
@@ -129,7 +129,7 @@ console.log('CF_ART5:', JSON.stringify(r.cfArt5));
 // 7. CPC ART 300
 r.cpcArt300 = await page.evaluate(async () => {
   try {
-    const res = await fetch('https://mini.taildb6c11.ts.net/api/legal/norms/cpc2015/units/art300', {
+    const res = await fetch('https://mellon.taildb6c11.ts.net/api/legal/norms/cpc2015/units/art300', {
       credentials: 'omit', cache: 'no-store', redirect: 'error',
       targetAddressSpace: 'private', headers: { Accept: 'application/json' },
     });
@@ -143,7 +143,7 @@ console.log('CPC_ART300:', JSON.stringify(r.cpcArt300));
 // 8. SEARCH
 r.search = await page.evaluate(async () => {
   try {
-    const res = await fetch('https://mini.taildb6c11.ts.net/api/legal/search?q=pleitear&limit=3', {
+    const res = await fetch('https://mellon.taildb6c11.ts.net/api/legal/search?q=pleitear&limit=3', {
       credentials: 'omit', cache: 'no-store', redirect: 'error',
       targetAddressSpace: 'private', headers: { Accept: 'application/json' },
     });
@@ -158,7 +158,7 @@ console.log('SEARCH:', JSON.stringify(r.search));
 r.catalogResolver = await page.evaluate(async () => {
   if (typeof window.resolveCatalogFrontend !== 'function') return { available: false };
   try {
-    const catRes = await fetch('https://mini.taildb6c11.ts.net/api/legal/catalog', {
+    const catRes = await fetch('https://mellon.taildb6c11.ts.net/api/legal/catalog', {
       credentials: 'omit', cache: 'no-store', redirect: 'error',
       targetAddressSpace: 'private', headers: { Accept: 'application/json' },
     });
