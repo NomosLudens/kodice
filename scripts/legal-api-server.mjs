@@ -13,10 +13,24 @@ import { spawnSync } from 'node:child_process';
  */
 
 export function createLegalApiHandler(db, options = {}) {
-  const allowedOrigins = options.allowedOrigins || ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5273', 'http://127.0.0.1:5273', 'https://mellon.taildb6c11.ts.net', 'https://kodice.nomosludens.ia.br'];
+  const allowedOrigins = options.allowedOrigins || [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:5273',
+    'http://127.0.0.1:5273',
+    'https://mellon.taildb6c11.ts.net',
+    'https://api.kodice.nomosludens.ia.br',
+    'https://kodice.nomosludens.ia.br',
+  ];
   const catalogPath = options.catalogPath || path.resolve(process.cwd(), 'legal/catalog.json');
   const corpusPath = options.corpusPath || path.resolve(process.cwd(), 'legal/corpus');
   const sourcesPath = options.sourcesPath || path.resolve(process.cwd(), 'legal/sources');
+  // Read-only mode: bloqueia POST /api/legal/norms/download (não expõe
+  // importadores/baixadores no endpoint público). Habilitado por
+  // KODICE_LEGAL_READONLY=1 ou via options.readOnly.
+  const readOnly = options.readOnly
+    || process.env.KODICE_LEGAL_READONLY === '1'
+    || process.env.KODICE_LEGAL_READONLY === 'true';
 
   const getNormStmt = db.prepare(`
     SELECT n.*, v.id as version_id, v.version_date, v.source_hash
@@ -76,7 +90,8 @@ export function createLegalApiHandler(db, options = {}) {
       : ('/api/legal' + (cleanPath.startsWith('/') ? cleanPath : '/' + cleanPath));
 
     // Method allowlist por pathname
-    const allowedMethod = (pathname === '/api/legal/norms/download' && req.method === 'POST') || req.method === 'GET';
+    const downloadPost = pathname === '/api/legal/norms/download' && req.method === 'POST' && !readOnly;
+    const allowedMethod = downloadPost || req.method === 'GET';
     if (!allowedMethod) {
       res.statusCode = 405;
       res.setHeader('Content-Type', 'application/json');

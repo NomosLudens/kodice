@@ -27,7 +27,11 @@ function fail(file, rule, excerpt) {
 }
 
 const ALLOWED_STATION_ORIGIN = 'https://kaline-box.taildb6c11.ts.net';
-const ALLOWED_LEGAL_ORIGIN = 'https://mellon.taildb6c11.ts.net';
+// Origem jurídica PÚBLICA canônica — frontend público consome daqui
+// (Cloudflare Tunnel → Mellon :4521 read-only).
+const ALLOWED_LEGAL_PUBLIC_ORIGIN = 'https://api.kodice.nomosludens.ia.br';
+// Origem jurídica PRIVADA canônica — testes internos / Tailscale tailnet.
+const ALLOWED_LEGAL_PRIVATE_ORIGIN = 'https://mellon.taildb6c11.ts.net';
 const URL_PATTERN = /https?:\/\/[^\s'"`<>()[\]]+/g;
 
 function isAllowedStationUrl(value) {
@@ -36,8 +40,10 @@ function isAllowedStationUrl(value) {
     if (url.username || url.password) return false;
     // 1) Kaline Box raiz (Station API: /api/codice/...)
     if (url.origin === ALLOWED_STATION_ORIGIN && url.pathname === '/' && !url.search && !url.hash) return true;
-    // 2) Mellon com path /api/legal (Vade Mecum: API jurídica privada — runtime canônico na Mellon via Tailscale Serve)
-    if (url.origin === ALLOWED_LEGAL_ORIGIN && (url.pathname === '/api/legal' || url.pathname.startsWith('/api/legal/')) && !url.search && !url.hash) return true;
+    // 2) Mellon (privada) com path /api/legal — testes de tailnet / gate privado
+    if (url.origin === ALLOWED_LEGAL_PRIVATE_ORIGIN && (url.pathname === '/api/legal' || url.pathname.startsWith('/api/legal/')) && !url.search && !url.hash) return true;
+    // 3) api.kodice.nomosludens.ia.br (pública) com path /api/legal — runtime público via Cloudflare Tunnel
+    if (url.origin === ALLOWED_LEGAL_PUBLIC_ORIGIN && (url.pathname === '/api/legal' || url.pathname.startsWith('/api/legal/')) && !url.search && !url.hash) return true;
     return false;
   } catch {
     return false;
@@ -415,6 +421,7 @@ function selfAssert(cond, msg) {
 {
   selfAssert(isAllowedStationUrl(ALLOWED_STATION_ORIGIN), 'Origin exata da Station padrão deve ser aceita');
   selfAssert(isAllowedStationUrl('https://mellon.taildb6c11.ts.net/api/legal'), 'Path /api/legal da Mellon deve ser aceito (API jurídica privada)');
+  selfAssert(isAllowedStationUrl('https://api.kodice.nomosludens.ia.br/api/legal'), 'Path /api/legal público (api.kodice.nomosludens.ia.br) deve ser aceito');
   selfAssert(!isAllowedStationUrl('https://kaline-box.taildb6c11.ts.net.evil.ts.net'), 'Subdomínio/sufixo .ts.net malicioso deve ser rejeitado');
   selfAssert(!isAllowedStationUrl('https://kaline-box.taildb6c11.ts.net@evil.ts.net'), 'Credencial com host malicioso deve ser rejeitada');
   selfAssert(!isAllowedStationUrl('https://kaline-box.taildb6c11.ts.net:444'), 'Porta diferente deve ser rejeitada');
