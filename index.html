@@ -25,9 +25,10 @@
 <meta name="format-detection" content="telephone=no" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <script src="./legal-catalog-frontend.js"></script>
-<link rel="apple-touch-icon" sizes="192x192" href="/icon-maskable-192.png" />
-<link rel="icon" href="/192x192.png" type="image/png" />
-<title>KÓDICE — Leitura local</title>
+<link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+<link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
+<title>Kódice — Vade Mecum</title>
 <style>
   :root, [data-theme="dark"]{
     /* Kódice — dark palette */
@@ -231,6 +232,206 @@
     background:var(--orange);color:#fff;font-weight:600;letter-spacing:.02em;
   }
   #dropzone button:hover{filter:brightness(1.05)}
+
+  /* ---------- Vade Mecum — Home jurídica (entrada padrão) ---------- */
+  #vade-home{
+    height:100%;min-height:0;overflow-y:auto;overflow-x:hidden;
+    padding:clamp(20px, 4vw, 56px) clamp(16px, 4vw, 48px) calc(40px + var(--safe-b));
+    background:
+      radial-gradient(ellipse at top right, rgba(130,101,144,.18), transparent 55%),
+      radial-gradient(ellipse at bottom left, rgba(255,138,46,.07), transparent 50%);
+  }
+  .vade-home-hero{
+    display:grid;grid-template-columns:auto 1fr auto;gap:clamp(16px, 3vw, 36px);
+    align-items:center;
+    padding:clamp(20px, 3vw, 36px) 0;
+    border-bottom:1px solid var(--border);
+  }
+  .vade-home-mark{
+    width:clamp(72px, 9vw, 112px);height:auto;display:block;
+    filter:drop-shadow(0 6px 30px rgba(130,101,144,.25));
+  }
+  .vade-home-titles{min-width:0}
+  .vade-home-eyebrow{
+    display:inline-block;font-size:11px;font-weight:700;letter-spacing:.26em;
+    text-transform:uppercase;color:var(--orange);margin-bottom:10px;
+    padding:4px 10px;border:1px solid rgba(255,138,46,.32);border-radius:999px;
+  }
+  .vade-home-title{
+    font-family:'Iowan Old Style','Charter','Georgia',serif;
+    font-size:clamp(34px, 6vw, 56px);font-weight:600;letter-spacing:-.01em;
+    margin:0;color:var(--text);line-height:1;
+  }
+  .vade-home-tagline{
+    margin:14px 0 0;font-family:'Iowan Old Style','Charter','Georgia',serif;
+    font-size:clamp(15px, 1.5vw, 17px);line-height:1.55;color:var(--text-2);
+    max-width:60ch;
+  }
+  .vade-home-status{
+    display:inline-flex;align-items:center;gap:8px;align-self:flex-start;
+    padding:8px 14px;border-radius:999px;font-size:12px;color:var(--text-2);
+    background:rgba(130,101,144,.08);border:1px solid var(--border);
+    white-space:nowrap;
+  }
+  .vade-status-dot{
+    width:8px;height:8px;border-radius:50%;background:var(--text-2);
+    box-shadow:0 0 8px rgba(130,101,144,.4);
+  }
+  .vade-status-dot.ok{background:#5fbf78;box-shadow:0 0 10px rgba(95,191,120,.5)}
+  .vade-status-dot.warn{background:var(--orange);box-shadow:0 0 10px rgba(255,138,46,.5)}
+  .vade-status-dot.err{background:#e25757;box-shadow:0 0 10px rgba(226,87,87,.5)}
+
+  .vade-home-actions{margin:clamp(20px, 3vw, 28px) 0 clamp(20px, 3vw, 32px)}
+  .vade-home-search{
+    display:flex;align-items:center;gap:12px;
+    background:rgba(10,8,12,.45);
+    border:1px solid var(--border);border-radius:14px;
+    padding:14px 18px;min-height:56px;
+    transition:.2s;
+  }
+  [data-theme="light"] .vade-home-search{background:rgba(255,255,255,.6)}
+  .vade-home-search:focus-within{
+    border-color:rgba(255,138,46,.5);
+    box-shadow:0 0 0 4px rgba(255,138,46,.08);
+  }
+  .vade-home-search svg{color:var(--text-2);flex-shrink:0}
+  .vade-home-search input{
+    flex:1;min-width:0;background:transparent;border:0;outline:0;
+    font-size:16px;color:var(--text);font-family:inherit;
+  }
+  .vade-home-search input::placeholder{color:var(--text-2)}
+  .vade-home-search-clear{
+    background:transparent;border:0;color:var(--text-2);cursor:pointer;
+    padding:6px;font-size:14px;line-height:1;display:none;border-radius:6px;
+  }
+  .vade-home-search-clear.visible{display:inline-block}
+  .vade-home-search-clear:hover{color:var(--text);background:var(--elev)}
+
+  .vade-home-search-results{
+    margin-top:14px;border:1px solid var(--border);border-radius:14px;
+    background:var(--surface);overflow:hidden;
+  }
+  .vade-home-search-results.hidden{display:none}
+  .vade-home-search-result{
+    display:block;width:100%;text-align:left;background:transparent;border:0;
+    padding:14px 18px;cursor:pointer;color:var(--text);
+    border-bottom:1px solid var(--border);
+    transition:background .15s;
+  }
+  .vade-home-search-result:last-child{border-bottom:0}
+  .vade-home-search-result:hover{background:var(--elev)}
+  .vade-home-search-result .sr-meta{
+    font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--text-2);margin-bottom:4px;
+  }
+  .vade-home-search-result .sr-title{font-size:15px;font-weight:600;line-height:1.35}
+  .vade-home-search-result .sr-snippet{
+    margin-top:6px;font-size:13px;color:var(--text-2);line-height:1.45;
+    overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  }
+  .vade-home-search-result .sr-status{
+    display:inline-block;font-size:10px;font-weight:700;letter-spacing:.08em;
+    text-transform:uppercase;padding:2px 8px;border-radius:999px;
+    margin-left:8px;vertical-align:middle;
+  }
+  .vade-home-search-result .sr-status.installed{background:rgba(95,191,120,.15);color:#5fbf78}
+  .vade-home-search-result .sr-status.absent{background:rgba(255,138,46,.15);color:var(--orange)}
+  .vade-home-search-empty{
+    padding:18px;color:var(--text-2);font-size:13px;text-align:center;
+  }
+
+  .vade-home-grid{
+    display:grid;grid-template-columns:1fr;gap:clamp(20px, 3vw, 32px);
+  }
+  @media(min-width:960px){
+    .vade-home-grid{grid-template-columns:minmax(0, 2fr) minmax(280px, 1fr);align-items:start}
+  }
+
+  .vade-home-section-head{
+    display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+    margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);
+  }
+  .vade-home-section-head h2{
+    margin:0;font-family:'Iowan Old Style','Charter','Georgia',serif;
+    font-size:18px;font-weight:600;letter-spacing:.01em;color:var(--text);
+  }
+  .vade-home-section-meta{font-size:11px;color:var(--text-2);letter-spacing:.06em;text-transform:uppercase;font-weight:600}
+
+  .vade-home-norms{
+    display:grid;grid-template-columns:1fr;gap:8px;
+  }
+  @media(min-width:560px){
+    .vade-home-norms{grid-template-columns:repeat(2, 1fr);gap:10px}
+  }
+  .vade-home-loading,.vade-home-error,.vade-home-empty{
+    color:var(--text-2);font-size:13px;padding:18px;text-align:center;
+    background:var(--surface);border:1px dashed var(--border);border-radius:12px;
+  }
+  .vade-home-error{color:#e25757;border-color:rgba(226,87,87,.3)}
+  .vade-home-norm{
+    display:block;width:100%;text-align:left;background:var(--surface);
+    border:1px solid var(--border);border-radius:12px;padding:14px 16px;
+    cursor:pointer;color:var(--text);transition:.15s;
+  }
+  .vade-home-norm:hover{border-color:rgba(130,101,144,.4);background:var(--elev)}
+  .vade-home-norm:active{transform:translateY(1px)}
+  .vade-home-norm .vn-meta{
+    font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--orange);margin-bottom:6px;
+  }
+  .vade-home-norm .vn-title{
+    font-family:'Iowan Old Style','Charter','Georgia',serif;
+    font-size:15px;font-weight:600;line-height:1.35;
+  }
+  .vade-home-norm .vn-popular{margin-top:3px;font-size:12px;color:var(--text-2)}
+  .vade-home-norm .vn-foot{
+    margin-top:8px;display:flex;align-items:center;gap:8px;
+    font-size:11px;color:var(--text-2);
+  }
+  .vade-home-norm .vn-pill{
+    font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+    padding:2px 7px;border-radius:999px;
+  }
+  .vade-home-norm .vn-pill.in{background:rgba(95,191,120,.15);color:#5fbf78}
+  .vade-home-norm .vn-pill.out{background:rgba(255,138,46,.15);color:var(--orange)}
+
+  .vade-home-aside{display:flex;flex-direction:column;gap:clamp(16px,2vw,24px)}
+  .vade-home-card-secondary{
+    background:rgba(130,101,144,.06);
+    border:1px solid var(--border);border-radius:14px;
+    padding:18px 18px 16px;
+  }
+  .vade-home-card-secondary .vade-home-section-head{margin-bottom:12px;padding-bottom:8px}
+  .vade-home-card-text{
+    margin:0 0 14px;font-size:13.5px;line-height:1.55;color:var(--text-2);
+    font-family:'Iowan Old Style','Charter','Georgia',serif;
+  }
+  .vade-home-card-actions{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+  .vade-home-card-meta{
+    font-size:11px;color:var(--text-2);
+    display:flex;align-items:center;gap:6px;margin-top:8px;
+  }
+
+  .vade-btn{
+    min-height:44px;padding:0 18px;border-radius:10px;border:0;
+    font-family:inherit;font-size:14px;font-weight:600;letter-spacing:.01em;
+    cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:8px;
+  }
+  .vade-btn-primary{background:var(--orange);color:#fff}
+  .vade-btn-primary:hover{filter:brightness(1.06)}
+  .vade-btn-secondary{
+    background:var(--elev);color:var(--text);
+    border:1px solid var(--border);
+  }
+  .vade-btn-secondary:hover{border-color:rgba(130,101,144,.5);background:var(--surface)}
+  .vade-btn-ghost{background:transparent;color:var(--text-2);padding:0 8px}
+  .vade-btn-ghost:hover{color:var(--text)}
+
+  @media(max-width:600px){
+    .vade-home-hero{grid-template-columns:auto 1fr;gap:16px}
+    .vade-home-status{grid-column:1 / -1;justify-self:start}
+  }
+
   #status{position:fixed;bottom:calc(72px + var(--safe-b));left:50%;transform:translateX(-50%);
     background:var(--elev);color:var(--text);padding:8px 14px;border-radius:999px;font-size:12px;
     border:1px solid var(--border);opacity:0;transition:.25s;z-index:50;pointer-events:none;max-width:90vw}
@@ -341,6 +542,9 @@
     background:var(--orange);border-radius:0 3px 3px 0;
     box-shadow:0 0 12px color-mix(in oklab, var(--orange) 60%, transparent);
   }
+  #sidebar .nav-btn-primary{color:var(--text);font-weight:600}
+  #sidebar .nav-btn-primary .lbl{font-weight:600;letter-spacing:.01em}
+  #sidebar .nav-btn-primary svg{color:var(--orange)}
   #sidebar .nav-btn[disabled]{opacity:.35;pointer-events:none}
   /* Labels always visible when sidebar is open (it's an overlay) */
   #sidebar .brand-text,
@@ -1186,27 +1390,27 @@
     <div class="brand">
       <img src="./kodice-logo.png" alt="Kódice" />
       <div class="brand-text">
-        <span class="n">KÓDICE</span>
-        <span class="s">Leitura local</span>
+        <span class="n">Kódice</span>
+        <span class="s">Vade Mecum</span>
       </div>
     </div>
     <div class="rail-progress" id="rail-progress" hidden><div></div></div>
     <nav>
-      <div class="nav-group-label">Biblioteca do Kódice</div>
-      <button class="nav-btn" data-nav="library" aria-label="Biblioteca do Kódice">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h4v16H4zM10 4h4v16h-4zM16 6l4 1-3 15-4-1z"/></svg>
-        <span class="lbl">Biblioteca do Kódice</span>
-      </button>
-      <button class="nav-btn" data-nav="legal" aria-label="Jurídico">
+      <div class="nav-group-label">Jurídico</div>
+      <button class="nav-btn nav-btn-primary" data-nav="legal" aria-label="Vade Mecum">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 4-9 4-9-4 9-4zM3 11l9 4 9-4M3 17l9 4 9-4"/></svg>
-        <span class="lbl">Jurídico</span>
+        <span class="lbl">Vade Mecum</span>
+      </button>
+
+      <div class="nav-group-label">Leitura</div>
+      <button class="nav-btn" data-nav="library" aria-label="Abrir biblioteca">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h4v16H4zM10 4h4v16h-4zM16 6l4 1-3 15-4-1z"/></svg>
+        <span class="lbl">Biblioteca</span>
       </button>
       <button class="nav-btn" data-nav="add" aria-label="Adicionar livro">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
         <span class="lbl">Adicionar livro</span>
       </button>
-
-      <div class="nav-group-label">Leitura</div>
       <button class="nav-btn" data-nav="prev" aria-label="Anterior" id="nav-prev" disabled>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
         <span class="lbl">Anterior</span>
@@ -1280,10 +1484,10 @@
   <div id="progress"><div></div></div>
 
   <main id="main">
-    <section id="landing">
+    <section id="landing" class="hidden">
       <img src="./kodice-logo.png" alt="Kódice" class="logo" />
-      <div class="subtitle">Leitura local</div>
-      <h1>KÓDICE</h1>
+      <div class="subtitle">Biblioteca pessoal</div>
+      <h1>Kódice</h1>
       <p class="lead">Kaline acolhe.<br>Kuan atende.<br>Klio constrói.<br>Kódice estuda.<br>Héstia sustenta.<br>Kairós conecta.</p>
       <div id="dropzone">
         <div class="hint">Solte aqui um arquivo EPUB, PDF ou TXT.</div>
@@ -1291,6 +1495,56 @@
         <input type="file" id="file-input" accept=".epub,.pdf,.txt,application/epub+zip,application/pdf,text/plain" hidden />
       </div>
       <div style="color:var(--text-2);font-size:12px;margin-top:8px"><span class="sync-dot" id="sync-dot"></span><span id="sync-label">Local</span></div>
+    </section>
+
+    <section id="vade-home">
+      <div class="vade-home-hero">
+        <img src="./kodice-logo.png" alt="Kódice" class="vade-home-mark" />
+        <div class="vade-home-titles">
+          <span class="vade-home-eyebrow">Vade Mecum</span>
+          <h1 class="vade-home-title">Kódice</h1>
+          <p class="vade-home-tagline">Corpus jurídico oficial brasileiro.<br/>Constituição, códigos e legislação especial verificados em fonte primária.</p>
+        </div>
+        <div class="vade-home-status" id="vade-home-status">
+          <span class="vade-status-dot" id="vade-status-dot"></span>
+          <span id="vade-status-label">Verificando catálogo…</span>
+        </div>
+      </div>
+
+      <div class="vade-home-actions">
+        <form id="vade-home-search-form" class="vade-home-search" onsubmit="event.preventDefault()">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input id="vade-home-search-input" type="search" autocomplete="off" placeholder="Buscar norma, artigo ou texto — ex: CF, art 5 cf, tutela de urgência, 300 cpc" aria-label="Buscar no Vade Mecum" />
+          <button type="button" id="vade-home-search-clear" class="vade-home-search-clear" aria-label="Limpar busca">✕</button>
+        </form>
+        <div id="vade-home-search-results" class="vade-home-search-results hidden"></div>
+      </div>
+
+      <div class="vade-home-grid">
+        <div class="vade-home-section">
+          <div class="vade-home-section-head">
+            <h2>Catálogo jurídico</h2>
+            <span class="vade-home-section-meta" id="vade-home-catalog-meta">—</span>
+          </div>
+          <div id="vade-home-norms" class="vade-home-norms">
+            <div class="vade-home-loading">Carregando legislação…</div>
+          </div>
+        </div>
+
+        <aside class="vade-home-aside">
+          <div class="vade-home-section vade-home-card-secondary">
+            <div class="vade-home-section-head">
+              <h2>Leitura pessoal</h2>
+            </div>
+            <p class="vade-home-card-text">Importe um EPUB, PDF ou TXT para ler, anotar e revisar offline. Sua biblioteca fica apenas no seu dispositivo.</p>
+            <div class="vade-home-card-actions">
+              <button id="btn-vade-open-library" type="button" class="vade-btn vade-btn-secondary">Abrir biblioteca</button>
+              <button id="btn-vade-pick-file" type="button" class="vade-btn vade-btn-ghost">Adicionar livro</button>
+            </div>
+            <div class="vade-home-card-meta"><span class="sync-dot" id="sync-dot-2"></span><span id="sync-label-2">Local</span></div>
+          </div>
+        </aside>
+      </div>
     </section>
 
     <section id="reader" class="hidden">
@@ -1349,7 +1603,7 @@
 <!-- Library Panel -->
 <aside id="library-panel">
   <div class="panel-header"><div class="grabber"></div>
-    <h3>Biblioteca do Kódice</h3>
+    <h3>Biblioteca</h3>
     <button class="panel-close" data-close-panel="library-panel" aria-label="Fechar">✕</button>
   </div>
   <div class="panel-body">
@@ -1953,7 +2207,6 @@ function toast(msg, ms=1800){
   clearTimeout(toast._t); toast._t = setTimeout(()=>el.classList.remove('show'), ms);
 }
 function openPanel(id){
-  if(id === 'library-panel') closeVadeMecumView();
   setReaderChromeVisible(true);
   const panel = document.getElementById(id); if(!panel) return;
   panel.classList.add('open'); $('#backdrop').classList.add('show');
@@ -2119,7 +2372,7 @@ async function exitLegalView() {
   legalState.bookSnapshot = null;
 
   if (snapshot) {
-    // Tenta restaurar o livro. Se ele não estava mais em cache, cai para a landing.
+    // Tenta restaurar o livro. Se ele não estava mais em cache, volta para a home jurídica.
     try {
       const file = await getBookFile(snapshot.id);
       if (file?.data) {
@@ -2150,10 +2403,10 @@ async function exitLegalView() {
     }
   }
 
-  // Sem snapshot ou restauração falhou: vai para a landing.
-  $('#reader').classList.add('hidden');
-  $('#landing').classList.remove('hidden');
-  updateRail();
+  // Sem snapshot ou restauração falhou: volta para a home jurídica (Vade Mecum).
+  showVadeHome();
+  // Atualiza o catálogo em background para refletir estado atualizado.
+  refreshVadeHome().catch(() => {});
 }
 window.openLegalView = openLegalView;
 window.exitLegalView = exitLegalView;
@@ -2336,6 +2589,53 @@ async function openLegalNorm(normId) {
 }
 window.openLegalNorm = openLegalNorm;
 
+// Wrapper que faz a transição completa da Home jurídica → Reader legal,
+// executa openLegalNorm e opcionalmente rola até o artigo.
+async function enterLegalNorm(normId, articleCp = null) {
+  if (!normId) return;
+  closeAllPanels();
+  // Esconde a home jurídica e mostra o reader em modo legal.
+  const home = $('#vade-home'); if (home) home.classList.add('hidden');
+  const landing = $('#landing'); if (landing) landing.classList.add('hidden');
+  const reader = $('#reader');
+  if (reader) {
+    reader.classList.remove('hidden');
+    reader.classList.add('reader-mode-legal');
+    applyReaderModeClass('reader-mode-legal');
+  }
+  setReaderChromeVisible(true);
+  const titleWrap = $('#title-wrap');
+  const backBtn = $('#btn-legal-back');
+  const searchBtn = $('#btn-legal-search');
+  const treeBtn = $('#btn-legal-tree');
+  if (titleWrap) titleWrap.classList.add('hidden');
+  if (backBtn) backBtn.classList.remove('hidden');
+  if (searchBtn) searchBtn.classList.remove('hidden');
+  if (treeBtn) treeBtn.classList.remove('hidden');
+  $('#app').classList.remove('reader-chrome-hidden');
+  // Snapshot do livro ativo (se houver) para preservar posição ao voltar.
+  if (state.activeBook) {
+    legalState.bookSnapshot = {
+      id: state.activeBook.id,
+      type: state.activeBook.type,
+      title: state.activeBook.title,
+      author: state.activeBook.author,
+      progress: state.activeBook.progress || 0,
+      readerLocation: state.activeBook.readerLocation || null,
+      pdfPage: state.pdfPage || 1,
+      scrollTop: reader?.scrollTop || 0
+    };
+  } else {
+    legalState.bookSnapshot = null;
+  }
+  await openLegalNorm(normId);
+  if (articleCp && typeof scrollToLegalUnit === 'function') {
+    scrollToLegalUnit(articleCp);
+  }
+  updateRail();
+}
+window.enterLegalNorm = enterLegalNorm;
+
 // Rola até a unidade identificada pelo canonical_path. Atualiza o destaque ativo.
 function scrollToLegalUnit(canonicalPath) {
   if (!canonicalPath) return;
@@ -2376,6 +2676,237 @@ function scrollToLegalUnit(canonicalPath) {
   legalState.activeUnitCp = cp;
 }
 window.scrollToLegalUnit = scrollToLegalUnit;
+
+// ===== HOME JURÍDICA (entrada padrão do app) =====
+function showVadeHome() {
+  closeAllPanels();
+  // Esconde todas as surfaces legadas
+  const landing = $('#landing'); if (landing) landing.classList.add('hidden');
+  const reader = $('#reader'); if (reader) reader.classList.add('hidden');
+  // Mostra a home jurídica
+  const home = $('#vade-home'); if (home) home.classList.remove('hidden');
+  // Topbar em estado neutro
+  const titleWrap = $('#title-wrap');
+  const bTitle = $('#book-title');
+  const bAuth = $('#book-author');
+  if (titleWrap) titleWrap.classList.add('hidden');
+  if (bTitle) bTitle.textContent = '';
+  if (bAuth) bAuth.textContent = '';
+  const backBtn = $('#btn-back'); if (backBtn) backBtn.style.display = 'none';
+  const legalBack = $('#btn-legal-back'); if (legalBack) legalBack.classList.add('hidden');
+  const legalSearch = $('#btn-legal-search'); if (legalSearch) legalSearch.classList.add('hidden');
+  const legalTree = $('#btn-legal-tree'); if (legalTree) legalTree.classList.add('hidden');
+  // Marca o item Jurídico como ativo na sidebar
+  document.querySelectorAll('#sidebar .nav-btn').forEach(b => b.classList.remove('active'));
+  const legalNav = document.querySelector('#sidebar .nav-btn[data-nav="legal"]');
+  if (legalNav) legalNav.classList.add('active');
+  // Sincroniza o segundo dot da home com o dot global
+  syncVadeHomeSyncBadge();
+  updateRail();
+}
+window.showVadeHome = showVadeHome;
+
+function syncVadeHomeSyncBadge() {
+  const dot = document.getElementById('sync-dot-2');
+  const label = document.getElementById('sync-label-2');
+  const srcDot = document.getElementById('sync-dot');
+  const srcLabel = document.getElementById('sync-label');
+  if (!dot || !label) return;
+  if (srcDot && srcLabel) {
+    dot.className = srcDot.className || 'sync-dot';
+    label.textContent = srcLabel.textContent || 'Local';
+  } else {
+    label.textContent = state.online ? 'Sincronizado' : 'Local';
+  }
+}
+
+async function refreshVadeHome() {
+  const statusDot = document.getElementById('vade-status-dot');
+  const statusLabel = document.getElementById('vade-status-label');
+  const meta = document.getElementById('vade-home-catalog-meta');
+  const list = document.getElementById('vade-home-norms');
+  if (!list) return;
+
+  // status inicial
+  if (statusDot) statusDot.className = 'vade-status-dot';
+  if (statusLabel) statusLabel.textContent = 'Verificando catálogo…';
+
+  let norms = [];
+  let catalog = null;
+  let apiOk = false;
+  try {
+    [norms, catalog] = await Promise.all([
+      legalFetch('/norms'),
+      legalFetch('/catalog').catch(() => null),
+    ]);
+    apiOk = Array.isArray(norms);
+  } catch (e) {
+    apiOk = false;
+  }
+
+  legalState.allNorms = norms;
+  legalState.catalog = catalog;
+
+  // status final
+  if (apiOk) {
+    const installed = (catalog && Array.isArray(catalog.norms))
+      ? catalog.norms.filter(n => n.installed).length
+      : norms.length;
+    if (statusDot) statusDot.className = 'vade-status-dot ok';
+    if (statusLabel) statusLabel.textContent = `Catálogo online · ${installed}/${norms.length} normas`;
+    if (meta) meta.textContent = `${norms.length} normas`;
+    renderVadeHomeNorms(norms, catalog);
+  } else {
+    if (statusDot) statusDot.className = 'vade-status-dot err';
+    if (statusLabel) statusLabel.textContent = 'Catálogo jurídico indisponível';
+    if (meta) meta.textContent = '—';
+    list.innerHTML = '<div class="vade-home-error">Não foi possível consultar o catálogo jurídico agora. Verifique sua conexão e tente novamente.</div>';
+  }
+  syncVadeHomeSyncBadge();
+}
+
+function renderVadeHomeNorms(norms, catalog) {
+  const list = document.getElementById('vade-home-norms');
+  if (!list) return;
+  if (!Array.isArray(norms) || norms.length === 0) {
+    list.innerHTML = '<div class="vade-home-empty">Nenhuma legislação disponível no catálogo.</div>';
+    return;
+  }
+  // catálogo é usado para mostrar "instalada" vs "oficial"
+  const installedSet = new Set();
+  if (catalog && Array.isArray(catalog.norms)) {
+    for (const n of catalog.norms) if (n.installed) installedSet.add(n.id);
+  } else {
+    for (const n of norms) installedSet.add(n.id);
+  }
+  list.innerHTML = norms.map(n => {
+    const isIn = installedSet.has(n.id);
+    const meta = `${(n.type || 'NORMA').toUpperCase()} · ${escapeHtml(String(n.year || ''))}`;
+    const verified = n.lastVerifiedAt ? new Date(n.lastVerifiedAt).toLocaleDateString('pt-BR') : 'recentemente';
+    return `
+      <button class="vade-home-norm" data-norm-id="${escapeAttr(n.id)}" type="button">
+        <div class="vn-meta">${escapeHtml(meta)}</div>
+        <div class="vn-title">${escapeHtml(n.popularName || n.title)}</div>
+        <div class="vn-popular">${escapeHtml(n.title)}</div>
+        <div class="vn-foot">
+          <span class="vn-pill ${isIn ? 'in' : 'out'}">${isIn ? 'Instalada' : 'Fonte oficial'}</span>
+          <span>Verificado ${escapeHtml(verified)}</span>
+        </div>
+      </button>
+    `;
+  }).join('');
+  list.querySelectorAll('.vade-home-norm').forEach(card => {
+    card.addEventListener('click', () => {
+      const normId = card.dataset.normId;
+      const norm = (legalState.allNorms || []).find(x => x.id === normId);
+      if (!norm) return;
+      legalState.activeNorm = norm;
+      legalState.activeNormId = normId;
+      legalState.activeUnitCp = null;
+      // P1: documento contínuo dentro do reader (transição completa)
+      enterLegalNorm(normId);
+    });
+  });
+}
+
+function wireVadeHome() {
+  const input = document.getElementById('vade-home-search-input');
+  const clearBtn = document.getElementById('vade-home-search-clear');
+  const form = document.getElementById('vade-home-search-form');
+  const results = document.getElementById('vade-home-search-results');
+  if (!input || !results) return;
+
+  let debounce = null;
+  let currentQuery = '';
+
+  const renderResults = (query) => {
+    if (!query.trim()) {
+      results.classList.add('hidden');
+      results.innerHTML = '';
+      if (clearBtn) clearBtn.classList.remove('visible');
+      return;
+    }
+    if (clearBtn) clearBtn.classList.add('visible');
+    // Tenta resolver pelo catálogo determinístico primeiro
+    const catalogResolution = (legalState.catalog && window.resolveCatalogFrontend)
+      ? window.resolveCatalogFrontend(query, legalState.catalog) : null;
+    if (catalogResolution && catalogResolution.match) {
+      const norm = catalogResolution.match;
+      const installed = !!norm.installed;
+      const articleLabel = catalogResolution.article ? `Art. ${catalogResolution.article}` : null;
+      results.innerHTML = `
+        <button class="vade-home-search-result" data-norm-id="${escapeAttr(norm.id)}" ${catalogResolution.article ? `data-article="${escapeAttr(catalogResolution.article)}"` : ''} type="button">
+          <div class="sr-meta">${escapeHtml(norm.shortTitle || norm.title)}<span class="sr-status ${installed ? 'installed' : 'absent'}">${installed ? 'Instalada' : 'Não instalada'}</span></div>
+          <div class="sr-title">${escapeHtml(norm.title)}${articleLabel ? ' — ' + escapeHtml(articleLabel) : ''}</div>
+          <div class="sr-snippet">Toque para ${articleLabel ? 'abrir ' + escapeHtml(articleLabel) : 'abrir a norma'}${installed ? '' : ' (download necessário)'}.</div>
+        </button>
+      `;
+      results.classList.remove('hidden');
+      const btn = results.querySelector('.vade-home-search-result');
+      if (btn) btn.addEventListener('click', () => openCatalogResult(norm, catalogResolution.article));
+      return;
+    }
+    // Fallback textual via API
+    legalFetch(`/search?q=${encodeURIComponent(query)}&limit=6`).then(arr => {
+      if (!Array.isArray(arr) || arr.length === 0) {
+        results.innerHTML = `<div class="vade-home-search-empty">Nenhum resultado para "${escapeHtml(query)}".</div>`;
+      } else {
+        results.innerHTML = arr.slice(0, 6).map(u => {
+          const snippet = (u.snippet || u.text || '').slice(0, 180).replace(/\n/g, ' ');
+          const meta = `${escapeHtml((u.normId || '').toUpperCase())} · ${escapeHtml(u.label || '')}`;
+          return `
+            <button class="vade-home-search-result" data-norm-id="${escapeAttr(u.normId)}" data-article="${escapeAttr(u.canonicalPath || '')}" type="button">
+              <div class="sr-meta">${meta}</div>
+              <div class="sr-title">${escapeHtml(u.heading || u.label || 'Resultado')}</div>
+              <div class="sr-snippet">${escapeHtml(snippet)}</div>
+            </button>
+          `;
+        }).join('');
+        results.querySelectorAll('.vade-home-search-result').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const normId = btn.dataset.normId;
+            const cp = btn.dataset.article;
+            const norm = (legalState.allNorms || []).find(x => x.id === normId);
+            if (!norm) return;
+            await enterLegalNorm(normId, cp);
+          });
+        });
+      }
+      results.classList.remove('hidden');
+    }).catch(() => {
+      results.innerHTML = `<div class="vade-home-search-empty">Falha na busca. Tente novamente.</div>`;
+      results.classList.remove('hidden');
+    });
+  };
+
+  const openCatalogResult = async (norm, article) => {
+    if (!norm.installed) {
+      toast(`"${norm.shortTitle || norm.title}" ainda não está instalada. Use o catálogo para baixá-la.`);
+      return;
+    }
+    // Transição home jurídica → reader + abre a norma como documento contínuo.
+    await enterLegalNorm(norm.id, article);
+  };
+
+  input.addEventListener('input', () => {
+    currentQuery = input.value;
+    clearTimeout(debounce);
+    debounce = setTimeout(() => renderResults(currentQuery), 180);
+  });
+  if (form) form.addEventListener('submit', e => { e.preventDefault(); renderResults(input.value); });
+  if (clearBtn) clearBtn.addEventListener('click', () => {
+    input.value = '';
+    renderResults('');
+    input.focus();
+  });
+
+  // CTA secundário: abrir biblioteca / adicionar livro
+  const btnLib = document.getElementById('btn-vade-open-library');
+  if (btnLib) btnLib.addEventListener('click', () => openPanel('library-panel'));
+  const btnPick = document.getElementById('btn-vade-pick-file');
+  if (btnPick) btnPick.addEventListener('click', () => document.getElementById('file-input').click());
+}
+window.wireVadeHome = wireVadeHome;
 
 // ===== HOME =====
 async function loadLegalHome() {
@@ -4092,14 +4623,12 @@ async function closeBook(){
   try{ await flushPendingNotes(); }catch(e){ console.error('[Kódice] Falha ao salvar anotação pendente antes de fechar livro', e); toast('Não foi possível salvar a anotação neste aparelho.'); return; }
   await releaseActiveBookResources();
   setReaderChromeVisible(true);
-  closeVadeMecumView();
-  $('#landing').classList.remove('hidden');
-  $('#reader').classList.add('hidden');
+  // Volta para a home jurídica (Vade Mecum) — não para a landing de upload.
+  showVadeHome();
+  refreshVadeHome().catch(() => {});
   applyReaderModeClass(null);
-  $('#title-wrap').classList.add('hidden');
   resetReaderNavState();
   setReaderInlineNavVisible(false);
-  $('#book-title').textContent = ''; $('#book-author').textContent = '';
   updateProgress(0);
   $('#toc-body').innerHTML = '<div class="empty">Abra um livro para ver o sumário.</div>';
   updateRail();
@@ -4767,11 +5296,11 @@ function updateSyncBadge(){
   if(!supabase){
     dot.className='sync-dot off'; lbl.textContent='Local';
     st.textContent='Sincronização desativada (configure SUPABASE_URL e SUPABASE_PUBLISHABLE_KEY)';
-    updateRail(); return;
+    syncVadeHomeSyncBadge(); updateRail(); return;
   }
   if(!state.user){
     dot.className='sync-dot off'; lbl.textContent='Anônimo'; st.textContent='Somente local — entre para sincronizar';
-    updateRail(); return;
+    syncVadeHomeSyncBadge(); updateRail(); return;
   }
   if(navigator.onLine){
     dot.className='sync-dot on'; lbl.textContent = state.user.display_name || state.user.email;
@@ -4779,7 +5308,7 @@ function updateSyncBadge(){
   } else {
     dot.className='sync-dot off'; lbl.textContent='Offline'; st.textContent='Offline — sincroniza ao reconectar';
   }
-  updateRail();
+  syncVadeHomeSyncBadge(); updateRail();
 }
 
 function updateRail(){
@@ -5540,6 +6069,7 @@ async function removeStation() {
 
 function wire(){
   wirePwaUi();
+  wireVadeHome();
   updateStationSettingsUI();
   
   const tabLocal = document.getElementById('tab-lib-local');
@@ -5653,7 +6183,8 @@ function wire(){
 
   // Top bar
   $('#btn-back').addEventListener('click', async ()=>{
-    if(state.activeBook) await closeBook(); else openPanel('library-panel');
+    if(state.activeBook) await closeBook();
+    else showVadeHome();
   });
 
   ['reader-inline-prev','reader-inline-next'].forEach(id=>{
@@ -5678,7 +6209,17 @@ function wire(){
       else if(k==='notebook') openPanel('notebook-panel');
       else if(k==='settings') openPanel('settings-panel');
       else if(k==='library') openPanel('library-panel');
-      else if(k==='legal') { openVadeMecumView(); }
+      else if(k==='legal') {
+        // Vai para a home jurídica (Vade Mecum). Se já estiver no reader
+        // lendo uma norma, mantém o reader; caso contrário mostra a home.
+        if (state.activeBook) {
+          // Livro aberto: prioriza voltar à home jurídica (sem fechar o livro)
+          showVadeHome();
+        } else {
+          showVadeHome();
+          refreshVadeHome().catch(() => {});
+        }
+      }
       else if(k==='add') $('#file-input').click();
       else if(k==='theme') applyTheme(state.theme==='dark' ? 'light' : 'dark');
       else if(k==='account'){ if(state.user) signOut(); else openAuth(); }
@@ -5996,6 +6537,9 @@ function wire(){
   updateSyncBadge();
   if(state.user && navigator.onLine) flushQueue();
   refreshPending();
+  // === ENTRADA PADRÃO: Vade Mecum (jurídico) ===
+  showVadeHome();
+  await refreshVadeHome();
   // Keep relative timestamps fresh
   setInterval(renderSyncStatus, 30000);
   // Auto-backup: check on boot, on focus, and every 15 min

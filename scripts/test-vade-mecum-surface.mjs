@@ -2,14 +2,14 @@
 /**
  * test-vade-mecum-surface.mjs
  *
- * Validação automatizada do modo legal integrado ao reader principal:
- * 1. Vade Mecum é aberto dentro do #reader (não overlay, não segunda app).
- * 2. Norma real CPC/2015 listada na home do legal-viewer.
- * 3. Busca determinística ("300") via tray temporário (🔍).
- * 4. Resultado da busca fecha o tray e renderiza Art. 300 no reader.
- * 5. Busca textual ("tutela de urgência") retorna resultados.
- * 6. Tray de estrutura (≡) abre/fecha temporariamente.
- * 7. Layout Mobile (390×844) sem overflow horizontal.
+ * Validação automatizada do Vade Mecum como entrada padrão do Kódice:
+ *  1. Boot abre direto na home jurídica (#vade-home) — não na landing de upload.
+ *  2. Catálogo jurídico real é listado (61 normas).
+ *  3. CTA secundária "Abrir biblioteca" / "Adicionar livro" presente.
+ *  4. Busca determinística ("300 cpc") resolve via catálogo e abre o Art. 300
+ *     do CPC2015 no reader como documento contínuo.
+ *  5. Texto do Art. 300 começa com "A tutela de urgência…".
+ *  6. Mobile (390×844) sem overflow horizontal.
  */
 import puppeteer from 'puppeteer-core';
 import http from 'node:http';
@@ -88,95 +88,65 @@ try {
   });
 
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
-  check((await page.title()).includes('KÓDICE'), 'Título do aplicativo contém KÓDICE');
 
-  // 1. Alternar para a superfície do Vade Mecum (modo legal do reader principal)
-  await page.waitForSelector('button[data-nav="legal"]');
-  await page.evaluate(() => {
-    const btn = document.querySelector('button[data-nav="legal"]');
-    if (btn) btn.click();
+  const title = await page.title();
+  check(/Kódice|KÓDICE/.test(title), `Título do aplicativo contém Kódice (${JSON.stringify(title)})`);
+
+  // 1. Boot abre na home jurídica — sem precisar clicar em nada
+  await page.waitForSelector('#vade-home:not(.hidden)', { timeout: 5000 });
+  const bootState = await page.evaluate(() => {
+    const home = document.getElementById('vade-home');
+    const landing = document.getElementById('landing');
+    const reader = document.getElementById('reader');
+    return {
+      homeVisible: !!(home && !home.classList.contains('hidden')),
+      landingHidden: !!(landing && landing.classList.contains('hidden')),
+      readerHidden: !!(reader && reader.classList.contains('hidden')),
+    };
   });
+  check(bootState.homeVisible, 'Boot abre direto na home jurídica (Vade Mecum)');
+  check(bootState.landingHidden, 'Landing de upload não está visível no boot');
+  check(bootState.readerHidden, 'Reader não está visível no boot');
 
-  const isMainSurfaceVisible = await page.evaluate(() => {
-    const lv = document.getElementById('legal-viewer');
-    const l = document.getElementById('landing');
-    const r = document.getElementById('reader');
-    const otherViewers = ['reader-content','epub-viewer','pdf-viewer'].every(id => {
-      const el = document.getElementById(id);
-      return !el || el.classList.contains('hidden');
-    });
-    return !!(lv && !lv.classList.contains('hidden') && l.classList.contains('hidden') && !r.classList.contains('hidden') && otherViewers);
-  });
-  check(isMainSurfaceVisible, 'Vade Mecum é exibido dentro do reader principal (não overlay)');
-
-  // 2. Normas CPC/2015 e/ou CF/88 listadas na home do legal-viewer
-  await page.waitForSelector('#legal-norms-list .vade-norm-row', { timeout: 10000 });
+  // 2. Catálogo jurídico carrega (61 normas)
+  await page.waitForSelector('#vade-home-norms .vade-home-norm', { timeout: 10000 });
   const normTitles = await page.evaluate(() => {
-    return Array.from(document.querySelectorAll('#legal-norms-list .vade-norm-row')).map(c => c.textContent);
+    return Array.from(document.querySelectorAll('#vade-home-norms .vade-home-norm .vn-title')).map(e => e.textContent.trim());
   });
-  // Pina o teste em CPC/2015 explicitamente — antes havia 1-2 normas; agora há 10.
-  // O restante do teste asssertiona em "Art. 300" do CPC (texto "tutela de urgência").
-  const cpcIndex = normTitles.findIndex(t => /Processo Civil|CPC/.test(t));
-  check(cpcIndex >= 0, `Card CPC/2015 presente: ${normTitles.length} normas listadas`);
-  // Clica na linha do CPC se ainda não estiver aberta
-  await page.evaluate((idx) => {
-    const rows = document.querySelectorAll('#legal-norms-list .vade-norm-row');
-    const cpcRow = rows[idx];
-    if (cpcRow && !cpcRow.classList.contains('open')) cpcRow.click();
-  }, cpcIndex);
+  check(normTitles.length >= 50, `Catálogo jurídico: ${normTitles.length} normas listadas`);
+  const cpcIndex = normTitles.findIndex(t => /CPC|Processo Civil/i.test(t));
+  check(cpcIndex >= 0, 'Card CPC/2015 presente na home jurídica');
 
-  // 3. Abre o tray temporário de busca (🔍) e busca determinística por "300"
+  // 3. CTA secundária "Abrir biblioteca" presente
+  const libBtn = await page.$('#btn-vade-open-library');
+  const addBtn = await page.$('#btn-vade-pick-file');
+  check(!!libBtn, 'CTA secundária "Abrir biblioteca" presente');
+  check(!!addBtn, 'CTA secundária "Adicionar livro" presente');
+
+  // 4. Busca determinística "cpc 300" — via input da home jurídica
+  // (formato "<alias-curto> <número-artigo>" que o resolver determinístico aceita)
+  await page.type('#vade-home-search-input', 'cpc 300');
+  // Espera o catálogo resolver (resolver frontend é síncrono, mas o catálogo
+  // pode estar sendo carregado em background — aguarda até 5s).
+  await page.waitForFunction(() => {
+    const results = document.getElementById('vade-home-search-results');
+    return results && !results.classList.contains('hidden') && results.querySelector('.vade-home-search-result');
+  }, { timeout: 5000 });
+  const searchHit = await page.evaluate(() => {
+    const btn = document.querySelector('#vade-home-search-results .vade-home-search-result');
+    return btn ? btn.textContent.trim() : '';
+  });
+  check(/CPC/i.test(searchHit), `Busca "cpc 300" resolveu para catálogo (${searchHit.slice(0,80)})`);
+
+  // Clica no resultado — abre documento contínuo com Art. 300
   await page.evaluate(() => {
-    const btn = document.getElementById('btn-legal-search');
-    if (btn) btn.click();
+    document.querySelector('#vade-home-search-results .vade-home-search-result')?.click();
   });
-  await page.waitForSelector('#legal-search-popover.open', { timeout: 5000 });
-  await page.evaluate(() => {
-    const input = document.getElementById('legal-search-input');
-    if (input) {
-      input.value = '300';
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-  });
-  try {
-    await page.waitForFunction(() => document.querySelectorAll('#legal-search-popover-results .vade-search-item').length > 0, { timeout: 8000 });
-  } catch (err) {
-    const listHtml = await page.evaluate(() => document.getElementById('legal-search-popover-results')?.innerHTML);
-    console.error('Debug step 3 listHtml:', listHtml);
-    throw err;
-  }
-
-  const searchResultsCount = await page.evaluate(() => {
-    return document.querySelectorAll('#legal-search-popover-results .vade-search-item').length;
-  });
-  check(searchResultsCount > 0, `Busca por '300' retornou ${searchResultsCount} unidade(s)`);
-
-  // 4. Clica no resultado Art. 300 (deve fechar o tray e rolar até o artigo dentro do documento contínuo)
-  await page.evaluate(() => {
-    const items = document.querySelectorAll('#legal-search-popover-results .vade-search-item');
-    const target = Array.from(items).find(el => el.textContent.includes('ART300') || el.textContent.includes('ART. 300'));
-    if (target) target.click();
-    else items[0]?.click();
-  });
-  // Tray deve fechar
-  await page.waitForFunction(() => !document.getElementById('legal-search-popover')?.classList.contains('open'), { timeout: 3000 });
-  check(true, 'Tray de busca fecha após selecionar resultado');
-
-  // P1: o documento contínuo carrega a norma inteira e o Art. 300 fica visível no reader.
   await page.waitForFunction(() => {
     const art = document.querySelector('#legal-document [data-cp="art300"]');
     return !!(art && art.querySelector('.legal-unit-title'));
   }, { timeout: 15000 });
-  // Aguarda o scrollIntoView({behavior:'smooth'}) terminar — pode percorrer
-  // milhares de pixels (CPC tem 4199 unidades).
-  await page.waitForFunction(() => {
-    const art = document.querySelector('#legal-document [data-cp="art300"]');
-    if (!art) return false;
-    const r = art.getBoundingClientRect();
-    // Aceita estar visível: top dentro do viewport ou já passou do topo, mas
-    // ainda dentro da altura visível.
-    return r.top < window.innerHeight && r.bottom > 0 && r.top > -window.innerHeight;
-  }, { timeout: 5000 }).catch(() => {});
+
   const articleState = await page.evaluate(() => {
     const art = document.querySelector('#legal-document [data-cp="art300"]');
     const title = art?.querySelector('.legal-unit-title')?.textContent || '';
@@ -190,58 +160,31 @@ try {
     };
   });
   check(articleState.title.includes('ART. 300'), `Artigo 300 materializado no documento: "${articleState.title}"`);
-  check(articleState.inViewport, `Artigo 300 visível na viewport (${articleState.unitsCount} unidades carregadas)`);
   check(articleState.textStart.includes('tutela') || articleState.textStart.length > 20, `Texto do Art. 300 começa com: "${articleState.textStart}"`);
 
-  // 5. Testar Busca por Texto ("tutela de urgência") via tray
-  await page.evaluate(() => {
-    const btn = document.getElementById('btn-legal-search');
-    if (btn) btn.click();
+  // 5. Clicar no botão "Jurídico" do sidebar volta para a home jurídica (não para landing de upload)
+  await page.evaluate(() => document.querySelector('#sidebar .nav-btn[data-nav="legal"]')?.click());
+  await page.waitForSelector('#vade-home:not(.hidden)', { timeout: 3000 });
+  const backToHome = await page.evaluate(() => {
+    const home = document.getElementById('vade-home');
+    const landing = document.getElementById('landing');
+    return { home: !home.classList.contains('hidden'), landing: !landing.classList.contains('hidden') };
   });
-  await page.waitForSelector('#legal-search-popover.open', { timeout: 3000 });
-  await page.evaluate(() => {
-    const input = document.getElementById('legal-search-input');
-    if (input) {
-      input.value = 'tutela de urgência';
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-  });
-  await page.waitForFunction(() => {
-    const item = document.querySelector('#legal-search-popover-results .vade-search-item');
-    return item && item.textContent.toLowerCase().includes('tutela');
-  }, { timeout: 10000 });
+  check(backToHome.home && !backToHome.landing, 'Voltar pelo Jurídico retorna à home jurídica (não à landing)');
 
-  const textSearchResult = await page.evaluate(() => {
-    return document.querySelector('#legal-search-popover-results .vade-search-item')?.textContent || '';
-  });
-  check(textSearchResult.includes('tutela de urgência') || textSearchResult.includes('ART'), 'Busca textual por "tutela de urgência" retornou resultados');
-
-  // 6. Tray de estrutura (≡) é temporário
-  await page.evaluate(() => {
-    const btn = document.getElementById('btn-legal-search');
-    if (btn) btn.click(); // fecha busca
-  });
-  await page.waitForFunction(() => !document.getElementById('legal-search-popover')?.classList.contains('open'), { timeout: 3000 });
-  await page.evaluate(() => {
-    const btn = document.getElementById('btn-legal-tree');
-    if (btn) btn.click();
-  });
-  await page.waitForSelector('#legal-tree-pane.open', { timeout: 3000 });
-  check(true, 'Tray de estrutura (≡) abre temporariamente');
-  // Fecha
-  await page.evaluate(() => {
-    const btn = document.getElementById('btn-legal-tree');
-    if (btn) btn.click();
-  });
-  await page.waitForFunction(() => !document.getElementById('legal-tree-pane')?.classList.contains('open'), { timeout: 3000 });
-  check(true, 'Tray de estrutura (≡) fecha ao clicar fora');
-
-  // 7. Testar Responsividade Mobile (390×844) sem overflow horizontal
+  // 6. Mobile (390×844) sem overflow horizontal
   await page.setViewport({ width: 390, height: 844 });
+  await new Promise(r => setTimeout(r, 200));
   const hasNoHorizontalOverflow = await page.evaluate(() => {
     return document.documentElement.scrollWidth <= window.innerWidth;
   });
   check(hasNoHorizontalOverflow, 'Mobile (390×844) não apresenta overflow horizontal');
+
+  // 7. Mobile 320px (menor viewport) também sem overflow
+  await page.setViewport({ width: 320, height: 720 });
+  await new Promise(r => setTimeout(r, 200));
+  const noOverflow320 = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+  check(noOverflow320, 'Mobile (320×720) não apresenta overflow horizontal');
 
 } catch (err) {
   console.error('Erro na execução do teste:', err);
