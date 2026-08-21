@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/build-functions.mjs && node scripts/build-service-worker.mjs && node scripts/verify-product-boundaries.mjs && node scripts/test-station-auth.mjs && node scripts/test-pdf-engine.mjs && node scripts/test-p1-regressions.mjs && node scripts/test-p1-runtime.mjs && node scripts/test-reader-real.mjs && node scripts/test-backup-real.mjs && node scripts/test-vade-mecum-surface.mjs",
+    "build": "vite build && node scripts/build-service-worker.mjs && node scripts/verify-product-boundaries.mjs && node scripts/test-station-auth.mjs && node scripts/test-pdf-engine.mjs && node scripts/test-p1-regressions.mjs && node scripts/test-p1-runtime.mjs && node scripts/test-reader-real.mjs && node scripts/test-backup-real.mjs && node scripts/test-vade-mecum-surface.mjs",
     "build:epubs": "node scripts/build-legal-epubs.mjs",
     "preview": "vite preview",
     "verify:decoupling": "node scripts/verify-decoupling.mjs",

@@ -2237,19 +2237,11 @@ function closeAllPanels(){
  * Vade Mecum — Superfície Principal de Primeira Classe
  * =======================================================*/
 function getLegalApiUrl() {
-  // CORPUS JURÍDICO PÚBLICO — prioridade para endpoint same-origin.
-  // A Cloudflare Pages Function /api/legal/[...path].js faz proxy reverso
-  // para a Mini jurídica privada. Isso evita que o cliente precise
-  // acessar Tailscale diretamente.
   if (typeof window !== 'undefined' && window.KODICE_LEGAL_API_URL) {
     return window.KODICE_LEGAL_API_URL.replace(/\/+$/, '');
   }
-  // Production: window.location.origin + '/api/legal' (Pages Function proxy)
-  // Local dev: VITE_KODICE_LEGAL_API_URL=http://127.0.0.1:5273/api/legal
-  if (import.meta.env.VITE_KODICE_LEGAL_API_URL?.trim()) {
-    return import.meta.env.VITE_KODICE_LEGAL_API_URL.trim().replace(/\/+$/, '');
-  }
-  return '';
+  return (import.meta.env.VITE_KODICE_LEGAL_API_URL?.trim()
+    || 'https://mini.taildb6c11.ts.net/api/legal').replace(/\/+$/, '');
 }
 const LEGAL_API_TIMEOUT_MS = 15000;
 
