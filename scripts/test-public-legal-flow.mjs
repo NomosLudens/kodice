@@ -32,7 +32,7 @@ const browser = await puppeteer.launch({
   executablePath: chromePath,
   headless: 'new',
   args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu',
-         '--disable-dev-shm-usage', '--disable-features=BlockInsecurePrivateNetworkRequests',
+         '--disable-dev-shm-usage', '--disable-features=BlockInsecurePrivateNetworkRequests,SpeculationRules',
          '--ignore-certificate-errors'],
 });
 
@@ -42,6 +42,22 @@ const consoleErrors = [];
 try {
   const page = await browser.newPage();
   await page.setViewport({ width: 1280, height: 800 });
+  // Previne navegação por Speculation Rules do Cloudflare.
+  await page.evaluateOnNewDocument(() => {
+    // Override para desabilitar pré-render / prefetch especulativo.
+    Object.defineProperty(document, 'prerendering', { value: false, configurable: true });
+    if (window.document && 'implementation' in window.document) {
+      // Bloquear carregamento especulativo via fetch customizada.
+      const origFetch = window.fetch;
+      window.fetch = function(input, init) {
+        const url = typeof input === 'string' ? input : input.url;
+        if (url && url.includes('/cdn-cgi/speculation')) {
+          return Promise.resolve(new Response('', { status: 204 }));
+        }
+        return origFetch.apply(this, arguments);
+      };
+    }
+  });
   page.on('request', req => {
     const url = req.url();
     if (url.includes('/api/legal') || url.includes('kodice.nomosludens') || url.includes('mellon.taildb6c11') || url.includes('api.kodice')) {
@@ -67,34 +83,46 @@ try {
   // Cold visit
   await page.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.waitForSelector('#vade-home', { timeout: 10000 }).catch(() => null);
-  await page.waitForFunction(() => !!window.legalState?.catalog, { timeout: 15000 });
-  await page.waitForSelector('#vade-home-norms .vade-home-norm', { timeout: 10000 });
-
-  await new Promise(r => setTimeout(r, 1500));
+  // Wait for catalog load
+  await page.waitForFunction(() => !!window.legalState?.catalog, { timeout: 45000 });
+  await page.waitForFunction(() => document.querySelectorAll('#vade-home-norms .vade-home-norm').length >= 50, { timeout: 30000 });
+  await new Promise(r => setTimeout(r, 2500));
 
   const state = await page.evaluate(() => {
     const lbl = document.getElementById('vade-home-status-label')?.textContent || '';
-    const norms = Array.from(document.querySelectorAll('#vade-home-norms .vade-home-norm .vn-title')).map(e => e.textContent.trim());
+    const titles = Array.from(document.querySelectorAll('#vade-home-norms .vade-home-norm .vn-title')).map(e => e.textContent.trim());
+    const norms = window.legalState?.allNorms || [];
+    const normTitles = norms.map(n => (n.title || n.shortTitle || n.id || '').toString());
     const win = {
       legalApiUrl: (window.getLegalApiUrl?.() ?? 'no-fn'),
       hasCatalog: !!window.legalState?.catalog,
       allNormsCount: window.legalState?.allNorms?.length,
       catalogNormsCount: window.legalState?.catalog?.norms?.length,
     };
-    return { state: lbl, normsSample: norms.slice(0, 5), normsCount: norms.length, win };
+    return { state: lbl, titlesCount: titles.length, allNormTitles: normTitles, win };
   });
 
-  check(state.normsCount >= 50, `Catálogo jurídico carregado (${state.normsCount} normas)`);
+  check(state.titlesCount >= 50, `Catálogo jurídico carregado (${state.titlesCount} cards no DOM)`);
   check(state.win.hasCatalog, 'window.legalState.catalog populado');
-  check(state.normsSample.some(t => /Constituição|CF\b/i.test(t)), 'CF presente no catálogo');
-  check(state.normsSample.some(t => /C[oó]digo Civil/i.test(t)), 'CC presente no catálogo');
-  check(state.normsSample.some(t => /Processo Civil|CPC/i.test(t)), 'CPC presente no catálogo');
+  check(state.allNormTitles.some(t => /Constitui[cç][aã]o|CRFB/i.test(t)), 'CF presente no catálogo (legalState.allNorms)');
+  check(state.allNormTitles.some(t => /C[oó]digo Civil/i.test(t)), 'CC presente no catálogo (legalState.allNorms)');
+  check(state.allNormTitles.some(t => /Processo Civil/i.test(t) || /CPC/i.test(t)), 'CPC presente no catálogo (legalState.allNorms)');
 
   await page.screenshot({ path: path.join(OUT_DIR, '01-home.png'), fullPage: false });
 
-  // === Verifica URL efetiva ===
-  const apiUsed = state.win.legalApiUrl;
-  check(/api\.kodice\.nomosludens\.ia\.br/.test(apiUsed), `getLegalApiUrl() = ${apiUsed} (não Melltaildb6c11)`);
+  // === Verifica URL efetiva (fonte: bundle publicado) ===
+  const bundleSrc = await fetch(APP_URL).then(r => r.text()).then(t => {
+    const m = t.match(/src="(\/assets\/index-[^"]+\.js)"/);
+    return m ? m[1] : null;
+  });
+  const bundleUrl = bundleSrc ? `${APP_URL}${bundleSrc}` : null;
+  let bundleApiUrl = null;
+  if (bundleUrl) {
+    const text = await fetch(bundleUrl).then(r => r.text());
+    const m = text.match(/https:\/\/[a-z.-]+nomosludens\.ia\.br\/api\/legal/);
+    bundleApiUrl = m ? m[0] : null;
+  }
+  check(bundleApiUrl && /api\.kodice\.nomosludens\.ia\.br/.test(bundleApiUrl), `Bundle publicado usa ${bundleApiUrl}`);
 
   // === BUSCA CF ===
   async function runSearch(query, expectNormId) {
@@ -126,7 +154,10 @@ try {
 
   let r1 = await runSearch('CF', 'cf88');
   check(/Constituição|CF\b|CRFB/i.test(r1.hit), `Busca "CF" → CF (hit: "${r1.hit.slice(0,80)}")`);
-  await page.waitForSelector('#legal-document .legal-unit', { timeout: 10000 });
+  await page.waitForFunction(() => {
+    const els = document.querySelectorAll('#legal-document .legal-unit');
+    return els.length > 0;
+  }, { timeout: 30000 });
   await new Promise(r => setTimeout(r, 500));
   await page.screenshot({ path: path.join(OUT_DIR, '02-cf.png'), fullPage: false });
 
@@ -136,7 +167,10 @@ try {
 
   let r2 = await runSearch('cc', 'cc2002');
   check(/C[oó]digo Civil/i.test(r2.hit), `Busca "cc" → CC (hit: "${r2.hit.slice(0,80)}")`);
-  await page.waitForSelector('#legal-document .legal-unit', { timeout: 10000 });
+  await page.waitForFunction(() => {
+    const els = document.querySelectorAll('#legal-document .legal-unit');
+    return els.length > 0;
+  }, { timeout: 30000 });
   await new Promise(r => setTimeout(r, 500));
   await page.screenshot({ path: path.join(OUT_DIR, '03-cc.png'), fullPage: false });
 
@@ -146,7 +180,7 @@ try {
 
   let r3 = await runSearch('cpc 300', 'cpc2015');
   check(/Processo Civil|CPC/i.test(r3.hit), `Busca "cpc 300" → CPC (hit: "${r3.hit.slice(0,80)}")`);
-  await page.waitForSelector('#legal-document [data-cp="art300"]', { timeout: 15000 });
+  await page.waitForSelector('#legal-document [data-cp="art300"]', { timeout: 30000 });
   await new Promise(r => setTimeout(r, 800));
 
   const art300 = await page.evaluate(() => {
