@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "K\u00f3dice \u2014 Leitura local",
-  "short_name": "K\u00f3dice",
-  "description": "Leitor local de EPUB, PDF e TXT.",
+  "name": "Kódice — Vade Mecum",
+  "short_name": "Kódice",
+  "description": "Vade Mecum brasileiro. Constituição, códigos e legislação especial verificados em fonte oficial.",
   "lang": "pt-BR",
   "dir": "ltr",
   "start_url": "/",
@@ -14,18 +14,32 @@
   "prefer_related_applications": false,
   "categories": [
     "books",
-    "education"
+    "education",
+    "law",
+    "government"
   ],
   "icons": [
     {
-      "src": "/192x192.png",
+      "src": "/icon-192.png",
       "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
       "src": "/icon-maskable-192.png",
       "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
     }
