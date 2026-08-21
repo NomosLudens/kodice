@@ -98,15 +98,31 @@ try {
     const home = document.getElementById('vade-home');
     const landing = document.getElementById('landing');
     const reader = document.getElementById('reader');
+    const titleWrap = document.getElementById('title-wrap');
+    const inlineNav = document.getElementById('reader-inline-nav');
+    const progressBar = document.getElementById('progress');
     return {
       homeVisible: !!(home && !home.classList.contains('hidden')),
       landingHidden: !!(landing && landing.classList.contains('hidden')),
       readerHidden: !!(reader && reader.classList.contains('hidden')),
+      // GATES da missão de correção 10 incidentes:
+      // home jurídica não pode vazar estado do livro
+      titleWrapHidden: !!(titleWrap && titleWrap.classList.contains('hidden')),
+      bookTitleEmpty: document.getElementById('book-title').textContent === '',
+      bookAuthorEmpty: document.getElementById('book-author').textContent === '',
+      inlineNavHidden: !!(inlineNav && inlineNav.classList.contains('hidden')),
+      progressWidth: progressBar?.firstElementChild?.style.width || '0%',
     };
   });
   check(bootState.homeVisible, 'Boot abre direto na home jurídica (Vade Mecum)');
   check(bootState.landingHidden, 'Landing de upload não está visível no boot');
   check(bootState.readerHidden, 'Reader não está visível no boot');
+  // Gate: home jurídica não vaza estado do livro pessoal
+  check(bootState.titleWrapHidden, 'HOME_BOOK_TITLE_VISIBLE=NO [title-wrap hidden]');
+  check(bootState.bookTitleEmpty, 'HOME_BOOK_TITLE_VISIBLE=NO [title empty]');
+  check(bootState.bookAuthorEmpty, 'HOME_BOOK_AUTHOR_VISIBLE=NO [author empty]');
+  check(bootState.inlineNavHidden, 'HOME_INLINE_PREV_NEXT_VISIBLE=NO [inline-nav hidden]');
+  check(bootState.progressWidth === '0%', 'HOME_BOOK_PROGRESS_VISIBLE=NO [progress 0%]');
 
   // 2. Catálogo jurídico carrega (61 normas)
   await page.waitForSelector('#vade-home-norms .vade-home-norm', { timeout: 10000 });

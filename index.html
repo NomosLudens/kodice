@@ -710,7 +710,17 @@
     position: relative;
     padding: 40px 24px 96px;
   }
-  #reader-mode-legal #legal-viewer { display: block; }
+  /* Quando o reader está em modo legal, garantir exclusividade:
+     as surfaces pessoais (reader-content/epub-viewer/pdf-viewer) ficam
+     escondidas e a legal-viewer ocupa o reader. */
+  #reader.reader-mode-legal #reader-content,
+  #reader.reader-mode-legal #epub-viewer,
+  #reader.reader-mode-legal #pdf-viewer {
+    display: none !important;
+  }
+  #reader.reader-mode-legal #legal-viewer {
+    display: block;
+  }
   #legal-view-body {
     max-width: 64ch;
     margin: 0 auto;
@@ -2287,17 +2297,56 @@ const legalState = {
 };
 
 // Entrar no modo legal do reader (sem overlay, sem segunda surface)
-async function openLegalView() {
+// Helper mínimo: prepara a superfície visual para o reader jurídico SEM
+// qualquer vestígio do livro pessoal (EPUB/PDF/TXT). Esconde todas as
+// surfaces pessoais, mostra #reader com reader-mode-legal e ajusta o
+// topbar. Usado por openLegalView() e enterLegalNorm().
+function prepareLegalReader() {
   closeAllPanels();
-
+  // 1. Esconder surfaces pessoais do reader (EPUB, PDF, TXT, content genérico)
+  $('#reader-content').classList.add('hidden');
+  $('#epub-viewer').classList.add('hidden');
+  $('#pdf-viewer').classList.add('hidden');
+  $('#legal-viewer').classList.remove('hidden');
+  // 2. Esconder surfaces externas
+  $('#vade-home').classList.add('hidden');
+  $('#landing').classList.add('hidden');
+  // 3. Reader visível com modo legal exclusivo
   const reader = $('#reader');
-  const landing = $('#landing');
+  if (reader) {
+    reader.classList.remove('hidden');
+    applyReaderModeClass('reader-mode-legal'); // remove os outros modos
+  }
+  // 4. Topbar: limpar qualquer referência a livro pessoal
   const titleWrap = $('#title-wrap');
   const bTitle = $('#book-title');
   const bAuth = $('#book-author');
-  const backBtn = $('#btn-legal-back');
-  const searchBtn = $('#btn-legal-search');
-  const treeBtn = $('#btn-legal-tree');
+  if (titleWrap) titleWrap.classList.remove('hidden');
+  if (bTitle) bTitle.textContent = 'Vade Mecum';
+  if (bAuth) bAuth.textContent = 'Corpus Jurídico Oficial';
+  // 5. Botões jurídicos visíveis; botões pessoais ocultos
+  const backBtn = $('#btn-back'); if (backBtn) backBtn.style.display = 'none';
+  const legalBack = $('#btn-legal-back');
+  const legalSearch = $('#btn-legal-search');
+  const legalTree = $('#btn-legal-tree');
+  if (legalBack) legalBack.classList.remove('hidden');
+  if (legalSearch) legalSearch.classList.remove('hidden');
+  if (legalTree) legalTree.classList.remove('hidden');
+  // 6. Chrome do reader visível
+  setReaderChromeVisible(true);
+  $('#app').classList.remove('reader-chrome-hidden');
+  // 7. Navegação inline do livro pessoal escondida
+  if (typeof setReaderInlineNavVisible === 'function') setReaderInlineNavVisible(false);
+  if (typeof resetReaderNavState === 'function') resetReaderNavState();
+  // 8. Progresso do livro pessoal zerado (não vaza no jurídico)
+  updateProgress(0);
+  // 9. Reset dos popovers jurídicos para estado limpo
+  closeLegalSearch();
+  closeLegalStructure();
+}
+
+async function openLegalView() {
+  const reader = $('#reader');
 
   // Snapshot do livro ativo (se houver) para preservar posição ao voltar.
   if (state.activeBook) {
@@ -2315,31 +2364,8 @@ async function openLegalView() {
     legalState.bookSnapshot = null;
   }
 
-  // Esconde tudo que não é legal dentro do reader.
-  $('#reader-content').classList.add('hidden');
-  $('#epub-viewer').classList.add('hidden');
-  $('#pdf-viewer').classList.add('hidden');
-  $('#legal-viewer').classList.remove('hidden');
-
-  // Topbar
-  landing.classList.add('hidden');
-  reader.classList.remove('hidden');
-  setReaderChromeVisible(true);
-  reader.classList.add('reader-mode-legal');
-  applyReaderModeClass('reader-mode-legal');
-  if (titleWrap) titleWrap.classList.remove('hidden');
-  if (bTitle) bTitle.textContent = 'Vade Mecum';
-  if (bAuth) bAuth.textContent = 'Corpus Jurídico Oficial';
-  if (backBtn) backBtn.classList.remove('hidden');
-  if (searchBtn) searchBtn.classList.remove('hidden');
-  if (treeBtn) treeBtn.classList.remove('hidden');
-
-  // Reset popovers
-  closeLegalSearch();
-  closeLegalStructure();
-  resetReaderNavState();
-  setReaderInlineNavVisible(false);
-  $('#app').classList.remove('reader-chrome-hidden');
+  // Superfície visual: esconde tudo do livro pessoal e mostra o jurídico.
+  prepareLegalReader();
 
   // Conteúdo
   await loadLegalHome();
@@ -2519,11 +2545,9 @@ async function openLegalNorm(normId) {
   $('#legal-document-surface').classList.remove('hidden');
   $('#legal-viewer').classList.remove('hidden');
 
-  // Topbar
-  const bTitle = $('#book-title');
-  const bAuth = $('#book-author');
-  if (bTitle) bTitle.textContent = norm?.popularName || norm?.title || normId;
-  if (bAuth) bAuth.textContent = norm?.status || 'Vigente';
+  // Topbar: NÃO mexer em #book-title / #book-author — prepareLegalReader já
+  // configurou "Vade Mecum" / "Corpus Jurídico Oficial". Sobrescrever aqui
+  // faria o nome popular da norma vazar como se fosse título de livro.
 
   // Estado de carregamento
   const docEl = $('#legal-document');
@@ -2594,26 +2618,8 @@ window.openLegalNorm = openLegalNorm;
 // executa openLegalNorm e opcionalmente rola até o artigo.
 async function enterLegalNorm(normId, articleCp = null) {
   if (!normId) return;
-  closeAllPanels();
-  // Esconde a home jurídica e mostra o reader em modo legal.
-  const home = $('#vade-home'); if (home) home.classList.add('hidden');
-  const landing = $('#landing'); if (landing) landing.classList.add('hidden');
   const reader = $('#reader');
-  if (reader) {
-    reader.classList.remove('hidden');
-    reader.classList.add('reader-mode-legal');
-    applyReaderModeClass('reader-mode-legal');
-  }
-  setReaderChromeVisible(true);
-  const titleWrap = $('#title-wrap');
-  const backBtn = $('#btn-legal-back');
-  const searchBtn = $('#btn-legal-search');
-  const treeBtn = $('#btn-legal-tree');
-  if (titleWrap) titleWrap.classList.add('hidden');
-  if (backBtn) backBtn.classList.remove('hidden');
-  if (searchBtn) searchBtn.classList.remove('hidden');
-  if (treeBtn) treeBtn.classList.remove('hidden');
-  $('#app').classList.remove('reader-chrome-hidden');
+
   // Snapshot do livro ativo (se houver) para preservar posição ao voltar.
   if (state.activeBook) {
     legalState.bookSnapshot = {
@@ -2629,6 +2635,10 @@ async function enterLegalNorm(normId, articleCp = null) {
   } else {
     legalState.bookSnapshot = null;
   }
+
+  // Superfície visual: esconde livro pessoal, mostra reader jurídico.
+  prepareLegalReader();
+
   await openLegalNorm(normId);
   if (articleCp && typeof scrollToLegalUnit === 'function') {
     scrollToLegalUnit(articleCp);
@@ -2683,20 +2693,33 @@ function showVadeHome() {
   closeAllPanels();
   // Esconde todas as surfaces legadas
   const landing = $('#landing'); if (landing) landing.classList.add('hidden');
-  const reader = $('#reader'); if (reader) reader.classList.add('hidden');
+  const reader = $('#reader'); if (reader) {
+    reader.classList.add('hidden');
+    // Limpa QUALQUER modo de reader residual para não vazar estado visual
+    // de um livro pessoal aberto antes.
+    reader.classList.remove('reader-mode-legal','reader-mode-epub-paginated',
+      'reader-mode-epub-scrolled','reader-mode-pdf','reader-mode-txt');
+    applyReaderModeClass(null);
+  }
   // Mostra a home jurídica
   const home = $('#vade-home'); if (home) home.classList.remove('hidden');
-  // Topbar em estado neutro
+  // Topbar em estado neutro — nada de título/autor do livro pessoal
   const titleWrap = $('#title-wrap');
   const bTitle = $('#book-title');
   const bAuth = $('#book-author');
   if (titleWrap) titleWrap.classList.add('hidden');
   if (bTitle) bTitle.textContent = '';
   if (bAuth) bAuth.textContent = '';
+  // Botões do reader jurídico não devem aparecer na home jurídica
   const backBtn = $('#btn-back'); if (backBtn) backBtn.style.display = 'none';
   const legalBack = $('#btn-legal-back'); if (legalBack) legalBack.classList.add('hidden');
   const legalSearch = $('#btn-legal-search'); if (legalSearch) legalSearch.classList.add('hidden');
   const legalTree = $('#btn-legal-tree'); if (legalTree) legalTree.classList.add('hidden');
+  // Navegação inline prev/next do reader não deve aparecer na home jurídica
+  if (typeof setReaderInlineNavVisible === 'function') setReaderInlineNavVisible(false);
+  if (typeof resetReaderNavState === 'function') resetReaderNavState();
+  // Barra de progresso do livro pessoal não deve aparecer na home jurídica
+  updateProgress(0);
   // Marca o item Jurídico como ativo na sidebar
   document.querySelectorAll('#sidebar .nav-btn').forEach(b => b.classList.remove('active'));
   const legalNav = document.querySelector('#sidebar .nav-btn[data-nav="legal"]');
@@ -3552,7 +3575,15 @@ async function applyReadingMode(mode){
 
 function applyReaderModeClass(mode){
   const reader = $('#reader');
-  reader.classList.remove('reader-mode-epub-paginated','reader-mode-epub-scrolled','reader-mode-pdf','reader-mode-txt');
+  if (!reader) return;
+  // Modos do reader são MUTUAMENTE EXCLUSIVOS — remove TODOS antes de aplicar.
+  reader.classList.remove(
+    'reader-mode-legal',
+    'reader-mode-epub-paginated',
+    'reader-mode-epub-scrolled',
+    'reader-mode-pdf',
+    'reader-mode-txt'
+  );
   if(mode) reader.classList.add(mode);
 }
 
@@ -6542,6 +6573,10 @@ function wire(){
   if(state.user && navigator.onLine) flushQueue();
   refreshPending();
   // === ENTRADA PADRÃO: Vade Mecum (jurídico) ===
+  // O Kódice abre SEMPRE na home jurídica, mesmo se houver livro pessoal
+  // salvo, EPUB/PDF/TXT aberto ou último progresso conhecido.
+  // A biblioteca/progresso ficam preservados no IDB mas só são restaurados
+  // por ação EXPLÍCITA do usuário.
   showVadeHome();
   await refreshVadeHome();
   // Keep relative timestamps fresh
@@ -6555,16 +6590,9 @@ function wire(){
   window.addEventListener('online', ()=>{ state.online=true; updateSyncBadge(); toast('Conexão restaurada'); });
   window.addEventListener('offline', ()=>{ state.online=false; updateSyncBadge(); toast('Modo local — sem conexão.'); });
   initPwa({ onUpdateAvailable: showPwaUpdate, beforeReload: beforePwaReload });
-  try {
-    await restoreLastLocalBook({
-      progressRows: await dbAll('progress'),
-      books: state.books,
-      getBookFile,
-      openBook,
-    });
-  } catch (error) {
-    console.warn('[Kódice] Não foi possível restaurar o último livro.', error);
-  }
+  // AUTO-RESTORE DESATIVADO — o último livro pessoal não abre sozinho.
+  // A biblioteca continua intacta; o usuário abre por ação explícita
+  // (clicar na Biblioteca → escolher livro).
 })();
 </script>
 </body>
