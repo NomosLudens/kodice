@@ -4,12 +4,20 @@ import crypto from 'node:crypto';
 const dist = path.resolve('dist');
 const manifestPath = path.join(dist, '.vite/manifest.json');
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-const urls = new Set(['/', '/manifest.webmanifest', '/192x192.png', '/icon-maskable-192.png']);
+const urls = new Set([
+  '/',
+  '/manifest.webmanifest',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/icon-maskable-192.png',
+  '/icon-maskable-512.png',
+  '/favicon.png',
+]);
 function add(file){ if(file) urls.add('/'+file.replace(/^\//,'')); }
 function walk(key, seen=new Set()){
- const e=manifest[key]; if(!e || seen.has(key)) return; seen.add(key);
- add(e.file); (e.css||[]).forEach(add); (e.assets||[]).forEach(add);
- (e.imports||[]).forEach(k=>walk(k,seen)); (e.dynamicImports||[]).forEach(k=>walk(k,seen));
+  const e=manifest[key]; if(!e || seen.has(key)) return; seen.add(key);
+  add(e.file); (e.css||[]).forEach(add); (e.assets||[]).forEach(add);
+  (e.imports||[]).forEach(k=>walk(k,seen)); (e.dynamicImports||[]).forEach(k=>walk(k,seen));
 }
 const entryKey = Object.keys(manifest).find(k => manifest[k].isEntry) || 'index.html';
 walk(entryKey);
