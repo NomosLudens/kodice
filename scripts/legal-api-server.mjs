@@ -13,7 +13,7 @@ import { spawnSync } from 'node:child_process';
  */
 
 export function createLegalApiHandler(db, options = {}) {
-  const allowedOrigins = options.allowedOrigins || ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5273', 'http://127.0.0.1:5273', 'https://mini.taildb6c11.ts.net', 'https://kodice.nomosludens.ia.br'];
+  const allowedOrigins = options.allowedOrigins || ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5273', 'http://127.0.0.1:5273', 'https://mellon.taildb6c11.ts.net', 'https://kodice.nomosludens.ia.br'];
   const catalogPath = options.catalogPath || path.resolve(process.cwd(), 'legal/catalog.json');
   const corpusPath = options.corpusPath || path.resolve(process.cwd(), 'legal/corpus');
   const sourcesPath = options.sourcesPath || path.resolve(process.cwd(), 'legal/sources');
