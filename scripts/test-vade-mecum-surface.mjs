@@ -125,6 +125,10 @@ try {
 
   // 4. Busca determinística "cpc 300" — via input da home jurídica
   // (formato "<alias-curto> <número-artigo>" que o resolver determinístico aceita)
+  // Primeiro garante que o catálogo está carregado (resolveCatalogFrontend
+  // depende de legalState.catalog). A home carrega ambos em paralelo, mas o
+  // test pode rodar mais rápido do que o /catalog em CI.
+  await page.waitForFunction(() => !!window.legalState?.catalog, { timeout: 10000 });
   await page.type('#vade-home-search-input', 'cpc 300');
   // Espera o catálogo resolver (resolver frontend é síncrono, mas o catálogo
   // pode estar sendo carregado em background — aguarda até 5s).
@@ -136,7 +140,8 @@ try {
     const btn = document.querySelector('#vade-home-search-results .vade-home-search-result');
     return btn ? btn.textContent.trim() : '';
   });
-  check(/CPC/i.test(searchHit), `Busca "cpc 300" resolveu para catálogo (${searchHit.slice(0,80)})`);
+  // "CPC" deve aparecer como sigla (não como substring de "Código Penal")
+  check(/\bCPC\b|Código de Processo Civil/i.test(searchHit), `Busca "cpc 300" resolveu para catálogo (${searchHit.slice(0,80)})`);
 
   // Clica no resultado — abre documento contínuo com Art. 300
   await page.evaluate(() => {

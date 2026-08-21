@@ -2264,6 +2264,7 @@ function legalFetch(path){
   });
 }
 
+// legalState é exportado em window para diagnóstico/testes após declaração completa.
 const legalState = {
   activeNorm: null,
   activeNormId: null,
@@ -6070,6 +6071,9 @@ async function removeStation() {
 function wire(){
   wirePwaUi();
   wireVadeHome();
+  // Expõe estado e APIs jurídicas em window para diagnóstico/testes.
+  window.legalState = legalState;
+  window.refreshVadeHome = refreshVadeHome;
   updateStationSettingsUI();
   
   const tabLocal = document.getElementById('tab-lib-local');
