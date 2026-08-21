@@ -39,6 +39,9 @@ const browser = await puppeteer.launch({
 
 try {
   const page = await browser.newPage();
+  await page.setBypassServiceWorker(true);
+  await page.setCacheEnabled(false);
+  await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1');
   await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   await page.evaluateOnNewDocument(() => {
     const origFetch = window.fetch;
@@ -123,9 +126,10 @@ try {
   // 4. Sem overflow horizontal.
   check(mobile.overflowX <= 0, `Sem overflow horizontal (overflow=${mobile.overflowX}px)`);
 
-  // 5. Sem regressão: o reader continua ocupando a altura disponível.
-  // viewerHeight ≈ vh (full surface)
-  check(mobile.viewerHeight >= mobile.vh * 0.95, `Reader ocupa ≥95% da viewport (${mobile.viewerHeight}px vs vh=${mobile.vh}px)`);
+  // 5. Sem regressão: o reader continua ocupando a altura disponível abaixo do header.
+  // (header ocupa ~viewerTop; reader deve preencher de viewerTop até final do safe-area)
+  const mobileAvailableHeight = mobile.vh - mobile.viewerTop;
+  check(mobile.viewerHeight >= mobileAvailableHeight - 4, `Reader preenche abaixo do header (${mobile.viewerHeight}px vs available=${mobileAvailableHeight}px)`);
 
   await page.screenshot({ path: path.join(OUT_DIR, 'mobile-reader.png'), fullPage: false });
 
@@ -133,10 +137,25 @@ try {
   await page.setViewport({ width: 1280, height: 800 });
   await page.evaluate(() => document.querySelector('#sidebar .nav-btn[data-nav="legal"]')?.click());
   await page.waitForSelector('#vade-home:not(.hidden)', { timeout: 5000 });
-  await new Promise(r => setTimeout(r, 500));
+  await page.waitForFunction(() => !!window.legalState?.catalog, { timeout: 10000 });
+  await new Promise(r => setTimeout(r, 1000));
+  await page.evaluate(() => {
+    const inp = document.getElementById('vade-home-search-input');
+    if (!inp) return;
+    inp.focus(); inp.value = ''; inp.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await new Promise(r => setTimeout(r, 400));
+  await page.evaluate(() => {
+    const inp = document.getElementById('vade-home-search-input');
+    inp.value = 'CF'; inp.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await page.waitForFunction(() => {
+    const r = document.getElementById('vade-home-search-results');
+    return r && !r.classList.contains('hidden') && r.querySelector('.vade-home-search-result');
+  }, { timeout: 10000 });
   await page.evaluate(() => document.querySelector('#vade-home-search-results .vade-home-search-result[data-norm-id="cf88"]')?.click());
   await page.waitForSelector('#legal-document .legal-unit', { timeout: 30000 });
-  await new Promise(r => setTimeout(r, 500));
+  await new Promise(r => setTimeout(r, 800));
 
   const desktop = await page.evaluate(() => {
     const viewer = document.getElementById('legal-viewer');
