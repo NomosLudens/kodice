@@ -97,18 +97,28 @@ const TARGETS = {
   // Wave 6 — Previdenciário & Trabalho Complementar.
   // NOTA: Lei 8.036/1990 (FGTS) está hospedada como texto consolidado na
   // Câmara dos Deputados, não no Planalto. Está em download-camara.mjs.
-  prev-custeio1991: { url: 'https://www.planalto.gov.br/ccivil_03/leis/l8212compilado.htm', file: 'l8212compilado.htm' },
-  prev-benef1991:   { url: 'https://www.planalto.gov.br/ccivil_03/leis/l8213compilado.htm', file: 'l8213compilado.htm' },
+  'prev-custeio1991': { url: 'https://www.planalto.gov.br/ccivil_03/leis/l8212compilado.htm', file: 'l8212compilado.htm' },
+  'prev-benef1991':   { url: 'https://www.planalto.gov.br/ccivil_03/leis/l8213compilado.htm', file: 'l8213compilado.htm' },
   loas1993:         { url: 'https://www.planalto.gov.br/ccivil_03/leis/l8742compilado.htm', file: 'l8742compilado.htm' },
-  seguro-desemp1990: { url: 'https://www.planalto.gov.br/ccivil_03/leis/l7998compilado.htm', file: 'l7998compilado.htm' },
+  'seguro-desemp1990': { url: 'https://www.planalto.gov.br/ccivil_03/leis/l7998compilado.htm', file: 'l7998compilado.htm' },
   greve1989:        { url: 'https://www.planalto.gov.br/ccivil_03/leis/l7783.htm',              file: 'l7783.htm' },
-  trab-rural1973:   { url: 'https://www.planalto.gov.br/ccivil_03/leis/l5889.htm',              file: 'l5889.htm' },
+  'trab-rural1973':   { url: 'https://www.planalto.gov.br/ccivil_03/leis/l5889.htm',              file: 'l5889.htm' },
   domestica2015:     { url: 'https://www.planalto.gov.br/ccivil_03/leis/lcp/lcp150.htm',         file: 'lcp150.htm' },
-  trab-temp1974:  { url: 'https://www.planalto.gov.br/ccivil_03/leis/l6019compilado.htm', file: 'l6019compilado.htm' },
+  'trab-temp1974':  { url: 'https://www.planalto.gov.br/ccivil_03/leis/l6019compilado.htm', file: 'l6019compilado.htm' },
   vt1985:           { url: 'https://www.planalto.gov.br/ccivil_03/leis/l7418compilado.htm', file: 'l7418compilado.htm' },
 };
 
 function fail(m){ console.error(m); process.exit(1); }
+
+function stabilizeOfficialHtml(buffer) {
+  const html = buffer.toString('latin1');
+  const stabilized = html.replace(
+    /<script\b[^>]*\bid\s*=\s*["']f5_cspm["'][^>]*>[\s\S]*?<\/script\s*>/gi,
+    '',
+  );
+  return Buffer.from(stabilized, 'latin1');
+}
+
 const normId = process.argv[2];
 if (!normId || !TARGETS[normId]) {
   fail(`uso: node scripts/download-codigo.mjs <${Object.keys(TARGETS).join('|')}>`);
@@ -147,7 +157,19 @@ if (!res.ok) {
 const buf = Buffer.from(await res.arrayBuffer());
 if (buf.length < 10_000) fail(`snapshot too small: ${buf.length} bytes`);
 
+const rawHash = createHash('sha256').update(buf).digest('hex');
+const stabilizedBuf = stabilizeOfficialHtml(buf);
+const stabilizedHash = createHash('sha256').update(stabilizedBuf).digest('hex');
+
+const rawCaptureDir = process.env.KODICE_RAW_CAPTURE_DIR
+  ? path.resolve(process.env.KODICE_RAW_CAPTURE_DIR)
+  : null;
+if (rawCaptureDir) {
+  await fs.mkdir(rawCaptureDir, { recursive: true });
+  await fs.writeFile(path.join(rawCaptureDir, `${normId}-${Date.now()}.html`), buf);
+}
+
 await fs.mkdir(outDir, { recursive: true });
-await fs.writeFile(outFile, buf);
-const sha = createHash('sha256').update(buf).digest('hex');
-console.log(`[download-codigo] ${normId}: wrote ${outFile} (${buf.length} bytes) sha256=${sha}`);
+await fs.writeFile(outFile, stabilizedBuf);
+console.log(`[download-codigo] ${normId}: wrote ${outFile} (${stabilizedBuf.length} bytes) sha256=${stabilizedHash}`);
+console.log(`[download-codigo] ${normId}: raw bytes=${buf.length} rawSha256=${rawHash} stabilizedSha256=${stabilizedHash}`);
