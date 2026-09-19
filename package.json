@@ -34,7 +34,8 @@
     "test:pagehide-notes": "node scripts/test-pagehide-notes.mjs",
     "test:mobile-pointer-real": "node scripts/test-mobile-pointer-real.mjs",
     "test:station-auth": "node scripts/test-station-auth.mjs",
-    "test:pdf-engine": "node scripts/test-pdf-engine.mjs"
+    "test:pdf-engine": "node scripts/test-pdf-engine.mjs",
+    "test:dev-browser-audit": "node scripts/test-dev-browser-audit.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",
