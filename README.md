@@ -61,11 +61,7 @@ O Kódice não exige contas externas, chaves privadas ou bancos proprietários p
 git clone https://github.com/NomosLudens/kodice.git
 cd kodice
 
-# Instalação recomendada via Bun:
 bun install --frozen-lockfile
-
-# Ou via npm:
-npm ci
 ```
 
 ### 2. Verificar a Reprodutibilidade
