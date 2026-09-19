@@ -114,7 +114,9 @@ function setupEnv(overrides = {}) {
   globalThis.STATION_BASE_URL_KEY = 'codice.station.baseUrl';
   globalThis.STATION_TRUSTED_ORIGIN_KEY = 'codice.station.trustedOrigin';
   globalThis.STATION_OPT_OUT_KEY = 'codice.station.defaultOptOut';
-  globalThis.DEFAULT_STATION_URL = 'https://kaline-box.taildb6c11.ts.net';
+  // DEFAULT_STATION_URL is now empty by default (no private infra hardcoded).
+  // Tests that need a specific station URL override this directly.
+  globalThis.DEFAULT_STATION_URL = overrides.defaultStationUrl ?? '';
   globalThis.state = state;
   globalThis.localStorage = {
     getItem: k => ls[k] ?? null,
@@ -243,24 +245,38 @@ function setupEnv(overrides = {}) {
 // Execução dos testes
 // ─────────────────────────────────────────────────────────────────────────────
 
-await test('0. perfil novo recebe a Kaline Box sem request automático', async () => {
+await test('0. perfil novo sem VITE_KODICE_STATION_URL fica unconfigured sem request automático', async () => {
   let fetchCalled = false;
   const { state } = setupEnv({ fetchImpl: async () => { fetchCalled = true; } });
   const initial = globalThis.getInitialStationConfig();
   state.station.baseUrl = initial.baseUrl;
   state.station.status = initial.status;
-  assertEqual(initial.baseUrl, 'https://kaline-box.taildb6c11.ts.net');
+  assertEqual(initial.baseUrl, '');
+  assertEqual(initial.status, 'unconfigured');
+  assert(!fetchCalled, 'a configuração inicial não pode consultar a Station');
+});
+
+await test('0a. perfil novo com VITE_KODICE_STATION_URL configurado recebe URL sem request automático', async () => {
+  let fetchCalled = false;
+  const { state } = setupEnv({
+    defaultStationUrl: 'https://my-station.taildb6c11.ts.net',
+    fetchImpl: async () => { fetchCalled = true; }
+  });
+  const initial = globalThis.getInitialStationConfig();
+  state.station.baseUrl = initial.baseUrl;
+  state.station.status = initial.status;
+  assertEqual(initial.baseUrl, 'https://my-station.taildb6c11.ts.net');
   assertEqual(initial.status, 'origin_pending');
   assert(!fetchCalled, 'a configuração inicial não pode consultar a Station');
 });
 
-await test('0b. stationFetch bloqueia request e Bearer antes da confirmação', async () => {
+await test('0b. stationFetch bloqueia request e Bearer antes da confirmação de origem', async () => {
   let fetchCalled = false;
   setupEnv({
     supabase: { auth: { getSession: async () => ({ data: { session: { access_token: 'tok' } } }) } },
     fetchImpl: async () => { fetchCalled = true; }
   });
-  try { await globalThis.stationFetch('/api/codice/health', { baseUrl: 'https://kaline-box.taildb6c11.ts.net' }); }
+  try { await globalThis.stationFetch('/api/codice/health', { baseUrl: 'https://my-station.taildb6c11.ts.net' }); }
   catch (e) { assertEqual(e.code, 'origin_not_allowed'); }
   assert(!fetchCalled);
 });
@@ -278,8 +294,9 @@ await test('0c. remoção persiste opt-out e restauração reabre confirmação'
   assertEqual(afterReload.baseUrl, '');
   assertEqual(afterReload.status, 'unconfigured');
   globalThis.restoreDefaultStation();
-  assertEqual(state.station.baseUrl, 'https://kaline-box.taildb6c11.ts.net');
-  assertEqual(state.station.status, 'origin_pending');
+  // After restoreDefaultStation with no env-provided DEFAULT_STATION_URL, station returns to empty
+  assertEqual(state.station.baseUrl, '');
+  assertEqual(state.station.status, 'unconfigured');
   assert(!ls['codice.station.defaultOptOut']);
   assert(!ls['codice.station.trustedOrigin']);
 });
@@ -356,9 +373,15 @@ await test('0f. online com catálogo vazio mostra vazio somente após consulta r
 });
 
 await test('0g. identidade da Station distingue padrão, personalizada e ausência sem alterar configuração', async () => {
-  assertEqual(globalThis.stationIdentityLabel('https://kaline-box.taildb6c11.ts.net'), 'Estação padrão · Kaline Box');
+  // With DEFAULT_STATION_URL='', all non-empty URLs are 'Estação personalizada'
+  setupEnv();
+  assertEqual(globalThis.stationIdentityLabel('https://my-station.taildb6c11.ts.net'), 'Estação personalizada');
   assertEqual(globalThis.stationIdentityLabel('https://other-station.example'), 'Estação personalizada');
   assertEqual(globalThis.stationIdentityLabel(''), 'Estação');
+  // With DEFAULT_STATION_URL set, matching URL is 'Estação padrão'
+  setupEnv({ defaultStationUrl: 'https://my-station.taildb6c11.ts.net' });
+  assertEqual(globalThis.stationIdentityLabel('https://my-station.taildb6c11.ts.net'), 'Estação padrão');
+  assertEqual(globalThis.stationIdentityLabel('https://other-station.example'), 'Estação personalizada');
   const { state } = setupEnv({
     stateOverride: { station: { baseUrl: 'https://other-station.example', status: 'configured', books: [] } }
   });

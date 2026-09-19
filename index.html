@@ -1868,8 +1868,7 @@ import { restoreLastLocalBook } from './src/restoreLastLocalBook.js';
  * =======================================================*/
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL?.trim() || "";
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() || "";
-const DEFAULT_STATION_URL = (import.meta.env.VITE_KODICE_STATION_URL?.trim()
-  || 'https://kaline-box.taildb6c11.ts.net').replace(/\/$/, '');
+const DEFAULT_STATION_URL = (import.meta.env.VITE_KODICE_STATION_URL?.trim() || '').replace(/\/$/, '');
 const STATION_BASE_URL_KEY = 'codice.station.baseUrl';
 const STATION_TRUSTED_ORIGIN_KEY = 'codice.station.trustedOrigin';
 const STATION_OPT_OUT_KEY = 'codice.station.defaultOptOut';
@@ -1885,7 +1884,10 @@ function getInitialStationConfig() {
         : 'unconfigured',
     };
   }
-  return { baseUrl: DEFAULT_STATION_URL, status: 'origin_pending' };
+  if (DEFAULT_STATION_URL) {
+    return { baseUrl: DEFAULT_STATION_URL, status: 'origin_pending' };
+  }
+  return { baseUrl: '', status: 'unconfigured' };
 }
 
 // Tabelas esperadas no backend (Supabase):
@@ -4433,9 +4435,8 @@ async function testStationConnection() {
 function stationIdentityLabel(baseUrl) {
   if (!baseUrl) return 'Estação';
   try {
-    return new URL(baseUrl).origin === new URL(DEFAULT_STATION_URL).origin
-      ? 'Estação padrão · Kaline Box'
-      : 'Estação personalizada';
+    const isDefault = DEFAULT_STATION_URL && new URL(baseUrl).origin === new URL(DEFAULT_STATION_URL).origin;
+    return isDefault ? 'Estação padrão' : 'Estação personalizada';
   } catch {
     return 'Estação personalizada';
   }
@@ -6059,15 +6060,22 @@ async function beforePwaReload(){
 function restoreDefaultStation() {
   localStorage.removeItem(STATION_OPT_OUT_KEY);
   localStorage.removeItem(STATION_TRUSTED_ORIGIN_KEY);
-  localStorage.setItem(STATION_BASE_URL_KEY, DEFAULT_STATION_URL);
-  state.station.baseUrl = DEFAULT_STATION_URL;
-  state.station.status = 'origin_pending';
+  if (DEFAULT_STATION_URL) {
+    localStorage.setItem(STATION_BASE_URL_KEY, DEFAULT_STATION_URL);
+    state.station.baseUrl = DEFAULT_STATION_URL;
+    state.station.status = 'origin_pending';
+    toast('Estação padrão restaurada. Confirme a origem para conectar.');
+  } else {
+    localStorage.removeItem(STATION_BASE_URL_KEY);
+    state.station.baseUrl = '';
+    state.station.status = 'unconfigured';
+    toast('Nenhuma estação padrão configurada. Configure a URL da estação para conectar.');
+  }
   state.station.books = [];
   state.station.health = null;
   state.station.error = null;
   updateStationSettingsUI();
   if(state.activeTab === 'station') renderLibrary();
-  toast('Estação padrão restaurada. Confirme a origem para conectar.');
 }
 
 async function removeStation() {

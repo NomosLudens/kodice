@@ -1,75 +1,114 @@
 # Kódice
 
-Um leitor local de EPUB, PDF e TXT focado em privacidade, retenção e conforto.
+> **Local-first reader and reproducible Brazilian legal corpus — EPUB/PDF/TXT, PWA, Vade Mecum, deterministic search and SQLite.**
 
-## Arquitetura Local-First
-O Kódice é primariamente uma aplicação offline. Seus livros, progresso e anotações são salvos localmente no seu dispositivo utilizando **IndexedDB**. Nada é enviado para a nuvem por padrão, garantindo total privacidade e funcionamento sem internet.
+[![CI](https://github.com/NomosLudens/kodice/actions/workflows/ci.yml/badge.svg)](https://github.com/NomosLudens/kodice/actions/workflows/ci.yml)
+[![Demo](https://img.shields.io/badge/Live_Demo-kodice.nomosludens.ia.br-blue)](https://kodice.nomosludens.ia.br)
+[![Corpus](https://img.shields.io/badge/Legal_Corpus-61_Norms_%7C_36.045_Units-green)](docs/LEGAL-CORPUS.md)
+[![Status](https://img.shields.io/badge/Architecture-Local--First_PWA-blueviolet)](docs/ARCHITECTURE.md)
 
-Opcionalmente, você pode configurar o Supabase para sincronizar seu progresso, notas e preferências entre dispositivos. Os arquivos dos livros **nunca** são enviados para a nuvem.
+---
 
-## Instalação e Desenvolvimento
+## Demonstração Online
 
-O projeto foi construído usando **Vite** e **Bun**.
+* **Aplicação Web (PWA):** [https://kodice.nomosludens.ia.br](https://kodice.nomosludens.ia.br)
+* **API Jurídica Pública:** [https://api.kodice.nomosludens.ia.br](https://api.kodice.nomosludens.ia.br)
 
-1. Clone o repositório.
-2. Instale as dependências:
-   ```bash
-   bun install
-   ```
-3. Rode o servidor de desenvolvimento:
-   ```bash
-   bun run dev
-   ```
-4. Para gerar a build de produção:
-   ```bash
-   bun run build
-   ```
-   Os arquivos finais serão gerados na pasta `dist/`.
+---
 
-## Configuração do Supabase Próprio (Opcional)
+## Visão Geral
 
-Para ativar a sincronização entre dispositivos, você precisa de um projeto Supabase.
+O **Kódice** combina um leitor tipográfico e multipropósito de alta fidelidade para livros pessoais (**EPUB**, **PDF** e **TXT**) com uma infraestrutura completa de consulta jurídica estruturada (**Vade Mecum** nativo com 61 normas e 36.045 artigos/unidades normativas do direito brasileiro).
 
-1. Crie um projeto no [Supabase](https://supabase.com).
-2. Aplique as migrations iniciais localizadas na pasta `supabase/migrations/` no SQL Editor do seu projeto Supabase. Elas criarão as tabelas necessárias e as políticas RLS.
-3. Configure os domínios permitidos para redirecionamento em **Authentication > URL Configuration** (adicione o domínio local e o domínio de produção).
-4. Crie um arquivo `.env` na raiz do projeto (copie de `.env.example`):
-   ```env
-   VITE_SUPABASE_URL=sua_url_aqui
-   VITE_SUPABASE_PUBLISHABLE_KEY=sua_chave_anon_aqui
-   ```
+Tudo é construído sob os princípios de **privacidade integral**, **desacoplamento** e **reprodutibilidade determinística**: seus livros pessoais e notas nunca saem do seu dispositivo, e o corpus jurídico pode ser rematerializado e auditado a partir das fontes declarativas com um único comando.
 
-## Configuração do Cloudflare Pages
+![Kódice Desktop](docs/assets/kodice-desktop.png)
 
-O Kódice está pronto para ser hospedado gratuitamente no Cloudflare Pages.
+<p align="center">
+  <img src="docs/assets/kodice-vade-mecum.png" width="48%" alt="Vade Mecum Jurídico" />
+  <img src="docs/assets/kodice-mobile.png" width="48%" alt="Mobile PWA" />
+</p>
 
-1. Conecte o seu repositório ao Cloudflare Pages.
-2. Nas configurações de build:
-   - **Framework preset**: Vite (ou nenhum)
-   - **Build command**: `bun run build`
-   - **Build output directory**: `dist`
-   - **Root directory**: `/`
-3. Nas variáveis de ambiente do Cloudflare Pages, adicione:
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_PUBLISHABLE_KEY`
+---
 
-Após o deploy, certifique-se de validar o login/sincronização e adicionar o domínio gerado ao seu projeto Supabase.
+## Principais Recursos
 
-## PWA e dispositivos móveis
+* **Vade Mecum Jurídico Integrado:**
+  * 61 diplomas normativos federais fundamentais (CF/88, CPC/2015, CC/2002, CP, CPP, CLT, CTN, CDC, LGPD, etc.).
+  * Resolução determinística e instantânea de citações (ex.: digitar `cpc 300` ou `cf 5` navega diretamente para o texto consolidado).
+  * Leitura contínua em formato adaptativo e tipografia desenhada para concentração jurídica.
+* **Leitor de Múltiplos Formatos:**
+  * **EPUB:** Navegação paginada e contínua (EPUB.js), com suporte a notas inline e temas claro/escuro.
+  * **PDF:** Visualizador de alta precisão executado em Web Worker com PDF.js, sem travamento da thread principal da interface.
+  * **TXT:** Modo texto limpo e legível com controles de espaçamento, margem e fonte.
+* **Privacidade e Arquitetura Local-First:**
+  * Armazenamento de livros, posições de leitura e anotações 100% no cliente via IndexedDB.
+  * Não depende de conexão após a primeira abertura (PWA com Service Worker precache).
+  * Sincronização opcional com Supabase (para usuários que desejam manter progresso entre aparelhos).
+* **Camada de Dados Reproduzível e Verificável:**
+  * Materialização do banco SQLite a partir do corpus JSON declarativo em `< 3s`.
+  * Verificação criptográfica do hash lógico canônico de todas as normas e unidades.
 
-O Kódice pode ser publicado como site estático no Cloudflare Pages e instalado como PWA após a primeira abertura online.
+---
 
-### Chrome Android
+## Início Rápido (Reprodução em 3 Passos)
 
-1. Abra o site no Chrome.
-2. Use o botão **Instalar Kódice** em **Ajustes**, quando disponível.
-3. Alternativamente, use o menu do Chrome e escolha **Adicionar à tela inicial** ou **Instalar app**.
+O Kódice não exige contas externas, chaves privadas ou bancos proprietários para execução completa local.
 
-### Safari iPhone
+### 1. Clonar e Instalar
 
-1. Abra o site no Safari.
-2. Toque em **Compartilhar**.
-3. Escolha **Adicionar à Tela de Início**.
-4. Confirme em **Adicionar**.
+```bash
+git clone https://github.com/NomosLudens/kodice.git
+cd kodice
 
-No iPhone, prefira instalar o Kódice antes de importar livros: Safari e a PWA instalada podem manter armazenamentos separados. Livros EPUB, PDF e TXT ficam no aparelho, em IndexedDB; o Supabase não recebe os arquivos dos livros. Os ícones usados pela PWA reutilizam os arquivos já existentes do app. Backup é responsabilidade do usuário e deve ser exportado manualmente. O modo offline exige uma primeira abertura online para baixar o app shell. Héstia não faz parte deste PR.
+# Instalação recomendada via Bun:
+bun install --frozen-lockfile
+
+# Ou via npm:
+npm ci
+```
+
+### 2. Verificar a Reprodutibilidade
+
+Execute a verificação determinística de integridade do banco SQLite, testes de fronteiras e build do frontend:
+
+```bash
+bun run reproduce:verify
+```
+
+Saída esperada:
+```text
+NORMS:        61
+UNITS:        36045
+LOGICAL_HASH: 7e09b098072983fb87854e5e2fcceed809bde308069e37b454b07e4d15aa512f
+```
+
+### 3. Executar o Ambiente Completo
+
+Inicie simultaneamente o backend da API jurídica e o frontend do leitor:
+
+```bash
+bun run dev:full
+```
+
+Acesse:
+* **Frontend:** [http://localhost:5173](http://localhost:5173)
+* **API Jurídica:** [http://127.0.0.1:4520/api/legal/catalog](http://127.0.0.1:4520/api/legal/catalog)
+
+---
+
+## Documentação Técnica
+
+* [Arquitetura do Sistema](docs/ARCHITECTURE.md) — Diagrama de componentes, isolamento de dados e fluxos de execução.
+* [Guia de Reprodutibilidade](docs/REPRODUCIBILITY.md) — Instruções detalhadas de auditoria, testes e reconstrução.
+* [Corpus Jurídico Canônico](docs/LEGAL-CORPUS.md) — Relação das 61 normas, esquemas JSON e integridade.
+* [Manual de Implantação](docs/DEPLOYMENT.md) — Topologia Cloudflare Pages, Cloudflare Tunnel e Systemd.
+* [PWA e Dispositivos Móveis](docs/PWA_MOBILE.md) — Guia de instalação no iOS e Android, modo offline e armazenamento.
+* [Diretrizes de Segurança](SECURITY.md) — Práticas de segurança, CSP e canal de relato de vulnerabilidades.
+* [Guia de Contribuição](CONTRIBUTING.md) — Normas de submissão e fluxo de desenvolvimento.
+
+---
+
+## Licença
+
+No explicit open-source license has been selected yet. All rights reserved.
