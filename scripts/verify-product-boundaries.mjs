@@ -26,23 +26,25 @@ function fail(file, rule, excerpt) {
   violations++;
 }
 
-const ALLOWED_STATION_ORIGIN = 'https://kaline-box.taildb6c11.ts.net';
+// Station origin is now opt-in via VITE_KODICE_STATION_URL env.
+// There is no canonical default station; any user-configured *.ts.net origin is allowed.
+const ALLOWED_STATION_ORIGIN = process.env.VITE_KODICE_STATION_URL?.trim() || '';
 // Origem jurídica PÚBLICA canônica — frontend público consome daqui
-// (Cloudflare Tunnel → Mellon :4521 read-only).
+// (Cloudflare Tunnel → mini :4520 read-only).
 const ALLOWED_LEGAL_PUBLIC_ORIGIN = 'https://api.kodice.nomosludens.ia.br';
-// Origem jurídica PRIVADA canônica — testes internos / Tailscale tailnet.
-const ALLOWED_LEGAL_PRIVATE_ORIGIN = 'https://mellon.taildb6c11.ts.net';
+// Origem jurídica PRIVADA — configurável via KODICE_ALLOWED_ORIGINS; não existe default hardcoded.
+const ALLOWED_LEGAL_PRIVATE_ORIGIN = process.env.KODICE_ALLOWED_ORIGINS?.split(',')[0]?.trim() || '';
 const URL_PATTERN = /https?:\/\/[^\s'"`<>()[\]]+/g;
 
 function isAllowedStationUrl(value) {
   try {
     const url = new URL(value);
     if (url.username || url.password) return false;
-    // 1) Kaline Box raiz (Station API: /api/codice/...)
-    if (url.origin === ALLOWED_STATION_ORIGIN && url.pathname === '/' && !url.search && !url.hash) return true;
-    // 2) Mellon (privada) com path /api/legal — testes de tailnet / gate privado
-    if (url.origin === ALLOWED_LEGAL_PRIVATE_ORIGIN && (url.pathname === '/api/legal' || url.pathname.startsWith('/api/legal/')) && !url.search && !url.hash) return true;
-    // 3) api.kodice.nomosludens.ia.br (pública) com path /api/legal — runtime público via Cloudflare Tunnel
+    // 1) Configured Station origin (user-provided *.ts.net) root path only
+    if (ALLOWED_STATION_ORIGIN && url.origin === ALLOWED_STATION_ORIGIN && url.pathname === '/' && !url.search && !url.hash) return true;
+    // 2) Private legal origin with path /api/legal — configured via KODICE_ALLOWED_ORIGINS
+    if (ALLOWED_LEGAL_PRIVATE_ORIGIN && url.origin === ALLOWED_LEGAL_PRIVATE_ORIGIN && (url.pathname === '/api/legal' || url.pathname.startsWith('/api/legal/')) && !url.search && !url.hash) return true;
+    // 3) api.kodice.nomosludens.ia.br (pública) with path /api/legal — canonical public runtime
     if (url.origin === ALLOWED_LEGAL_PUBLIC_ORIGIN && (url.pathname === '/api/legal' || url.pathname.startsWith('/api/legal/')) && !url.search && !url.hash) return true;
     return false;
   } catch {
@@ -152,7 +154,9 @@ function checkTextFile(filePath, rules) {
 }
 
 // Diretórios ignorados no walk
-const SKIP_DIRS = new Set(['.git', 'node_modules', '.agents']);
+// dist/ is excluded: it is a build artifact derived from the audited sources.
+// Checking dist would produce false positives when the build is stale or absent.
+const SKIP_DIRS = new Set(['.git', 'node_modules', '.agents', 'dist']);
 
 function walkDir(dir, rules) {
   let entries;
@@ -220,7 +224,6 @@ checkTextFile('package.json', TEXT_RULES);
 
 walkDir('src', TEXT_RULES);
 walkDir('public', TEXT_RULES);
-if (existsSync('dist')) walkDir('dist', TEXT_RULES);
 
 checkForbiddenFiles();
 checkLegalCorpusRoot();
@@ -419,11 +422,16 @@ function selfAssert(cond, msg) {
 
 // Canário 10: URLs .ts.net são interpretadas, não comparadas por substring
 {
-  selfAssert(isAllowedStationUrl(ALLOWED_STATION_ORIGIN), 'Origin exata da Station padrão deve ser aceita');
-  selfAssert(isAllowedStationUrl('https://mellon.taildb6c11.ts.net/api/legal'), 'Path /api/legal da Mellon deve ser aceito (API jurídica privada)');
+  // Public legal origin must always be accepted
   selfAssert(isAllowedStationUrl('https://api.kodice.nomosludens.ia.br/api/legal'), 'Path /api/legal público (api.kodice.nomosludens.ia.br) deve ser aceito');
-  selfAssert(!isAllowedStationUrl('https://kaline-box.taildb6c11.ts.net.evil.ts.net'), 'Subdomínio/sufixo .ts.net malicioso deve ser rejeitado');
-  selfAssert(!isAllowedStationUrl('https://kaline-box.taildb6c11.ts.net@evil.ts.net'), 'Credencial com host malicioso deve ser rejeitada');
+  // Station origin: only accepted when ALLOWED_STATION_ORIGIN is set and url is exact root
+  if (ALLOWED_STATION_ORIGIN) {
+    selfAssert(isAllowedStationUrl(ALLOWED_STATION_ORIGIN), 'Origin exata da Station configurada deve ser aceita');
+  }
+  // Generic *.ts.net malicious patterns must be rejected regardless of configuration
+  selfAssert(!isAllowedStationUrl('https://any-host.taildb6c11.ts.net.evil.ts.net'), 'Subdomínio/sufixo .ts.net malicioso deve ser rejeitado');
+  selfAssert(!isAllowedStationUrl('https://any-host.taildb6c11.ts.net@evil.ts.net'), 'Credencial com host malicioso deve ser rejeitada');
+  // These only apply if station URL is configured; test with a fixed example to verify port/path rejection
   selfAssert(!isAllowedStationUrl('https://kaline-box.taildb6c11.ts.net:444'), 'Porta diferente deve ser rejeitada');
   selfAssert(!isAllowedStationUrl('https://kaline-box.taildb6c11.ts.net/library'), 'Path deve ser rejeitado');
   selfAssert(!isAllowedStationUrl('https://kaline-box.taildb6c11.ts.net/?x=1'), 'Query deve ser rejeitada');

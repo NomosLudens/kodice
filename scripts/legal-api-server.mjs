@@ -2,7 +2,7 @@
 import http from 'node:http';
 import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
-import { promises as fs } from 'node:fs';
+import { promises as fs, existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 /**
@@ -13,15 +13,29 @@ import { spawnSync } from 'node:child_process';
  */
 
 export function createLegalApiHandler(db, options = {}) {
-  const allowedOrigins = options.allowedOrigins || [
+  // KODICE_ALLOWED_ORIGINS: comma-separated list of additional allowed origins.
+  // The public API origin and localhost dev ports are always included.
+  const defaultOrigins = [
     'http://localhost:5173',
     'http://127.0.0.1:5173',
     'http://localhost:5273',
     'http://127.0.0.1:5273',
-    'https://mellon.taildb6c11.ts.net',
+    'http://localhost:4173',
+    'http://127.0.0.1:4173',
     'https://api.kodice.nomosludens.ia.br',
     'https://kodice.nomosludens.ia.br',
   ];
+  const envOrigins = (process.env.KODICE_ALLOWED_ORIGINS || '')
+    .split(',')
+    .map(o => o.trim())
+    .filter(Boolean);
+  const allowedOrigins = options.allowedOrigins || [...defaultOrigins, ...envOrigins];
+
+  // KODICE_ALLOW_PRIVATE_NETWORK=1 enables Access-Control-Allow-Private-Network header.
+  const allowPrivateNetwork = options.allowPrivateNetwork
+    || process.env.KODICE_ALLOW_PRIVATE_NETWORK === '1'
+    || process.env.KODICE_ALLOW_PRIVATE_NETWORK === 'true';
+
   const catalogPath = options.catalogPath || path.resolve(process.cwd(), 'legal/catalog.json');
   const corpusPath = options.corpusPath || path.resolve(process.cwd(), 'legal/corpus');
   const sourcesPath = options.sourcesPath || path.resolve(process.cwd(), 'legal/sources');
@@ -66,12 +80,12 @@ export function createLegalApiHandler(db, options = {}) {
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', '*');
-      res.setHeader('Access-Control-Allow-Private-Network', 'true');
+      if (allowPrivateNetwork) res.setHeader('Access-Control-Allow-Private-Network', 'true');
     } else if (!origin) {
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', '*');
-      res.setHeader('Access-Control-Allow-Private-Network', 'true');
+      if (allowPrivateNetwork) res.setHeader('Access-Control-Allow-Private-Network', 'true');
     }
 
     if (req.method === 'OPTIONS') {
@@ -647,7 +661,10 @@ export function startLegalApiServer(dbPath, port = 4520, host = '127.0.0.1') {
 }
 
 if (process.argv[1] && process.argv[1].endsWith('legal-api-server.mjs')) {
-  const dbPath = process.env.KODICE_LEGAL_DB || '/var/lib/kodice/legal.db';
+  const defaultDbPath = existsSync('/var/lib/kodice/legal.db')
+    ? '/var/lib/kodice/legal.db'
+    : path.resolve(process.cwd(), 'legal.db');
+  const dbPath = process.env.KODICE_LEGAL_DB || defaultDbPath;
   const port = parseInt(process.env.KODICE_LEGAL_PORT || '4520', 10);
   const host = process.env.KODICE_LEGAL_HOST || '127.0.0.1';
 

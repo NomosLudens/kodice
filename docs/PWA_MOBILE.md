@@ -48,6 +48,9 @@ Nunca cacheado:
 - requisições com `Authorization`;
 - arquivos EPUB/PDF/TXT e blobs dos livros.
 
-## Pendência CSP
+## Segurança e CSP
 
-Este PR não adiciona CSP rígida. EPUB.js, PDF.js, blobs e iframes precisam ser validados em Safari iPhone e Chrome Android antes de definir uma política restritiva.
+A política de segurança (CSP) é entregue em `public/_headers` e protege o app shell estático:
+- `connect-src 'self' https://api.kodice.nomosludens.ia.br https://*.supabase.co wss://*.supabase.co;`
+- Não depende de hosts privados ou túneis internos por padrão.
+- Bloqueia conexões não autorizadas e vazamentos de credenciais.

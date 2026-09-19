@@ -2,7 +2,7 @@ name: ci
 
 on:
   push:
-    branches: [master, feat/**, fix/**, chore/**, release/**]
+    branches: [master, feat/**, fix/**, chore/**, release/**, showcase/**]
   pull_request:
 
 permissions:
@@ -23,19 +23,11 @@ jobs:
       - name: Install
         run: bun install --frozen-lockfile
 
-      - name: Rebuild legal corpus from scratch
-        run: |
-          rm -f ./legal.db ./legal.db-shm ./legal.db-wal
-          bun run legal:build:db
+      - name: Verify Reproducibility (Corpus, SQLite, Boundaries, Tests, Build)
+        run: bun run reproduce:verify
 
       - name: Build + run all bundled gates
         run: bun run build
-
-      - name: Verify legal corpus integrity
-        run: bun run verify:legal
-
-      - name: Verify product boundaries
-        run: bun run verify:boundaries
 
       - name: Verify PWA assets
         run: bun run verify:pwa
