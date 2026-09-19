@@ -19,6 +19,12 @@ if (!existsSync(dbPath)) {
   console.warn('  bun run reproduce:verify\n');
 }
 
+const webPort = process.env.VITE_PORT || '';
+const extraOrigins = [
+  process.env.KODICE_ALLOWED_ORIGINS,
+  webPort ? `http://localhost:${webPort},http://127.0.0.1:${webPort}` : '',
+].filter(Boolean).join(',');
+
 const apiProcess = spawn('node', ['scripts/legal-api-server.mjs'], {
   cwd: rootDir,
   env: {
@@ -26,6 +32,7 @@ const apiProcess = spawn('node', ['scripts/legal-api-server.mjs'], {
     KODICE_LEGAL_DB: dbPath,
     KODICE_LEGAL_PORT: port,
     KODICE_LEGAL_HOST: host,
+    ...(extraOrigins ? { KODICE_ALLOWED_ORIGINS: extraOrigins } : {}),
   },
   stdio: ['inherit', 'pipe', 'pipe'],
 });
@@ -36,7 +43,9 @@ apiProcess.stderr.on('data', (d) => process.stderr.write(`[api:err] ${d}`));
 // Detect runner (bun or npx/node)
 const isBun = typeof process.versions.bun !== 'undefined' || process.env.npm_config_user_agent?.includes('bun');
 const webCmd = isBun ? 'bun' : 'npx';
-const webArgs = isBun ? ['run', 'dev'] : ['vite'];
+const webArgs = isBun
+  ? ['run', 'dev', ...(webPort ? ['--', '--port', String(webPort)] : [])]
+  : ['vite', ...(webPort ? ['--port', String(webPort)] : [])];
 
 const webProcess = spawn(webCmd, webArgs, {
   cwd: rootDir,
